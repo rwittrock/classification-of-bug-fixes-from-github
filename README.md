@@ -1,7 +1,19 @@
 # Engineering Research Project
-Use Github fine grained token in .env file to scrape data using data-mining/src/main.py
 
-The resulting data looks something like:
+## GitHub Token Setup
+
+Use a **GitHub fine-grained token** stored in a `.env` file to authenticate and scrape repository data.
+
+## Data Collection
+
+Run the data scraper:
+python data-mining/src/main.py
+
+### Output Format
+
+The resulting data will look like:
+
+```json
 {
   "repo_name": "3b1b/manim",
   "commits": [
@@ -17,5 +29,7 @@ The resulting data looks something like:
     }
   ]
 }
+```
 
-To classify fixes use regex/main.py. Results show up in the terminal.
+To classify commit messages and code changes, run:
+python regex/main.py
