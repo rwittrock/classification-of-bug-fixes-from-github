@@ -1,0 +1,15 @@
+{
+  "repo_name": "goauthentik/authentik",
+  "commits": [
+    {
+      "sha": "ae3d3d0295c970995c68da5c2f6c6ebc3b9a40ee",
+      "message": "fix TypeError: can only concatenate list (not \"str\") to list",
+      "changes": [
+        {
+          "file": "passbook/core/settings.py",
+          "patch": "@@ -34,7 +34,7 @@\n # SECURITY WARNING: don't run with debug turned on in production!\n DEBUG = CONFIG.get('debug')\n INTERNAL_IPS = ['127.0.0.1']\n-ALLOWED_HOSTS = CONFIG.get('domains', []) + CONFIG.get('primary_domain')\n+ALLOWED_HOSTS = CONFIG.get('domains', []) + [CONFIG.get('primary_domain')]\n SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')\n \n LOGIN_URL = 'passbook_core:auth-login'"
+        }
+      ]
+    }
+  ]
+}

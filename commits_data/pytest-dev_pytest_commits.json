@@ -1,0 +1,65 @@
+{
+  "repo_name": "pytest-dev/pytest",
+  "commits": [
+    {
+      "sha": "a4adf511fc1e275880c7c4bd68c376eab3435437",
+      "message": "Fix TypeError\n\ncan only concatenate str (not \"bytes\") to str",
+      "changes": [
+        {
+          "file": "src/_pytest/pastebin.py",
+          "patch": "@@ -72,7 +72,7 @@ def create_new_paste(contents):\n     if m:\n         return \"{}/show/{}\".format(url, m.group(1))\n     else:\n-        return \"bad response: \" + response\n+        return \"bad response: \" + response.decode(\"utf-8\")\n \n \n def pytest_terminal_summary(terminalreporter):"
+        }
+      ]
+    },
+    {
+      "sha": "8937e39afde63016c24bc32b6569a478358c8a57",
+      "message": "Raise TypeError instead of NotImplementedError if not list type",
+      "changes": [
+        {
+          "file": "src/_pytest/junitxml.py",
+          "patch": "@@ -71,7 +71,7 @@ def merge_family(left, right):\n     for kl, vl in left.items():\n         for kr, vr in right.items():\n             if not isinstance(vl, list):\n-                raise NotImplementedError(type(vl))\n+                raise TypeError(type(vl))\n             result[kl] = vl + vr\n     left.update(result)\n "
+        }
+      ]
+    },
+    {
+      "sha": "ebc7346be4da2d56e3c6f1686f545105f70b9c89",
+      "message": "Raise TypeError for types that can't be compared to arrays.",
+      "changes": [
+        {
+          "file": "_pytest/python_api.py",
+          "patch": "@@ -66,7 +66,7 @@ def __eq__(self, actual):\n         try:\n             actual = np.asarray(actual)\n         except:\n-            raise ValueError(\"cannot compare '{0}' to numpy.ndarray\".format(actual))\n+            raise TypeError(\"cannot compare '{0}' to numpy.ndarray\".format(actual))\n \n         if actual.shape != self.expected.shape:\n             return False"
+        }
+      ]
+    },
+    {
+      "sha": "65be1231b12367de3ff14b5718125d12a54b26b1",
+      "message": "AttributeError chaining bug #1944 fix",
+      "changes": [
+        {
+          "file": "_pytest/python.py",
+          "patch": "@@ -205,11 +205,10 @@ class PyobjContext(object):\n class PyobjMixin(PyobjContext):\n     def obj():\n         def fget(self):\n-            try:\n-                return self._obj\n-            except AttributeError:\n+            obj = getattr(self, '_obj', None)\n+            if obj is None:\n                 self._obj = obj = self._getobj()\n-                return obj\n+            return obj\n         def fset(self, value):\n             self._obj = value\n         return property(fget, fset, None, \"underlying python object\")"
+        }
+      ]
+    },
+    {
+      "sha": "cf9a09e988fdfb4478e653072e0584fb8a8fa248",
+      "message": "catch IndexError exceptions when getting exception source location",
+      "changes": [
+        {
+          "file": "_pytest/python.py",
+          "patch": "@@ -1774,7 +1774,7 @@ def formatrepr(self):\n             fspath, lineno = getfslineno(function)\n             try:\n                 lines, _ = inspect.getsourcelines(get_real_func(function))\n-            except IOError:\n+            except (IOError, IndexError):\n                 error_msg = \"file %s, line %s: source code not available\"\n                 addline(error_msg % (fspath, lineno+1))\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "ded88700a3316edc37335c07ec3fb9915847a38d",
+      "message": "Fix TypeError crash on failed imports under py3.3.\n\nStarting with Python 3.3, NamespacePath passed to importlib hooks\nseem to have lost the ability to be accessed by index.\n\nWe wrap the index access in a try..except and wrap the path in a\nlist if it happens.\n\nFixes #383.",
+      "changes": [
+        {
+          "file": "_pytest/assertion/rewrite.py",
+          "patch": "@@ -57,7 +57,12 @@ def find_module(self, name, path=None):\n         lastname = names[-1]\n         pth = None\n         if path is not None and len(path) == 1:\n-            pth = path[0]\n+            try:\n+                pth = path[0]\n+            except TypeError:\n+                # Starting with Python 3.3, `path` started being unsubscriptable, we have to wrap it\n+                # in a list.\n+                pth = list(path)[0]\n         if pth is None:\n             try:\n                 fd, fn, desc = imp.find_module(lastname, path)"
+        }
+      ]
+    }
+  ]
+}

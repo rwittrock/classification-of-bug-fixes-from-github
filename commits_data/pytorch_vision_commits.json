@@ -1,0 +1,25 @@
+{
+  "repo_name": "pytorch/vision",
+  "commits": [
+    {
+      "sha": "138b5c259578e2d4e2e2c4f538beac7a1652a551",
+      "message": "Update fakedata.py (#780)\n\nRaise an `IndexError` for `FakeData.__getitem__()` if the index would be out of range.",
+      "changes": [
+        {
+          "file": "torchvision/datasets/fakedata.py",
+          "patch": "@@ -37,6 +37,8 @@ def __getitem__(self, index):\n             tuple: (image, target) where target is class_index of the target class.\n         \"\"\"\n         # create random image that is consistent with the index id\n+        if index >= len(self):\n+            raise IndexError(\"{} index out of range\".format(self.__class__.__name__))\n         rng_state = torch.get_rng_state()\n         torch.manual_seed(index + self.random_offset)\n         img = torch.randn(*self.image_size)"
+        }
+      ]
+    },
+    {
+      "sha": "83263d8571c9cdd46f250a7986a5219ed29d19a1",
+      "message": "Fix LSUN IndexError (#177)",
+      "changes": [
+        {
+          "file": "torchvision/datasets/lsun.py",
+          "patch": "@@ -114,7 +114,7 @@ def __getitem__(self, index):\n             if index < ind:\n                 break\n             target += 1\n-            sub += ind\n+            sub = ind\n \n         db = self.dbs[target]\n         index = index - sub"
+        }
+      ]
+    }
+  ]
+}

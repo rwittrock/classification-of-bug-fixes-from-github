@@ -1,0 +1,105 @@
+{
+  "repo_name": "wagtail/wagtail",
+  "commits": [
+    {
+      "sha": "339b6752af88426cb4c69b964e403f57174c5ecf",
+      "message": "Fix AttributeError on Cloudflare cache invalidation (#5150)",
+      "changes": [
+        {
+          "file": "wagtail/contrib/frontend_cache/backends.py",
+          "patch": "@@ -100,7 +100,7 @@ def purge_batch(self, urls):\n \n         except requests.exceptions.HTTPError as e:\n             for url in urls:\n-                logger.error(\"Couldn't purge '%s' from Cloudflare. HTTPError: %d %s\", url, e.response.status_code, e.message)\n+                logging.exception(\"Couldn't purge '%s' from Cloudflare. HTTPError: %d\", url, e.response.status_code)\n             return\n \n         if response_json['success'] is False:"
+        }
+      ]
+    },
+    {
+      "sha": "068ab0b981d0df1ff48bcc847d23601bb1a1ba25",
+      "message": "Prevents a NameError.",
+      "changes": [
+        {
+          "file": "wagtail/contrib/postgres_search/backend.py",
+          "patch": "@@ -273,11 +273,11 @@ def search(self, config, start, stop, score_field=None):\n                              weight=get_weight(search_field.boost))\n                 for field_lookup, search_field in self.search_fields.items()\n                 if not self.is_autocomplete or search_field.partial_match)\n+        rank_expression = SearchRank(vector, search_query,\n+                                     weights=self.sql_weights)\n         queryset = self.queryset.annotate(\n             _vector_=vector).filter(_vector_=search_query)\n         if self.order_by_relevance:\n-            rank_expression = SearchRank(vector, search_query,\n-                                         weights=self.sql_weights)\n             queryset = queryset.order_by(rank_expression.desc(), '-pk')\n         elif not queryset.query.order_by:\n             # Adds a default ordering to avoid issue #3729."
+        }
+      ]
+    },
+    {
+      "sha": "fb06f6c0c19182470b285aa1817f0afb211ecbac",
+      "message": "Fixed #3078 -- Add empty panel attributes\n\nAccessing any of these attributes before importing `wagtailadmin.edit_handlers` would raise a `AttributeError`. In some cases this would mask the actual error; e.g. forgetting to import `wagtailadmin.edit_handlers`.",
+      "changes": [
+        {
+          "file": "wagtail/wagtailcore/models.py",
+          "patch": "@@ -396,6 +396,12 @@ class Page(six.with_metaclass(PageBase, AbstractPage, index.Indexed, Clusterable\n     # Do not allow plain Page instances to be created through the Wagtail admin\n     is_creatable = False\n \n+    # Define these attributes early to avoid masking errors. (Issue #3078)\n+    # The canonical definition is in wagtailadmin.edit_handlers.\n+    content_panels = []\n+    promote_panels = []\n+    settings_panels = []\n+\n     def __init__(self, *args, **kwargs):\n         super(Page, self).__init__(*args, **kwargs)\n         if not self.id and not self.content_type_id:"
+        }
+      ]
+    },
+    {
+      "sha": "0467e4795154e0d887b9e84ba5d42908e4236e63",
+      "message": "Fixes RoutablePage throws a TypeError (#2584) (#2585)\n\n* Fixes RoutablePage throws a TypeError (#2584)\r\n\r\nFIX: RoutablePage throws a TypeError if index route is not set\r\n\r\n* Reorder imports to prevent isort fail",
+      "changes": [
+        {
+          "file": "wagtail/tests/routablepage/models.py",
+          "patch": "@@ -32,3 +32,7 @@ def external_view(self, *args, **kwargs):\n     @route(r'^override-name-test/$', name='name_overridden')\n     def override_name_test(self, request):\n         pass\n+\n+\n+class RoutablePageWithoutIndexRouteTest(RoutablePage):\n+    pass"
+        }
+      ]
+    },
+    {
+      "sha": "357a5c7449f3a1f3d20ee9b091082d16f143d42f",
+      "message": "Fixed TypeError raised by `richtext` template tag",
+      "changes": [
+        {
+          "file": "wagtail/wagtailcore/templatetags/wagtailcore_tags.py",
+          "patch": "@@ -35,4 +35,6 @@ def wagtail_version():\n \n @register.filter\n def richtext(value):\n-    return mark_safe('<div class=\"rich-text\">' + expand_db_html(value) + '</div>')\n+    if value:\n+        return mark_safe('<div class=\"rich-text\">' + expand_db_html(value) + '</div>')\n+    return ''"
+        }
+      ]
+    },
+    {
+      "sha": "6eb119596e101c507a4f475cccaff9de1b7696f9",
+      "message": "Fix 'TypeError at /admin/pages/ID/edit/preview/ serve_subpage() takes exactly 2 arguments (1 given)' error for RoutablePage previews",
+      "changes": [
+        {
+          "file": "wagtail/contrib/wagtailroutablepage/models.py",
+          "patch": "@@ -67,7 +67,7 @@ def serve(self, request, view, args, kwargs):\n \n     def serve_preview(self, request, mode_name):\n         view, args, kwargs = self.resolve_subpage('/')\n-        return view(*args, **kwargs)\n+        return view(request, *args, **kwargs)\n \n \n class RoutablePage(RoutablePageMixin, Page):"
+        }
+      ]
+    },
+    {
+      "sha": "75b76be06369fdddeaa2d111618dcfda72cf3cc1",
+      "message": "Fix 'TypeError at /admin/pages/ID/edit/preview/ serve_subpage() takes exactly 2 arguments (1 given)' error for RoutablePage previews",
+      "changes": [
+        {
+          "file": "wagtail/contrib/wagtailroutablepage/models.py",
+          "patch": "@@ -67,7 +67,7 @@ def serve(self, request, view, args, kwargs):\n \n     def serve_preview(self, request, mode_name):\n         view, args, kwargs = self.resolve_subpage('/')\n-        return view(*args, **kwargs)\n+        return view(self, *args, **kwargs)\n \n \n class RoutablePage(RoutablePageMixin, Page):"
+        }
+      ]
+    },
+    {
+      "sha": "50663e47db56f450cf5c840895d5209f18312f82",
+      "message": "Fixed JSON Oembed error on Python 3\n\n=> TypeError: the JSON object must be str, not 'bytes'",
+      "changes": [
+        {
+          "file": "wagtail/wagtailembeds/embeds.py",
+          "patch": "@@ -114,7 +114,7 @@ def oembed(url, max_width=None):\n         r = urllib_request.urlopen(request)\n     except URLError:\n         raise EmbedNotFoundException\n-    oembed = json.loads(r.read())\n+    oembed = json.loads(r.read().decode('utf-8'))\n \n     # Convert photos into HTML\n     if oembed['type'] == 'photo':"
+        }
+      ]
+    },
+    {
+      "sha": "a7afdd52aab8675f72979c54d8d233bebc48f616",
+      "message": "Catch LookupError when finding target model in PageChooserPanel",
+      "changes": [
+        {
+          "file": "wagtail/wagtailadmin/edit_handlers.py",
+          "patch": "@@ -491,7 +491,11 @@ def target_content_type(cls):\n                     except ValueError:\n                         raise ImproperlyConfigured(\"The page_type passed to PageChooserPanel must be of the form 'app_label.model_name'\")\n \n-                    page_type = get_model(app_label, model_name)\n+                    try:\n+                        page_type = get_model(app_label, model_name)\n+                    except LookupError:\n+                        page_type = None\n+\n                     if page_type is None:\n                         raise ImproperlyConfigured(\"PageChooserPanel refers to model '%s' that has not been installed\" % cls.page_type)\n                 else:"
+        }
+      ]
+    },
+    {
+      "sha": "5474f7ef397d70e8e4c9259727e9492c4a6287dc",
+      "message": "Embeds: Catch TypeErrors when casting width and height to integers",
+      "changes": [
+        {
+          "file": "wagtail/wagtailembeds/embeds.py",
+          "patch": "@@ -155,12 +155,12 @@ def get_embed(url, max_width=None, finder=None):\n     # Make sure width and height are valid integers before inserting into database\n     try:\n         embed_dict['width'] = int(embed_dict['width'])\n-    except ValueError:\n+    except (TypeError, ValueError):\n         embed_dict['width'] = None\n \n     try:\n         embed_dict['height'] = int(embed_dict['height'])\n-    except ValueError:\n+    except (TypeError, ValueError):\n         embed_dict['height'] = None\n \n     # Create database record"
+        }
+      ]
+    }
+  ]
+}

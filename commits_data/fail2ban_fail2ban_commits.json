@@ -1,0 +1,35 @@
+{
+  "repo_name": "fail2ban/fail2ban",
+  "commits": [
+    {
+      "sha": "2d2d4cf1855f6edc5a3a4738d8789f9c27719e78",
+      "message": "amend to c2d2e79b0d48bf66b04c3772c2419f30a4b1f9db: fixed sporadically bug in getBanListExtendedCymruInfo:\n    except dns.resolver.NXDOMAIN:\nUnboundLocalError: local variable 'dns' referenced before assignment",
+      "changes": [
+        {
+          "file": "fail2ban/server/banmanager.py",
+          "patch": "@@ -135,6 +135,7 @@ def handleBlankResult(value):\n \tdef getBanListExtendedCymruInfo(self, timeout=10):\n \t\treturn_dict = {\"asn\": [], \"country\": [], \"rir\": []}\n \t\tif not hasattr(self, 'dnsResolver'):\n+\t\t\tglobal dns\n \t\t\ttry:\n \t\t\t\timport dns.exception\n \t\t\t\timport dns.resolver"
+        }
+      ]
+    },
+    {
+      "sha": "8893473d82f3732cfec6c7e302e1b94ff6b62b99",
+      "message": "pypy fix: KeyError instead of IndexError by missing group",
+      "changes": [
+        {
+          "file": "fail2ban/server/failregex.py",
+          "patch": "@@ -274,7 +274,7 @@ def getFailID(self, groups=FAILURE_ID_GROPS):\n \t\tfor grp in groups:\n \t\t\ttry:\n \t\t\t\tfid = self._matchCache.group(grp)\n-\t\t\texcept IndexError:\n+\t\t\texcept (IndexError, KeyError):\n \t\t\t\tcontinue\n \t\t\tif fid is not None:\n \t\t\t\tbreak"
+        }
+      ]
+    },
+    {
+      "sha": "1f1fe254a63a6ba2c28c4071b6b480aa9d5b631c",
+      "message": "DOC: document PyPy version that use KeyError instead of IndexError",
+      "changes": [
+        {
+          "file": "fail2ban/server/failregex.py",
+          "patch": "@@ -136,7 +136,7 @@ def getSkippedLines(self):\n \t\t\t\tif self._matchCache.group(\"skiplines%i\" % n) is not None:\n \t\t\t\t\tskippedLines += self._matchCache.group(\"skiplines%i\" % n)\n \t\t\t\tn += 1\n-\t\t\t# KeyError is because of PyPy\n+\t\t\t# KeyError is because of PyPy issue1665 affecting pypy <= 2.2.1 \n \t\t\texcept (IndexError, KeyError):\n \t\t\t\tbreak\n \t\treturn skippedLines.splitlines(False)"
+        }
+      ]
+    }
+  ]
+}

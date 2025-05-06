@@ -1,0 +1,95 @@
+{
+  "repo_name": "yt-dlp/yt-dlp",
+  "commits": [
+    {
+      "sha": "a75419586bb900df711de49adf5047afa9f083ef",
+      "message": "[openload] Remove a confusing exception\n\nIf phantomjs is not installed, there's an error besides the missing\nphantomjs exception:\n\nException ignored in: <bound method PhantomJSwrapper.__del__ of <youtube_dl.extractor.openload.PhantomJSwrapper object at 0x7f8ad5e78278>>\nTraceback (most recent call last):\n  File \"/home/yen/Projects/youtube-dl/youtube_dl/extractor/openload.py\", line 142, in __del__\n    os.remove(self._TMP_FILES[name].name)\nAttributeError: 'PhantomJSwrapper' object has no attribute '_TMP_FILES'",
+      "changes": [
+        {
+          "file": "youtube_dl/extractor/openload.py",
+          "patch": "@@ -112,6 +112,8 @@ def _version():\n         return get_exe_version('phantomjs', version_re=r'([0-9.]+)')\n \n     def __init__(self, extractor, required_version=None, timeout=10000):\n+        self._TMP_FILES = {}\n+\n         self.exe = check_executable('phantomjs', ['-v'])\n         if not self.exe:\n             raise ExtractorError('PhantomJS executable not found in PATH, '\n@@ -130,7 +132,6 @@ def __init__(self, extractor, required_version=None, timeout=10000):\n         self.options = {\n             'timeout': timeout,\n         }\n-        self._TMP_FILES = {}\n         for name in self._TMP_FILE_NAMES:\n             tmp = tempfile.NamedTemporaryFile(delete=False)\n             tmp.close()\n@@ -140,7 +141,7 @@ def __del__(self):\n         for name in self._TMP_FILE_NAMES:\n             try:\n                 os.remove(self._TMP_FILES[name].name)\n-            except (IOError, OSError):\n+            except (IOError, OSError, KeyError):\n                 pass\n \n     def _save_cookies(self, url):"
+        }
+      ]
+    },
+    {
+      "sha": "097eba019d0d5cab93e9ce66e1b727b782d48250",
+      "message": "bug fix for extractor xiami.py\n\nBefore applying this patch, when downloading resources from xiami.com, it crashes with these:\r\nTraceback (most recent call last):\r\n  File \"/home/phi/.local/bin/youtube-dl\", line 11, in <module>\r\n    sys.exit(main())\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/__init__.py\", line 433, in main\r\n    _real_main(argv)\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/__init__.py\", line 423, in _real_main\r\n    retcode = ydl.download(all_urls)\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/YoutubeDL.py\", line 1786, in download\r\n    url, force_generic_extractor=self.params.get('force_generic_extractor', False))\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/YoutubeDL.py\", line 691, in extract_info\r\n    ie_result = ie.extract(url)\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/extractor/common.py\", line 347, in extract\r\n    return self._real_extract(url)\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/extractor/xiami.py\", line 116, in _real_extract\r\n    return self._extract_tracks(self._match_id(url))[0]\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/extractor/xiami.py\", line 43, in _extract_tracks\r\n    '%s/%s%s' % (self._API_BASE_URL, item_id, '/type/%s' % typ if typ else ''), item_id)\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/extractor/common.py\", line 562, in _download_json\r\n    json_string, video_id, transform_source=transform_source, fatal=fatal)\r\n  File \"/home/phi/.local/lib/python3.5/site-packages/youtube_dl/extractor/common.py\", line 568, in _parse_json\r\n    return json.loads(json_string)\r\n  File \"/usr/lib/python3.5/json/__init__.py\", line 312, in loads\r\n    s.__class__.__name__))\r\nTypeError: the JSON object must be str, not 'NoneType'\r\n\r\nThis patch solves exactly this problem.",
+      "changes": [
+        {
+          "file": "youtube_dl/extractor/xiami.py",
+          "patch": "@@ -13,6 +13,7 @@ def _download_webpage(self, *args, **kwargs):\n         webpage = super(XiamiBaseIE, self)._download_webpage(*args, **kwargs)\n         if '>Xiami is currently not available in your country.<' in webpage:\n             self.raise_geo_restricted('Xiami is currently not available in your country')\n+        return webpage\n \n     def _extract_track(self, track, track_id=None):\n         title = track['title']"
+        }
+      ]
+    },
+    {
+      "sha": "89924f8230987f9d6405d6487a7914197d42b12e",
+      "message": "[devscripts/make_issue_template] Fix NameError under python3",
+      "changes": [
+        {
+          "file": "devscripts/make_issue_template.py",
+          "patch": "@@ -16,6 +16,8 @@ def main():\n     with io.open(infile, encoding='utf-8') as inf:\n         issue_template_tmpl = inf.read()\n \n+    __version__ = None\n+\n     # Get the version from youtube_dl/version.py without importing the package\n     exec(compile(open('youtube_dl/version.py').read(),\n                  'youtube_dl/version.py', 'exec'))"
+        }
+      ]
+    },
+    {
+      "sha": "04e24906be1dd0b6626b50de7e65609219a88116",
+      "message": "[cspan] Initialize 'video_type' to avoid 'UnboundLocalError' exceptions (#8032)",
+      "changes": [
+        {
+          "file": "youtube_dl/extractor/cspan.py",
+          "patch": "@@ -58,6 +58,7 @@ class CSpanIE(InfoExtractor):\n \n     def _real_extract(self, url):\n         video_id = self._match_id(url)\n+        video_type = None\n         webpage = self._download_webpage(url, video_id)\n         matches = re.search(r'data-(prog|clip)id=\\'([0-9]+)\\'', webpage)\n         if matches:\n@@ -70,6 +71,8 @@ def _real_extract(self, url):\n                 title = self._og_search_title(webpage)\n                 surl = smuggle_url(senate_isvp_url, {'force_title': title})\n                 return self.url_result(surl, 'SenateISVP', video_id, title)\n+        if video_type is None or video_id is None:\n+            raise ExtractorError('unable to find video id and type')\n \n         def get_text_attr(d, attr):\n             return d.get(attr, {}).get('#text')"
+        }
+      ]
+    },
+    {
+      "sha": "374c761e77b09b07918f525ad74724650309015f",
+      "message": "[FFmpegPostProcessor] Default of prefer ffmpeg\n\nWhen no `downloader` is passed to `FFmpegPostProcessor`\r\nan exception was raised trying to get the prefer ffmpeg param.\r\n\r\n    AttributeError: 'NoneType' object has no attribute 'params'\r\n\r\nThis fixes and defaults to `False`.",
+      "changes": [
+        {
+          "file": "youtube_dl/postprocessor/ffmpeg.py",
+          "patch": "@@ -52,14 +52,15 @@ def get_versions(downloader=None):\n \n     def _determine_executables(self):\n         programs = ['avprobe', 'avconv', 'ffmpeg', 'ffprobe']\n-        prefer_ffmpeg = self._downloader.params.get('prefer_ffmpeg', False)\n+        prefer_ffmpeg = False\n \n         self.basename = None\n         self.probe_basename = None\n \n         self._paths = None\n         self._versions = None\n         if self._downloader:\n+            prefer_ffmpeg = self._downloader.params.get('prefer_ffmpeg', False)\n             location = self._downloader.params.get('ffmpeg_location')\n             if location is not None:\n                 if not os.path.exists(location):"
+        }
+      ]
+    },
+    {
+      "sha": "bb8e55366289e0c129ef85abb8c1ac1cbae86a66",
+      "message": "[YoutubeDL] format spec: Do not fail when a filter gives an empty result\n\nFor example with 'best[height<40]' we ended getting a 'IndexError: list index out of range'.",
+      "changes": [
+        {
+          "file": "youtube_dl/YoutubeDL.py",
+          "patch": "@@ -1005,6 +1005,9 @@ def selector_function(formats):\n                 format_spec = selector.selector\n \n                 def selector_function(formats):\n+                    formats = list(formats)\n+                    if not formats:\n+                        return\n                     if format_spec == 'all':\n                         for f in formats:\n                             yield f"
+        }
+      ]
+    },
+    {
+      "sha": "0c8662d2b6f033ad42f1cc97989d4975629b524b",
+      "message": "[youtube] Fix a TypeError caused by 4da31bd56629054497634d041035e4bd6fcfacbb",
+      "changes": [
+        {
+          "file": "youtube_dl/extractor/youtube.py",
+          "patch": "@@ -816,7 +816,7 @@ def decrypt_sig(mobj):\n                         'filesize': filesize,\n                         'fps': int_or_none(r.attrib.get('frameRate')),\n                     }\n-                    if len(segment_list):\n+                    if segment_list is not None:\n                         f.update({\n                             'initialization_url': segment_list.find('{urn:mpeg:DASH:schema:MPD:2011}Initialization').attrib['sourceURL'],\n                             'segment_urls': [segment.attrib.get('media') for segment in segment_list.findall('{urn:mpeg:DASH:schema:MPD:2011}SegmentURL')],"
+        }
+      ]
+    },
+    {
+      "sha": "4a98cdbf3b19b07c7a885d348e79ddf79318f133",
+      "message": "YoutubeDL: set the 'params' property before any message/warning/error is sent (fixes #1840)\n\nIf it sets the 'restrictfilenames' param, it will first report a warning. It will try to get the logger from the 'params' property, which would be set at that moment to None, raising the error 'AttributeError: 'NoneType' object has no attribute 'get''",
+      "changes": [
+        {
+          "file": "youtube_dl/YoutubeDL.py",
+          "patch": "@@ -155,6 +155,7 @@ def __init__(self, params={}):\n         self._download_retcode = 0\n         self._num_downloads = 0\n         self._screen_file = [sys.stdout, sys.stderr][params.get('logtostderr', False)]\n+        self.params = params\n \n         if (sys.version_info >= (3,) and sys.platform != 'win32' and\n                 sys.getfilesystemencoding() in ['ascii', 'ANSI_X3.4-1968']\n@@ -164,9 +165,8 @@ def __init__(self, params={}):\n                 u'Assuming --restrict-filenames since file system encoding '\n                 u'cannot encode all charactes. '\n                 u'Set the LC_ALL environment variable to fix this.')\n-            params['restrictfilenames'] = True\n+            self.params['restrictfilenames'] = True\n \n-        self.params = params\n         self.fd = FileDownloader(self, self.params)\n \n         if '%(stitle)s' in self.params.get('outtmpl', ''):"
+        }
+      ]
+    },
+    {
+      "sha": "4a2080e4077e9e12c860d82a4d2eebc75c1ea54b",
+      "message": "[youku] better error handling\n\nblocked videos used to cause death by TypeError, now we report what the\nserver says",
+      "changes": [
+        {
+          "file": "youtube_dl/extractor/youku.py",
+          "patch": "@@ -66,6 +66,12 @@ def _real_extract(self, url):\n         self.report_extraction(video_id)\n         try:\n             config = json.loads(jsondata)\n+            error_code = config['data'][0].get('error_code')\n+            if error_code:\n+                # -8 means blocked outside China.\n+                error = config['data'][0].get('error')  # Chinese and English, separated by newline.\n+                raise ExtractorError(error or u'Server reported error %i' % error_code,\n+                    expected=True)\n \n             video_title =  config['data'][0]['title']\n             seed = config['data'][0]['seed']\n@@ -89,6 +95,7 @@ def _real_extract(self, url):\n \n             fileid = config['data'][0]['streamfileids'][format]\n             keys = [s['k'] for s in config['data'][0]['segs'][format]]\n+            # segs is usually a dictionary, but an empty *list* if an error occured.\n         except (UnicodeDecodeError, ValueError, KeyError):\n             raise ExtractorError(u'Unable to extract info section')\n "
+        }
+      ]
+    }
+  ]
+}

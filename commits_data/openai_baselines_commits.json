@@ -1,0 +1,15 @@
+{
+  "repo_name": "openai/baselines",
+  "commits": [
+    {
+      "sha": "4ed1350326153a8dcd43ea599bff9c9925423c8a",
+      "message": "Fixed TypeError on creating atari vec envs (#671)",
+      "changes": [
+        {
+          "file": "baselines/common/cmd_util.py",
+          "patch": "@@ -32,7 +32,8 @@ def make_thunk(rank):\n             subrank = rank,\n             seed=seed,\n             reward_scale=reward_scale,\n-            gamestate=gamestate\n+            gamestate=gamestate,\n+            wrapper_kwargs=wrapper_kwargs\n         )\n \n     set_global_seeds(seed)"
+        }
+      ]
+    }
+  ]
+}

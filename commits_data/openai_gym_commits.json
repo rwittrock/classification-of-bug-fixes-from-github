@@ -1,0 +1,15 @@
+{
+  "repo_name": "openai/gym",
+  "commits": [
+    {
+      "sha": "e3548d62aa67472f291f6d3c0c8beca9813d6032",
+      "message": "Make it possible to step() in a newly created env, rather than throwing AttributeError",
+      "changes": [
+        {
+          "file": "gym/envs/toy_text/discrete.py",
+          "patch": "@@ -34,6 +34,7 @@ def __init__(self, nS, nA, P, isd):\n         self.P = P\n         self.isd = isd\n         self.lastaction=None # for rendering\n+        self._reset()\n \n     @property\n     def nS(self):"
+        }
+      ]
+    }
+  ]
+}

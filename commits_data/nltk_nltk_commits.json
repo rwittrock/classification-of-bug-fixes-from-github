@@ -1,0 +1,125 @@
+{
+  "repo_name": "nltk/nltk",
+  "commits": [
+    {
+      "sha": "e051dabef5f40154dc20744c6ea49d070e7390fc",
+      "message": "Fix error in grammar.CFG.eliminate_start\n\nPreviously, CFG.eliminate_start raised a TypeError whenever a new start symbol was actually required by the grammar. This change fixes that error.",
+      "changes": [
+        {
+          "file": "nltk/grammar.py",
+          "patch": "@@ -851,7 +851,7 @@ def eliminate_start(cls, grammar):\n             result.append(rule)\n         if need_to_add:\n             start = Nonterminal(\"S0_SIGMA\")\n-            result.append(Production(start, grammar.start()))\n+            result.append(Production(start, [grammar.start()]))\n             n_grammar = CFG(start, result)\n             return n_grammar\n         return grammar"
+        }
+      ]
+    },
+    {
+      "sha": "0abda43b066400e3eab2d2917ba7a54301e10735",
+      "message": "Add self for constants to avoid NameError\n\nTwo constants `IsLower` and `IsAlpha` were not correctly referenced in the later corresponding methods. This causes NameError. Avoiding this by referring to them with `self.` prefix.",
+      "changes": [
+        {
+          "file": "nltk/tokenize/moses.py",
+          "patch": "@@ -248,10 +248,10 @@ def restore_multidots(self, text):\n         return re.sub(r'DOTMULTI', r'.', text)\n \n     def islower(self, text):\n-        return not set(text).difference(set(IsLower))\n+        return not set(text).difference(set(self.IsLower))\n \n     def isalpha(self, text):\n-        return not set(text).difference(set(IsAlpha))\n+        return not set(text).difference(set(self.IsAlpha))\n \n     def has_numeric_only(self, text):\n         return bool(re.search(r'(.*)[\\s]+(\\#NUMERIC_ONLY\\#)', text))"
+        }
+      ]
+    },
+    {
+      "sha": "d5da9acdf9f1b9cb2afb500e0a69a99c20e1ca03",
+      "message": "fix the bug about check environment variable\n\nWhen we set environment variables about JAVA, we do as follows:\n JAVA_HOME: C:\\Program Files(x86)\\Java\\jdk1.8.0_60\nbut it will cause a LookupError.\nThis commit fix the bug by modifying the search path.",
+      "changes": [
+        {
+          "file": "nltk/internals.py",
+          "patch": "@@ -476,7 +476,11 @@ def find_file_iter(filename, env_vars=(), searchpath=(),\n                         yielded = True\n                         yield path_to_file\n                     # Check if the alternative is inside a 'file' directory\n-                    path_to_file = os.path.join(env_dir, 'file', alternative)\n+                    # path_to_file = os.path.join(env_dir, 'file', alternative)\n+\n+                    # Check if the alternative is inside a 'file' directory\n+                    path_to_file = os.path.join(env_dir, 'bin', alternative)\n+\n                     if os.path.isfile(path_to_file):\n                         if verbose:\n                             print('[Found %s: %s]' % (filename, path_to_file))"
+        }
+      ]
+    },
+    {
+      "sha": "5bbf4a16c93810955c3d7ba878f4cfb2271b06a1",
+      "message": "tgrep._build_tgrep_parser: NameError",
+      "changes": [
+        {
+          "file": "nltk/tgrep.py",
+          "patch": "@@ -621,7 +621,7 @@ def _build_tgrep_parser(set_parse_actions = True):\n                    tgrep_expr2 +\n                    pyparsing.ZeroOrMore(';' + (macro_defn | tgrep_expr)))\n     if set_parse_actions:\n-        node_label_use.setParseAction(_tgrep_node_label_use_action)\n+        tgrep_node_label_use.setParseAction(_tgrep_node_label_use_action)\n         macro_use.setParseAction(_tgrep_macro_use_action)\n         tgrep_node.setParseAction(_tgrep_node_action)\n         tgrep_node_expr2.setParseAction(_tgrep_label_node_action)"
+        }
+      ]
+    },
+    {
+      "sha": "536c37f604900d77dd23e7d17498f82a5bb82097",
+      "message": "Avoid an IndexError when dealing with empty strings\n\nFixes #778",
+      "changes": [
+        {
+          "file": "nltk/stem/snowball.py",
+          "patch": "@@ -3551,7 +3551,7 @@ def stem(self, word):\n                     word = word[:-len(suffix)]\n                     rv = rv[:-len(suffix)]\n \n-                    if word[-2:] == \"gu\" and rv[-1:] == \"u\":\n+                    if word[-2:] == \"gu\" and rv.endswith(\"u\"):\n                         word = word[:-1]\n                 else:\n                     word = word[:-len(suffix)]"
+        }
+      ]
+    },
+    {
+      "sha": "e800564e6584d37faee00b0eb109540bef713077",
+      "message": "Don't let spanish stemmer raise an IndexError",
+      "changes": [
+        {
+          "file": "nltk/test/unit/test_stem.py",
+          "patch": "@@ -28,6 +28,9 @@ def test_spanish(self):\n \n         assert stemmer.stem(\"Visionado\") == 'vision'\n \n+        # The word 'algue' was raising an IndexError\n+        assert stemmer.stem(\"algue\") == 'algu'\n+\n     def test_short_strings_bug(self):\n         stemmer = SnowballStemmer('english')\n         assert stemmer.stem(\"y's\") == 'y'"
+        }
+      ]
+    },
+    {
+      "sha": "29cf716a3fe4c598854448a9b3807ce74b98b2ba",
+      "message": "nltk.sem.chat80: raise ImportError exception when sqlite3 is not available.\n\nThis code previously raised NameError in such cases.",
+      "changes": [
+        {
+          "file": "nltk/sem/chat80.py",
+          "patch": "@@ -412,8 +412,8 @@ def sql_query(dbname, query):\n     :param query: SQL query\n     :type rel_name: str\n     \"\"\"\n+    import sqlite3\n     try:\n-        import sqlite3\n         path = nltk.data.find(dbname)\n         connection =  sqlite3.connect(str(path))\n         cur = connection.cursor()"
+        }
+      ]
+    },
+    {
+      "sha": "013185cf43805b3672c14af4f73a8f51aa1c8059",
+      "message": "HunposTagger.__del__ is fixed: if the binary is not found then self._closed was undefined and thus AttributeError was raised in __del__ (and converted to a warning then).",
+      "changes": [
+        {
+          "file": "nltk/tag/hunpos.py",
+          "patch": "@@ -70,6 +70,7 @@ def __init__(self, path_to_model, path_to_bin=None,\n             This parameter is ignored for str tokens, which are sent as-is.\n             The caller must ensure that tokens are encoded in the right charset.\n         \"\"\"\n+        self._closed = True\n         hunpos_paths = ['.', '/usr/bin', '/usr/local/bin', '/opt/local/bin',\n                         '/Applications/bin', '~/bin', '~/Applications/bin']\n         hunpos_paths = list(map(os.path.expanduser, hunpos_paths))"
+        }
+      ]
+    },
+    {
+      "sha": "f20b4dfd0f81449877c8ff2f068fb35883a0a004",
+      "message": "internals: find_file: avoid NameError: use 'filename', not 'name'\n\nSee GitHub issue#217.  Problem introduced in commit 79ffc657 \"new\nfind_file method, sligtly more flexible than find_binary\".",
+      "changes": [
+        {
+          "file": "nltk/internals.py",
+          "patch": "@@ -490,22 +490,22 @@ def find_file(filename, env_vars=(), searchpath=(),\n                 stdout, stderr = p.communicate()\n                 path = stdout.strip()\n                 if path.endswith(alternative) and os.path.exists(path):\n-                    if verbose: print '[Found %s: %s]' % (name, path)\n+                    if verbose: print '[Found %s: %s]' % (filename, path)\n                     return path\n             except KeyboardInterrupt, SystemExit:\n                 raise\n             except:\n                 pass\n \n     msg = (\"NLTK was unable to find the %s file!\" \"\\nUse software specific \"\n-           \"configuration paramaters\" % name)\n+           \"configuration paramaters\" % filename)\n     if env_vars: msg += ' or set the %s environment variable' % env_vars[0]\n     msg += '.'\n     if searchpath:\n         msg += '\\n\\n  Searched in:'\n         msg += ''.join('\\n    - %s' % d for d in searchpath)\n     if url: msg += ('\\n\\n  For more information, on %s, see:\\n    <%s>' %\n-                    (name, url))\n+                    (filename, url))\n     div = '='*75\n     raise LookupError('\\n\\n%s\\n%s\\n%s' % (div, msg, div))\n "
+        }
+      ]
+    },
+    {
+      "sha": "e8fcbc7ff3ba8ef96c6d42c787d262e799db76ff",
+      "message": "Do not assign to the slice object\n\nSlices are read-only, so this commit solves the following problem:\n\n>>> s = slice(2, 10)\n>>> l = list(\"abcdefghijlmn\")\n>>> nltk.slice_bounds(l, s, allow_step=True)\nTraceback (most recent call last):\n  File \"<stdin>\", line 1, in <module>\n  File \"/Users/peter/Projekt/NLTK/nltk/nltk/internals.py\", line 781, in slice_bounds\n    if slice_obj.step is None: slice_obj.step = 1\nTypeError: readonly attribute",
+      "changes": [
+        {
+          "file": "nltk/internals.py",
+          "patch": "@@ -778,15 +778,16 @@ def slice_bounds(sequence, slice_obj, allow_step=False):\n     # If allow_step is true, then include the step in our return\n     # value tuple.\n     if allow_step:\n-        if slice_obj.step is None: slice_obj.step = 1\n+        step = slice_obj.step\n+        if step is None: step = 1\n         # Use a recursive call without allow_step to find the slice\n         # bounds.  If step is negative, then the roles of start and\n         # stop (in terms of default values, etc), are swapped.\n-        if slice_obj.step < 0:\n+        if step < 0:\n             start, stop = slice_bounds(sequence, slice(stop, start))\n         else:\n             start, stop = slice_bounds(sequence, slice(start, stop))\n-        return start, stop, slice_obj.step\n+        return start, stop, step\n \n     # Otherwise, make sure that no non-default step value is used.\n     elif slice_obj.step not in (None, 1):"
+        }
+      ]
+    },
+    {
+      "sha": "5aa06e0af2011e7cdf60b34789b50639272e3d59",
+      "message": "import nltk so that we don't get told \"NameError: global name 'nltk' is not defined\"\r\n\r\nBRIAN-TINGLEs-MacBook-Air:scrub_sample tingle$ python example1.py \r\nTraceback (most recent call last):\r\n  File \"example1.py\", line 10, in <module>\r\n    chunked_sentences = nltk.batch_ne_chunk(tagged_sentences, binary=True)\r\n  File \"/usr/local/Cellar/python/2.7.2/lib/python2.7/site-packages/nltk-2.0.1rc2_git-py2.7.egg/nltk/chunk/__init__.py\", line 185, in batch_ne_chunk\r\n    chunker = nltk.data.load(chunker_pickle)\r\nNameError: global name 'nltk' is not defined",
+      "changes": [
+        {
+          "file": "nltk/chunk/__init__.py",
+          "patch": "@@ -156,6 +156,7 @@\n from util import (ChunkScore, accuracy, tagstr2tree, conllstr2tree,\n                   tree2conlltags, tree2conllstr, tree2conlltags)\n from regexp import RegexpChunkParser, RegexpParser\n+import nltk\n \n # Standard treebank POS tagger\n _BINARY_NE_CHUNKER = 'chunkers/maxent_ne_chunker/english_ace_binary.pickle'"
+        }
+      ]
+    },
+    {
+      "sha": "59fd652c80a54d825128e8e6576d39b1d4c8a27f",
+      "message": "Fixes the behaviour when self._en_wordlist has not yet been created.\r\n\r\nThe `if not self._en_wordlist` clause does not protect from the AttributeError\r\nthat is raised when the user attempts to access the non-existent attribute.",
+      "changes": [
+        {
+          "file": "nltk/chunk/named_entity.py",
+          "patch": "@@ -36,10 +36,13 @@ def _classifier_builder(self, train):\n                                            trace=2)\n \n     def _english_wordlist(self):\n-        if not self._en_wordlist:\n+        try:\n+            wl = self._en_wordlist\n+        except AttributeError:\n             from nltk.corpus import words\n             self._en_wordlist = set(words.words('en-basic'))\n-        return self._en_wordlist\n+            wl = self._en_wordlist\n+        return wl\n     \n     def _feature_detector(self, tokens, index, history):\n         word = tokens[index][0]"
+        }
+      ]
+    }
+  ]
+}

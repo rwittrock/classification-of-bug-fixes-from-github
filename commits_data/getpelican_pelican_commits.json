@@ -1,0 +1,35 @@
+{
+  "repo_name": "getpelican/pelican",
+  "commits": [
+    {
+      "sha": "904f57d9c33d1ed9831d24ef360ca1ceaea790a3",
+      "message": "MarkdownReader: don't raise AttributeError on empty files\n\nMarkdown.convert() returns early, without running any preprocessors, if\nsource.strip() is empty.\n\nBefore, Pelican would raise AttributeError in this case; now, it logs a\nmore friendly error:\n\nERROR: Skipping ./foo.md: could not find information about 'NameError: title'\n\nwhich is more consistent with the error from empty .rst files:\n\nERROR: Skipping ./foo.rst: could not find information about 'NameError: date'",
+      "changes": [
+        {
+          "file": "pelican/readers.py",
+          "patch": "@@ -288,7 +288,10 @@ def read(self, source_path):\n         with pelican_open(source_path) as text:\n             content = self._md.convert(text)\n \n-        metadata = self._parse_metadata(self._md.Meta)\n+        if hasattr(self._md, 'Meta'):\n+            metadata = self._parse_metadata(self._md.Meta)\n+        else:\n+            metadata = {}\n         return content, metadata\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "5d860471ac6e14b4ada641eb1c3a5b7c4f3f3940",
+      "message": "pelican_open: don't raise IndexError on empty files\n\nIf the file is empty, content[0] raises IndexError.",
+      "changes": [
+        {
+          "file": "pelican/utils.py",
+          "patch": "@@ -244,7 +244,7 @@ def pelican_open(filename, mode='rb', strip_crs=(sys.platform == 'win32')):\n \n     with codecs.open(filename, mode, encoding='utf-8') as infile:\n         content = infile.read()\n-    if content[0] == codecs.BOM_UTF8.decode('utf8'):\n+    if content[:1] == codecs.BOM_UTF8.decode('utf8'):\n         content = content[1:]\n     if strip_crs:\n         content = content.replace('\\r\\n', '\\n')"
+        }
+      ]
+    },
+    {
+      "sha": "a3206dbe9e508ead94ab1164ed39de4d265c1267",
+      "message": "fix for #783 - AttributeError: 'NoneType' object has no attribute 'find' when using summary plugin with static files",
+      "changes": [
+        {
+          "file": "pelican/plugins/summary.py",
+          "patch": "@@ -31,7 +31,7 @@ def _get_content(self):\n     instance._get_content = types.MethodType(_get_content, instance)\n \n     # extract out our summary\n-    if not hasattr(instance, '_summary'):\n+    if not hasattr(instance, '_summary') and instance._content is not None:\n         content = instance._content\n         begin_summary = -1\n         end_summary = -1"
+        }
+      ]
+    }
+  ]
+}

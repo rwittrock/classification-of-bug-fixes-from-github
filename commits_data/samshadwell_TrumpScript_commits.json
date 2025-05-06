@@ -1,0 +1,15 @@
+{
+  "repo_name": "samshadwell/TrumpScript",
+  "commits": [
+    {
+      "sha": "bd1dde87393ff5a3b278c09565b6289dfbcb2819",
+      "message": "Make sure the OS is not Windows before checking for root\n\nWhen checking for Root on a non Windows OS we get:\nAttributeError: 'module' object has no attribute 'geteuid'\n\nInstead of correctly raising an OS exception.",
+      "changes": [
+        {
+          "file": "src/trumpscript/utils.py",
+          "patch": "@@ -48,7 +48,7 @@ def no_wimps() -> None:\n         Make sure we're not executing as root, because America is strong\n         :return:\n         \"\"\"\n-        if os.geteuid() == 0:\n+        if os.name != 'nt' and os.geteuid() == 0:\n             raise Utils.SystemException('root')\n \n     @staticmethod"
+        }
+      ]
+    }
+  ]
+}

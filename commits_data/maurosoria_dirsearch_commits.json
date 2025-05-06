@@ -1,0 +1,25 @@
+{
+  "repo_name": "maurosoria/dirsearch",
+  "commits": [
+    {
+      "sha": "eaf325fa0637ad07d3c082c673e6436a6dc41578",
+      "message": "Fixes: NameError: name 'chardet' is not defined",
+      "changes": [
+        {
+          "file": "thirdparty/sqlmap/DynamicContentParser.py",
+          "patch": "@@ -1,7 +1,7 @@\n from difflib import SequenceMatcher\n import re\n \n-import thirdparty.chardet\n+from thirdparty import chardet\n \n \n class DynamicContentParser:"
+        }
+      ]
+    },
+    {
+      "sha": "f51be7f18b571af9bd04668bd0d14a32744d5d13",
+      "message": "fix: 'NameError: name 'thirdparty' is not defined' when requests time out",
+      "changes": [
+        {
+          "file": "lib/connection/Requester.py",
+          "patch": "@@ -141,7 +141,7 @@ def request(self, path):\n                 if self.proxy is not None:\n                     raise RequestException({'message': 'Error with the proxy: {0}'.format(e)})\n                 continue\n-            except (thirdparty.requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout, requests.exceptions.Timeout, http.client.IncompleteRead, \\\n+            except (requests.exceptions.ConnectTimeout, requests.exceptions.ReadTimeout, requests.exceptions.Timeout, http.client.IncompleteRead, \\\n                     socket.timeout):\n                 continue\n             finally:"
+        }
+      ]
+    }
+  ]
+}

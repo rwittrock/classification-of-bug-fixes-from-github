@@ -1,0 +1,45 @@
+{
+  "repo_name": "Gallopsled/pwntools",
+  "commits": [
+    {
+      "sha": "ecd6d235cdc25a244c9cd1a283271d8d0d13709f",
+      "message": "Fix TypeError: find_module() takes exactly 3 arguments (2 given) (#1342)\n\npwnlib.shellcraft installs its custom import finder (LazyImporter) into\r\nsys.meta_path.\r\n\r\nAccording to PEP 302, finder is expected to have prototype\r\n\r\n    finder.find_module(fullname, path=None)\r\n\r\nNote that the second argument is optional. pwnlib's LazyImporter has second\r\nargument required, which leads to compatibility problems, surfacing\r\nwhen trying to use pwnlib with other third-party modules:\r\n\r\n    >>> import pwnlib\r\n    >>> import faker\r\n    Traceback (most recent call last):\r\n      File \"<stdin>\", line 1, in <module>\r\n      File \"/tmp/.venv/lib/python2.7/site-packages/faker/__init__.py\", line 2, in <module>\r\n        from faker.factory import Factory  # noqa F401\r\n      File \"/tmp/.venv/lib/python2.7/site-packages/faker/factory.py\", line 12, in <module>\r\n        from faker.config import AVAILABLE_LOCALES, DEFAULT_LOCALE, PROVIDERS\r\n      File \"/tmp/.venv/lib/python2.7/site-packages/faker/config.py\", line 15, in <module>\r\n        AVAILABLE_LOCALES = find_available_locales(PROVIDERS)\r\n      File \"/tmp/.venv/lib/python2.7/site-packages/faker/utils/loading.py\", line 45, in find_available_locales\r\n        provider_module = import_module(provider_path)\r\n      File \"/usr/lib64/python2.7/importlib/__init__.py\", line 37, in import_module\r\n        __import__(name)\r\n      File \"/tmp/.venv/lib/python2.7/site-packages/faker/providers/internet/__init__.py\", line 4, in <module>\r\n        from text_unidecode import unidecode\r\n      File \"/tmp/.venv/lib/python2.7/site-packages/text_unidecode/__init__.py\", line 6, in <module>\r\n        _replaces = pkgutil.get_data(__name__, 'data.bin').decode('utf8').split('\\x00')\r\n      File \"/usr/lib64/python2.7/pkgutil.py\", line 576, in get_data\r\n        loader = get_loader(package)\r\n      File \"/usr/lib64/python2.7/pkgutil.py\", line 462, in get_loader\r\n        return find_loader(fullname)\r\n      File \"/usr/lib64/python2.7/pkgutil.py\", line 473, in find_loader\r\n        loader = importer.find_module(fullname)\r\n    TypeError: find_module() takes exactly 3 arguments (2 given)",
+      "changes": [
+        {
+          "file": "pwnlib/shellcraft/__init__.py",
+          "patch": "@@ -165,7 +165,7 @@ def okay(self, s, *a, **kw):\n shellcraft = module(__name__, '')\n \n class LazyImporter:\n-    def find_module(self, fullname, path):\n+    def find_module(self, fullname, path=None):\n         if not fullname.startswith('pwnlib.shellcraft.'):\n             return None\n "
+        }
+      ]
+    },
+    {
+      "sha": "dce8fde0b69a73cef9e4a6ebe1e5544f047f040c",
+      "message": "Fix AttributeError instead of EOFError",
+      "changes": [
+        {
+          "file": "pwnlib/tubes/sock.py",
+          "patch": "@@ -65,7 +65,7 @@ def send_raw(self, data):\n             self.sock.sendall(data)\n         except IOError as e:\n             eof_numbers = [errno.EPIPE, errno.ECONNRESET, errno.ECONNREFUSED]\n-            if e.message == 'Socket is closed' or e.errno in eof_numbers:\n+            if e.errno in eof_numbers or 'Socket is closed' in e.args:\n                 self.shutdown(\"send\")\n                 raise EOFError\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "4cb67a857e8b6656dd77377b8bcfd2e25dab4e2f",
+      "message": "Py3 bytes issue (#1282)\n\nThis fixes the following error attempting to use gdb module:\r\n\r\n```\r\n~/.virtualenvs/angr/lib/python3.6/site-packages/pwnlib/gdb.py in debug(args, gdbscript, exe, ssh, env, sysroot, **kwargs)\r\n    468\r\n    469     # Some versions of gdbserver output an additional message\r\n--> 470     garbage2 = gdbserver.recvline_startswith(\"Remote debugging from host \", timeout=1)\r\n    471\r\n    472     return gdbserver\r\n\r\n~/.virtualenvs/angr/lib/python3.6/site-packages/pwnlib/tubes/tube.py in recvline_startswith(self, delims, keepends, timeout)\r\n    545         return self.recvline_pred(lambda line: any(map(line.startswith, delims)),\r\n    546                                   keepends=keepends,\r\n--> 547                                   timeout=timeout)\r\n    548\r\n    549     def recvline_endswith(self, delims, keepends = False, timeout = default):\r\n\r\n~/.virtualenvs/angr/lib/python3.6/site-packages/pwnlib/tubes/tube.py in recvline_pred(self, pred, keepends, timeout)\r\n    468                     return b''\r\n    469\r\n--> 470                 if pred(line):\r\n    471                     if not keepends:\r\n    472                         line = line[:-len(self.newline)]\r\n\r\n~/.virtualenvs/angr/lib/python3.6/site-packages/pwnlib/tubes/tube.py in <lambda>(line)\r\n    543             delims = (delims,)\r\n    544\r\n--> 545         return self.recvline_pred(lambda line: any(map(line.startswith, delims)),\r\n    546                                   keepends=keepends,\r\n    547                                   timeout=timeout)\r\n\r\nTypeError: startswith first arg must be bytes or a tuple of bytes, not str\r\n```",
+      "changes": [
+        {
+          "file": "pwnlib/gdb.py",
+          "patch": "@@ -467,7 +467,7 @@ def debug(args, gdbscript=None, exe=None, ssh=None, env=None, sysroot=None, **kw\n     garbage = gdbserver.recvline(timeout=1)\n     \n     # Some versions of gdbserver output an additional message\n-    garbage2 = gdbserver.recvline_startswith(\"Remote debugging from host \", timeout=1)\n+    garbage2 = gdbserver.recvline_startswith(b\"Remote debugging from host \", timeout=1)\n \n     return gdbserver\n "
+        }
+      ]
+    },
+    {
+      "sha": "62686836fd70a51e8148f750fd39d3bea0886533",
+      "message": "Bugfix: ssh.run(tuple) => error\n\nOtherwise throws this\r\n\r\n```py\r\n  File \"/home/user/pwntools/pwnlib/tubes/ssh.py\", line 17, in __init__\r\n    h = log.waitfor('Opening new channel: %r' % (process or 'shell'), log_level = self.log_level)\r\nTypeError: not all arguments converted during string formatting\r\n```",
+      "changes": [
+        {
+          "file": "pwnlib/tubes/ssh.py",
+          "patch": "@@ -14,7 +14,7 @@ def __init__(self, parent, process = None, tty = False, wd = None, env = None, t\n \n         env = env or {}\n \n-        h = log.waitfor('Opening new channel: %r' % (process or 'shell'), log_level = self.log_level)\n+        h = log.waitfor('Opening new channel: %r' % ((process,) or 'shell'), log_level = self.log_level)\n \n         if isinstance(process, (list, tuple)):\n             process = ' '.join(misc.sh_string(s) for s in process)"
+        }
+      ]
+    }
+  ]
+}

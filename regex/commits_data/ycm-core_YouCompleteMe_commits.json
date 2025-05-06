@@ -1,0 +1,45 @@
+{
+  "repo_name": "ycm-core/YouCompleteMe",
+  "commits": [
+    {
+      "sha": "6e9a16e90ec6ba09e96561f8e3a7fbefa2d366cc",
+      "message": "Signal handler must take 2 params\n\nOtherwise we get a TypeError",
+      "changes": [
+        {
+          "file": "python/ycm/server/ycmd.py",
+          "patch": "@@ -38,7 +38,7 @@ def YcmCoreSanityCheck():\n # We need to manually call ServerShutdown for the signals that turn down ycmd\n # because atexit won't handle them.\n def SetUpSignalHandler():\n-  def SignalHandler():\n+  def SignalHandler( signum, frame ):\n     import handlers\n     handlers.ServerShutdown()\n "
+        }
+      ]
+    },
+    {
+      "sha": "3948b6efe2f66916c1f18633993c23d5a0beda33",
+      "message": "Check for empty flags list\n\nIndexErrors are not fun.",
+      "changes": [
+        {
+          "file": "python/ycm/completers/cpp/clang_helpers.py",
+          "patch": "@@ -22,6 +22,6 @@ def PrepareClangFlags( flags, filename ):\n   # When flags come from the compile_commands.json file, the first flag is\n   # usually the path to the compiler that should be invoked. We want to strip\n   # that.\n-  if not flags[ 0 ].startswith( '-' ):\n+  if flags and not flags[ 0 ].startswith( '-' ):\n     return flags[ 1: ]\n   return flags"
+        }
+      ]
+    },
+    {
+      "sha": "11a774675380b8b94675608bae861429d2d0f2d0",
+      "message": "Preventing possible TypeError with StringVec\n\nIt was possible to get a traceback if results[ 'flags' ] was a StringVec; the\ncode would try to perform results[ 'flags' ] += self.special_clang_flags and\nthis would then fail because the clang flags would be a Python list.",
+      "changes": [
+        {
+          "file": "python/ycm/completers/cpp/flags.py",
+          "patch": "@@ -55,9 +55,10 @@ def FlagsForFile( self, filename, add_special_clang_flags = True ):\n       if not results.get( 'flags_ready', True ):\n         return None\n \n+      flags = list( results[ 'flags' ] )\n       if add_special_clang_flags:\n-        results[ 'flags' ] += self.special_clang_flags\n-      sanitized_flags = _PrepareFlagsForClang( results[ 'flags' ], filename )\n+        flags += self.special_clang_flags\n+      sanitized_flags = _PrepareFlagsForClang( flags, filename )\n \n       if results[ 'do_cache' ]:\n         self.flags_for_file[ filename ] = sanitized_flags"
+        }
+      ]
+    },
+    {
+      "sha": "e5c99428f3789f1db81221773178d527e0375dd8",
+      "message": "fix IndexError when min_num_of_chars is set to 0\n\nFixes #307. Error is thrown when g:ycm_min_num_of_chars_for_completion\noption is set to 0 user tries to delete an identifier which starts at\nthe beginning of the line.",
+      "changes": [
+        {
+          "file": "python/completers/general/filename_completer.py",
+          "patch": "@@ -63,8 +63,8 @@ def AtIncludeStatementStart( self, start_column ):\n \n \n   def ShouldUseNowInner( self, start_column ):\n-    return ( vim.current.line[ start_column - 1 ] == '/' or\n-             self.AtIncludeStatementStart( start_column ) )\n+    return ( start_column and ( vim.current.line[ start_column - 1 ] == '/' or\n+             self.AtIncludeStatementStart( start_column ) ) )\n \n \n   def SupportedFiletypes( self ):"
+        }
+      ]
+    }
+  ]
+}

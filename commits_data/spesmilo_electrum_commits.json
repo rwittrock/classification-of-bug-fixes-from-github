@@ -1,0 +1,125 @@
+{
+  "repo_name": "spesmilo/electrum",
+  "commits": [
+    {
+      "sha": "cee208313494ed5978e7a6c62c3b13c9583c6c93",
+      "message": "qt history list: fix UnboundLocalError when searching\n\ncloses #5801",
+      "changes": [
+        {
+          "file": "electrum/gui/qt/history_list.py",
+          "patch": "@@ -235,7 +235,7 @@ def data(self, index: QModelIndex, role: Qt.ItemDataRole) -> QVariant:\n             cg = tx_item['capital_gain'].value\n             return QVariant(self.parent.fx.format_fiat(cg))\n         elif col == HistoryColumns.TXID:\n-            return QVariant(tx_hash)\n+            return QVariant(tx_hash) if not is_lightning else QVariant('')\n         return QVariant()\n \n     def parent(self, index: QModelIndex):"
+        }
+      ]
+    },
+    {
+      "sha": "268e2453229d7ea7e0049aa79f36cc17fd94fc6e",
+      "message": "lnpeer: only set initialized after both sent AND received \"init\"\n\nhad a trace where we tried to send \"funding_locked\" before being initialized:\n\nD | lnpeer.Peer.[iq7zhmhck54vcax2vlrdcavq2m32wao7ekh6jyeglmnuuvv3js57r4id.onion:9735] | Sending FUNDING_LOCKED\nE | lnworker.LNWallet | Exception in on_update_open_channel: AttributeError(\"'LNTransport' object has no attribute 'sk'\")\nTraceback (most recent call last):\n  File \"...\\electrum\\electrum\\util.py\", line 999, in wrapper\n    return await func(*args, **kwargs)\n  File \"...\\electrum\\electrum\\lnworker.py\", line 674, in on_update_open_channel\n    peer.send_funding_locked(chan)\n  File \"...\\electrum\\electrum\\lnpeer.py\", line 876, in send_funding_locked\n    self.send_message(\"funding_locked\", channel_id=channel_id, next_per_commitment_point=per_commitment_point_second)\n  File \"...\\electrum\\electrum\\lnpeer.py\", line 102, in send_message\n    self.transport.send_bytes(raw_msg)\n  File \"...\\electrum\\electrum\\lntransport.py\", line 93, in send_bytes\n    lc = aead_encrypt(self.sk, self.sn(), b'', l)\nAttributeError: 'LNTransport' object has no attribute 'sk'",
+      "changes": [
+        {
+          "file": "electrum/lnworker.py",
+          "patch": "@@ -670,7 +670,7 @@ async def on_update_open_channel(self, event, funding_outpoint, funding_txid, fu\n \n         if chan.get_state() == channel_states.FUNDED:\n             peer = self.peers.get(chan.node_id)\n-            if peer:\n+            if peer and peer.initialized.is_set():\n                 peer.send_funding_locked(chan)\n \n         elif chan.get_state() == channel_states.OPEN:"
+        }
+      ]
+    },
+    {
+      "sha": "37a0315aab8210e18665c1d8719e7b600c6797d4",
+      "message": "lnbase: fix NameError",
+      "changes": [
+        {
+          "file": "electrum/lnbase.py",
+          "patch": "@@ -592,7 +592,7 @@ async def on_open_channel(self, payload):\n                 \"remote_commitment_to_be_revoked\": None,\n         }\n         chan = Channel(chan_dict,\n-                       sweep_adddress=self.lnworker.sweep_address,\n+                       sweep_address=self.lnworker.sweep_address,\n                        payment_completed=self.lnworker.payment_completed)\n         chan.lnwatcher = self.lnwatcher\n         chan.get_preimage_and_invoice = self.lnworker.get_invoice  # FIXME hack."
+        }
+      ]
+    },
+    {
+      "sha": "8bd6dc242556e763b45572b771488b161d3d03dd",
+      "message": "ln: fix opening of channels (NameErrors)",
+      "changes": [
+        {
+          "file": "electrum/lnbase.py",
+          "patch": "@@ -484,7 +484,7 @@ def close_and_cleanup(self):\n             chan.set_state('DISCONNECTED')\n             self.network.trigger_callback('channel', chan)\n \n-    def make_local_config(self, funding_msat, push_msat, initiator: HTLCOwner, password):\n+    def make_local_config(self, funding_sat, push_msat, initiator: HTLCOwner, password):\n         # see lnd/keychain/derivation.go\n         keyfamilymultisig = 0\n         keyfamilyrevocationbase = 1\n@@ -520,7 +520,7 @@ def make_per_commitment_secret_seed(self):\n     @aiosafe\n     async def channel_establishment_flow(self, password, funding_sat, push_msat, temp_channel_id, sweep_address):\n         await self.initialized\n-        local_config = self.make_local_config(funding_msat, push_msat, LOCAL, password)\n+        local_config = self.make_local_config(funding_sat, push_msat, LOCAL, password)\n         # amounts\n         local_feerate = self.current_feerate_per_kw()\n         # TODO derive this?"
+        }
+      ]
+    },
+    {
+      "sha": "ec86850a2e7caa16d96e08c090e98d3b6be4ad1a",
+      "message": "trezor: fix minor error handling issue\n\nAttributeError: 'TrezorFailure' object has no attribute 'message'",
+      "changes": [
+        {
+          "file": "electrum/plugins/trezor/clientbase.py",
+          "patch": "@@ -65,7 +65,7 @@ def __exit__(self, exc_type, exc_value, traceback):\n             if issubclass(exc_type, Cancelled):\n                 raise UserCancelled from exc_value\n             elif issubclass(exc_type, TrezorFailure):\n-                raise RuntimeError(exc_value.message) from exc_value\n+                raise RuntimeError(str(exc_value)) from exc_value\n             elif issubclass(exc_type, OutdatedFirmwareError):\n                 raise UserFacingException(exc_value) from exc_value\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "2737744bfe8e9bd681a38c0eac30542763646a67",
+      "message": "daemon: forward TypeError trace to client",
+      "changes": [
+        {
+          "file": "electrum/daemon.py",
+          "patch": "@@ -294,7 +294,10 @@ def run_cmdline(self, config_options):\n             kwargs[x] = (config_options.get(x) if x in ['password', 'new_password'] else config.get(x))\n         cmd_runner = Commands(config, wallet, self.network)\n         func = getattr(cmd_runner, cmd.name)\n-        result = func(*args, **kwargs)\n+        try:\n+            result = func(*args, **kwargs)\n+        except TypeError as e:\n+            raise Exception(\"Wrapping TypeError to prevent JSONRPC-Pelix from hiding traceback\") from e\n         return result\n \n     def run(self):"
+        }
+      ]
+    },
+    {
+      "sha": "34256c16f8fb56693e54bc49459dece2dbbab949",
+      "message": "QT: Only set if hasattr(QtCore.Qt, \"AA_ShareOpenGLContexts\")\n\nIf the attribute does not exist (presumably in older versions of Qt),\nthis change prevents the following error:\n\n  AttributeError: type object 'Qt' has no attribute 'AA_ShareOpenGLContexts'",
+      "changes": [
+        {
+          "file": "gui/qt/__init__.py",
+          "patch": "@@ -92,7 +92,8 @@ def __init__(self, config, daemon, plugins):\n         #network.add_jobs([DebugMem([Abstract_Wallet, SPV, Synchronizer,\n         #                            ElectrumWindow], interval=5)])\n         QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_X11InitThreads)\n-        QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)\n+        if hasattr(QtCore.Qt, \"AA_ShareOpenGLContexts\"):\n+            QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_ShareOpenGLContexts)\n         self.config = config\n         self.daemon = daemon\n         self.plugins = plugins"
+        }
+      ]
+    },
+    {
+      "sha": "41660d26e922876dc653096a973b2ee17ac9996b",
+      "message": "follow-up 553bf98664c87273f9e55b5699c44cc805eb4bf4\n\nfixes AttributeError: 'QTextEdit' object has no attribute 'text'",
+      "changes": [
+        {
+          "file": "gui/qt/seed_dialog.py",
+          "patch": "@@ -92,7 +92,7 @@ def __init__(self, seed=None, title=None, icon=True, msg=None, options=None, is_\n         self.options = options\n         if title:\n             self.addWidget(WWLabel(title))\n-        self.seed_e = QTextEdit()\n+        self.seed_e = ButtonsTextEdit()\n         if seed:\n             self.seed_e.setText(seed)\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "df733e8e4cb8e81088a541a137a68d5be0cc58c5",
+      "message": "fix AttributeError: 'Standard_Wallet' object has no attribute 'account'\n\nIf you use wallet.change_gap_limit with a value below the current gap\nlimit, you get this exception:\n\n`>> wallet.change_gap_limit(1)\nTraceback (most recent call last):\nFile \"lib\\wallet.py\", line 1455, in change_gap_limit\nelif value >= self.min_acceptable_gap():\nFile \"lib\\wallet.py\", line 1479, in min_acceptable_gap\naddresses = self.account.get_receiving_addresses()\nAttributeError: 'Standard_Wallet' object has no attribute 'account'\n>> `",
+      "changes": [
+        {
+          "file": "lib/wallet.py",
+          "patch": "@@ -1459,7 +1459,7 @@ def min_acceptable_gap(self):\n         # fixme: this assumes wallet is synchronized\n         n = 0\n         nmax = 0\n-        addresses = self.account.get_receiving_addresses()\n+        addresses = self.get_receiving_addresses()\n         k = self.num_unused_trailing_addresses(addresses)\n         for a in addresses[0:-k]:\n             if self.history.get(a):"
+        }
+      ]
+    },
+    {
+      "sha": "03a6791bcb647d36016a9ff794d08f43bf0eb805",
+      "message": "Set initial 'running' attribute in Network class\n\nThis was causing a AttributeError when network.is_running() was called before the network was started.",
+      "changes": [
+        {
+          "file": "lib/network.py",
+          "patch": "@@ -50,6 +50,7 @@ def __init__(self, config = {}):\n         self.queue = Queue.Queue()\n         self.callbacks = {}\n         self.protocol = self.config.get('protocol','s')\n+        self.running = False\n \n         # Server for addresses and transactions\n         self.default_server = self.config.get('server')"
+        }
+      ]
+    },
+    {
+      "sha": "50064d20fd46c827e88cc4bee82d3d7d7a58eba9",
+      "message": "Revert \"added TypeError category to existing exception\"\n\nThis reverts commit 86da219fb9a1bb48d83fb4902550fa0432d24353.",
+      "changes": [
+        {
+          "file": "lib/simple_config.py",
+          "patch": "@@ -88,7 +88,7 @@ def get(self, key, default=None):\n             import ast\n             try:\n                 out = ast.literal_eval(out)\n-            except TypeError:\n+            except:\n                 print \"type error, using default value\"\n                 out = default\n "
+        }
+      ]
+    },
+    {
+      "sha": "86da219fb9a1bb48d83fb4902550fa0432d24353",
+      "message": "added TypeError category to existing exception",
+      "changes": [
+        {
+          "file": "lib/simple_config.py",
+          "patch": "@@ -83,7 +83,7 @@ def get(self, key, default=None):\n             import ast\n             try:\n                 out = ast.literal_eval(out)\n-            except:\n+            except TypeError:\n                 print \"type error, using default value\"\n                 out = default\n "
+        }
+      ]
+    }
+  ]
+}

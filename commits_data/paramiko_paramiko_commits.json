@@ -1,0 +1,15 @@
+{
+  "repo_name": "paramiko/paramiko",
+  "commits": [
+    {
+      "sha": "cfd1efe64878912964797e1a6f2303387f7e1848",
+      "message": "Fix NameError in error-handling case\n\nFixes #268",
+      "changes": [
+        {
+          "file": "paramiko/proxy.py",
+          "patch": "@@ -68,7 +68,7 @@ def send(self, content):\n             # died and we can't proceed. The best option here is to\n             # raise an exception informing the user that the informed\n             # ProxyCommand is not working.\n-            raise BadProxyCommand(' '.join(self.cmd), e.strerror)\n+            raise ProxyCommandFailure(' '.join(self.cmd), e.strerror)\n         return len(content)\n \n     def recv(self, size):\n@@ -102,7 +102,7 @@ def recv(self, size):\n             result = ''.join(read)\n             return result\n         except IOError, e:\n-            raise BadProxyCommand(' '.join(self.cmd), e.strerror)\n+            raise ProxyCommandFailure(' '.join(self.cmd), e.strerror)\n \n     def close(self):\n         os.kill(self.process.pid, signal.SIGTERM)"
+        }
+      ]
+    }
+  ]
+}

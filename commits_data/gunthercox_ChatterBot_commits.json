@@ -1,0 +1,35 @@
+{
+  "repo_name": "gunthercox/ChatterBot",
+  "commits": [
+    {
+      "sha": "f5fa90697e2151d8e521bcf1b833adb4ef2aef1e",
+      "message": "Add deserialize_responses call to mongo adapter get_response_statements realization to prevent AttributeError: 'dict' object has no attribute 'serialize'.",
+      "changes": [
+        {
+          "file": "chatterbot/adapters/storage/mongodb.py",
+          "patch": "@@ -195,6 +195,10 @@ def get_response_statements(self):\n             statement_text = values['text']\n \n             del(values['text'])\n+\n+            response_list = self.deserialize_responses(values[\"in_response_to\"])\n+            values[\"in_response_to\"] = response_list\n+\n             statement_objects.append(Statement(statement_text, **values))\n \n         return statement_objects"
+        }
+      ]
+    },
+    {
+      "sha": "4bfcbe10d233e2d4cd8c1d2e43382f1db83d98f4",
+      "message": "ClosestMeaningAdapter wasn't useable\n\nTypeError: __init__() got an unexpected keyword argument 'logic_adapter because chatterbot.py initializes the logic adapters with his kwargs. The Closestmatch adapter uses the __init__() from logic.py",
+      "changes": [
+        {
+          "file": "chatterbot/adapters/logic/closest_meaning.py",
+          "patch": "@@ -8,8 +8,8 @@\n \n class ClosestMeaningAdapter(LogicAdapter):\n \n-    def __init__(self):\n-        super(ClosestMeaningAdapter, self).__init__()\n+    def __init__(self, **kwargs):\n+        super(ClosestMeaningAdapter, self).__init__(**kwargs)\n         from nltk.data import find\n         from nltk import download\n "
+        }
+      ]
+    },
+    {
+      "sha": "036ba292d03e7e09addfb8fce79373bfa3dd77e2",
+      "message": "no need to multiply by 'count'\n\n    values = list(statement)[0]\r\nIndexError: list index out of range",
+      "changes": [
+        {
+          "file": "chatterbot/adapters/storage/mongodb.py",
+          "patch": "@@ -96,7 +96,7 @@ def get_random(self):\n         if self.count() < 1:\n             raise EmptyDatabaseException()\n \n-        statement = self.statements.find().limit(1).skip(random_integer * count)\n+        statement = self.statements.find().limit(1).skip(random_integer)\n \n         values = list(statement)[0]\n         statement_text = values['text']"
+        }
+      ]
+    }
+  ]
+}

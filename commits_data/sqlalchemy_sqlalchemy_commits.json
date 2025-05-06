@@ -1,0 +1,255 @@
+{
+  "repo_name": "sqlalchemy/sqlalchemy",
+  "commits": [
+    {
+      "sha": "754e7f52cf64b72988bdf8211c603809b32c16de",
+      "message": "PostgreSQL enum with no elements returns NULL for the \"label\", skip this\n\nFixed bug where PostgreSQL dialect could not correctly reflect an ENUM\ndatatype that has no members, returning a list with ``None`` for the\n``get_enums()`` call and raising a TypeError when reflecting a column which\nhas such a datatype.   The inspection now returns an empty list.\n\nFixes: #4701\nChange-Id: I202bab19728862cbc64deae211d5ba6a103b8317",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/dialects/postgresql/base.py",
+          "patch": "@@ -3470,8 +3470,10 @@ def _load_enums(self, connection, schema=None):\n                     \"name\": enum[\"name\"],\n                     \"schema\": enum[\"schema\"],\n                     \"visible\": enum[\"visible\"],\n-                    \"labels\": [enum[\"label\"]],\n+                    \"labels\": [],\n                 }\n+                if enum[\"label\"] is not None:\n+                    enum_rec[\"labels\"].append(enum[\"label\"])\n                 enums.append(enum_rec)\n         return enums\n "
+        }
+      ]
+    },
+    {
+      "sha": "da04aa577b6e539a6472df62ee39c4a51cca9dd9",
+      "message": "Fix boolean check in new path comparison logic\n\nFixed regression where a new error message that was supposed to raise when\nattempting to link a relationship option to an AliasedClass without using\n:meth:`.PropComparator.of_type` would instead raise an ``AttributeError``.\nNote that in 1.3, it is no longer valid to create an option path from a\nplain mapper relationship to an :class:`.AliasedClass` without using\n:meth:`.PropComparator.of_type`.\n\nFixes: #4566\nChange-Id: Ic547a1c8408e41aec66ef9644aac7f76f50dd064",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/util.py",
+          "patch": "@@ -1265,8 +1265,10 @@ def _entity_corresponds_to_use_path_impl(given, entity):\n         return (\n             entity.is_aliased_class\n             and not entity._use_mapper_path\n-            and given is entity\n-            or given in entity._with_polymorphic_entities\n+            and (\n+                given is entity\n+                or given in entity._with_polymorphic_entities\n+            )\n         )\n     elif not entity.is_aliased_class:\n         return given.common_parent(entity.mapper)"
+        }
+      ]
+    },
+    {
+      "sha": "835444be72bb595b1ed3ee5458a86202813412a6",
+      "message": "Add __clause_element__ to ColumnProperty\n\nAdded a ``__clause_element__()`` method to :class:`.ColumnProperty` which\ncan allow the usage of a not-fully-declared column or deferred attribute in\na declarative mapped class slightly more friendly when it's used in a\nconstraint or other column-oriented scenario within the class declaration,\nthough this still can't work in open-ended expressions; prefer to call the\n:attr:`.ColumnProperty.expression` attribute if receiving ``TypeError``.\n\nFixes: #4372\nChange-Id: I5d3d1adb9c77de0566298bc2c46e9001d314b0c7",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/properties.py",
+          "patch": "@@ -163,6 +163,13 @@ def _memoized_attr__deferred_column_loader(self, state, strategies):\n             self.parent.class_manager,\n             strategies.LoadDeferredColumns(self.key), self.key)\n \n+    def __clause_element__(self):\n+        \"\"\"Allow the ColumnProperty to work in expression before it is turned\n+        into an instrumented attribute.\n+        \"\"\"\n+\n+        return self.expression\n+\n     @property\n     def expression(self):\n         \"\"\"Return the primary column or expression for this ColumnProperty."
+        }
+      ]
+    },
+    {
+      "sha": "aec57258b3b33fe070ebb54f31f1627db07f072b",
+      "message": "Check tokens in chop path for inspectionattr before calling is_mapper\n\nFixed regression in 1.2.9 due to :ticket:`4287` where using a\n:class::`.Load` option in conjunction with a string wildcard would result\nin a TypeError.\n\nChange-Id: I2997ead0b8b9fa0edd009aa6f3161f4618fab97b\nFixes: #4298",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/strategy_options.py",
+          "patch": "@@ -13,7 +13,8 @@\n from .. import util\n from ..sql.base import _generative, Generative\n from .. import exc as sa_exc, inspect\n-from .base import _is_aliased_class, _class_to_mapper, _is_mapped_class\n+from .base import _is_aliased_class, _class_to_mapper, _is_mapped_class, \\\n+    InspectionAttr\n from . import util as orm_util\n from .path_registry import PathRegistry, TokenRegistry, \\\n     _WILDCARD_TOKEN, _DEFAULT_TOKEN\n@@ -385,7 +386,8 @@ def _chop_path(self, to_chop, path):\n \n             if c_token is p_token:\n                 continue\n-            elif c_token.is_mapper and p_token.is_mapper and \\\n+            elif isinstance(c_token, InspectionAttr) and \\\n+                c_token.is_mapper and p_token.is_mapper and \\\n                     c_token.isa(p_token):\n                 continue\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "0b0b58c938c6a38fccc3e0ba59876b3b6b4f8009",
+      "message": "Fix string formatting TypeError if tuple is passed\n\nFixed issue where the \"ambiguous literal\" error message used when\ninterpreting literal values as SQL expression values would encounter a\ntuple value, and fail to format the message properly. Pull request courtesy\nMiguel Ventura.\n\nChange-Id: I50d5d32d5f80ec79703a42d4b19b42c2f9701f24\nPull-request: https://github.com/zzzeek/sqlalchemy/pull/442",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/elements.py",
+          "patch": "@@ -4283,7 +4283,7 @@ def _no_literals(element):\n         raise exc.ArgumentError(\"Ambiguous literal: %r.  Use the 'text()' \"\n                                 \"function to indicate a SQL expression \"\n                                 \"literal, or 'literal()' to indicate a \"\n-                                \"bound value.\" % element)\n+                                \"bound value.\" % (element, ))\n     else:\n         return element\n "
+        }
+      ]
+    },
+    {
+      "sha": "036cdbe7fb2d651ba5fbbc758c8584df011c8043",
+      "message": "Raise informative exception for non-sortable PK\n\nAn informative exception is re-raised when a primary key value is not\nsortable in Python during an ORM flush under Python 3, such as an ``Enum``\nthat has no ``__lt__()`` method; normally Python 3 raises a ``TypeError``\nin this case.   The flush process sorts persistent objects by primary key\nin Python so the values must be sortable.\n\nChange-Id: Ia186968982dcd1234b82f2e701fefa2a1668a7e4\nFixes: #4232",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/sqltypes.py",
+          "patch": "@@ -1175,7 +1175,6 @@ class MyEnum(enum.Enum):\n             two = 2\n             three = 3\n \n-\n         t = Table(\n             'data', MetaData(),\n             Column('value', Enum(MyEnum))"
+        }
+      ]
+    },
+    {
+      "sha": "1393eac44c49299e733a5181f387ba140aaa3e44",
+      "message": "Implement remove() for _empty_collection\n\nFixed regression caused in 1.2.3 due to fix from :ticket:`4181` where\nthe changes to the event system involving :class:`.Engine` and\n:class:`.OptionEngine` did not accommodate for event removals, which\nwould raise an ``AttributeError`` when invoked at the class\nlevel.\n\nChange-Id: I1c9083829d74dd710716d28b0eaca4fa15e86313\nFixes: #4190",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/event/attr.py",
+          "patch": "@@ -54,6 +54,9 @@ def append(self, element):\n     def extend(self, other):\n         pass\n \n+    def remove(self, element):\n+        pass\n+\n     def __iter__(self):\n         return iter([])\n "
+        }
+      ]
+    },
+    {
+      "sha": "3a314fcea8539133947d5ec8e42a6c86e30fdf9a",
+      "message": "Repair WithinGroup.get_children()\n\nFixed AttributeError which would occur in :class:`.WithinGroup`\nconstruct during an iteration of the structure.\n\nChange-Id: I563882d93c8c32292463a605b636aa60c77e9406\nFixes: #4012",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/elements.py",
+          "patch": "@@ -3379,7 +3379,7 @@ def type(self):\n \n     def get_children(self, **kwargs):\n         return [c for c in\n-                (self.func, self.order_by)\n+                (self.element, self.order_by)\n                 if c is not None]\n \n     def _copy_internals(self, clone=_clone, **kw):"
+        }
+      ]
+    },
+    {
+      "sha": "edc0b8678bc06ae27fa0f7e80c3eb074978fbe10",
+      "message": "Removed entry that causes AttributeError (#3621) - Oracle zxJDBC fails with AttributeError in object OracleCompiler_zxjdbc",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/dialects/oracle/zxjdbc.py",
+          "patch": "@@ -71,8 +71,7 @@ def returning_clause(self, stmt, returning_cols):\n             expression._select_iterables(returning_cols))\n \n         # within_columns_clause=False so that labels (foo AS bar) don't render\n-        columns = [self.process(c, within_columns_clause=False,\n-                                result_map=self.result_map)\n+        columns = [self.process(c, within_columns_clause=False)\n                    for c in self.returning_cols]\n \n         if not hasattr(self, 'returning_parameters'):"
+        }
+      ]
+    },
+    {
+      "sha": "47fcb1d0b6ad6481e89d4b2e8c2cc29cf7c03d8b",
+      "message": "- Fixed rare TypeError which could occur when stringifying certain\nkinds of internal column loader options within internal logging.\nfixes #3539",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/strategy_options.py",
+          "patch": "@@ -180,7 +180,7 @@ def _generate_path(self, path, attr, wildcard_key, raiseerr=True):\n         return path\n \n     def __str__(self):\n-        return \"Load(strategy=%r)\" % self.strategy\n+        return \"Load(strategy=%r)\" % (self.strategy, )\n \n     def _coerce_strat(self, strategy):\n         if strategy is not None:"
+        }
+      ]
+    },
+    {
+      "sha": "3cfe3fd81d7ce3539633b80c99327767cebd09d5",
+      "message": "- Fixed bug where coersion of literal ``True`` or ``False`` constant\nin conjunction with :func:`.and_` or :func:`.or_` would fail\nwith an AttributeError.\nfixes #3490",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/elements.py",
+          "patch": "@@ -1847,9 +1847,12 @@ def __init__(self, *arg, **kw):\n     def _construct(cls, operator, continue_on, skip_on, *clauses, **kw):\n         convert_clauses = []\n \n-        clauses = util.coerce_generator_arg(clauses)\n+        clauses = [\n+            _expression_literal_as_text(clause)\n+            for clause in\n+            util.coerce_generator_arg(clauses)\n+        ]\n         for clause in clauses:\n-            clause = _expression_literal_as_text(clause)\n \n             if isinstance(clause, continue_on):\n                 continue"
+        }
+      ]
+    },
+    {
+      "sha": "ce1ab2bef3e5095d676f4e6c1e19e9a9cbfff835",
+      "message": "Update base.py\n\nFix TypeError: Boolean value of this clause is not defined",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/dialects/firebird/base.py",
+          "patch": "@@ -300,9 +300,9 @@ def get_select_precolumns(self, select):\n         \"\"\"\n \n         result = \"\"\n-        if select._limit_clause:\n+        if select._limit_clause is not None:\n             result += \"FIRST %s \" % self.process(select._limit_clause)\n-        if select._offset_clause:\n+        if select._offset_clause is not None:\n             result += \"SKIP %s \" % self.process(select._offset_clause)\n         if select._distinct:\n             result += \"DISTINCT \""
+        }
+      ]
+    },
+    {
+      "sha": "79c0aa6b7320f94399634d02997faacbb6ced1d7",
+      "message": "- use self.parent, not table here as there's an attributeerror\ntrap for self.table that behaves differently in py3k",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/schema.py",
+          "patch": "@@ -2647,7 +2647,7 @@ def column_keys(self):\n         .. versionadded:: 1.0.0\n \n         \"\"\"\n-        if hasattr(self, 'table'):\n+        if hasattr(self, \"parent\"):\n             return self.columns.keys()\n         else:\n             return ["
+        }
+      ]
+    },
+    {
+      "sha": "81d1e0455a406560be468d1aacc37aa63bb4d717",
+      "message": "- Fixed bug where a fair number of SQL elements within\nthe sql package would fail to ``__repr__()`` successfully,\ndue to a missing ``description`` attribute that would then invoke\na recursion overflow when an internal AttributeError would then\nre-invoke ``__repr__()``.\nfixes #3195",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/elements.py",
+          "patch": "@@ -228,6 +228,7 @@ class ClauseElement(Visitable):\n     is_selectable = False\n     is_clause_element = True\n \n+    description = None\n     _order_by_label_element = None\n     _is_from_container = False\n \n@@ -540,7 +541,7 @@ def __bool__(self):\n     __nonzero__ = __bool__\n \n     def __repr__(self):\n-        friendly = getattr(self, 'description', None)\n+        friendly = self.description\n         if friendly is None:\n             return object.__repr__(self)\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "119674dd250d7da8be92a262ad53396c2fac4e0f",
+      "message": "- The execution options passed to an :class:`.Engine` either via\n:paramref:`.create_engine.execution_options` or\n:meth:`.Engine.update_execution_options` are not passed to the\nspecial :class:`.Connection` used to initialize the dialect\nwithin the \"first connect\" event; dialects will usually\nperform their own queries in this phase, and none of the\ncurrent available  options should be applied here.  In\nparticular, the \"autocommit\" option was causing an attempt to\nautocommit within this initial connect which would fail with\nan AttributeError due to the non-standard state of the\n:class:`.Connection`.\nfixes #3200",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/engine/strategies.py",
+          "patch": "@@ -162,6 +162,7 @@ def on_connect(dbapi_connection, connection_record):\n             def first_connect(dbapi_connection, connection_record):\n                 c = base.Connection(engine, connection=dbapi_connection,\n                                     _has_events=False)\n+                c._execution_options = {}\n                 dialect.initialize(c)\n             event.listen(pool, 'first_connect', first_connect, once=True)\n "
+        }
+      ]
+    },
+    {
+      "sha": "f2cf62090c4f9812bf4a57a9f68172b1b2eafd6c",
+      "message": "- Fixed bug involving dynamic attributes, that was again a regression\nof :ticket:`3060` from verision 0.9.5.  A self-referential relationship\nwith lazy='dynamic' would raise a TypeError within a flush operation.\nfixes #3099",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/dynamic.py",
+          "patch": "@@ -171,9 +171,10 @@ def get_history(self, state, dict_, passive=attributes.PASSIVE_OFF):\n         c = self._get_collection_history(state, passive)\n         return c.as_history()\n \n-    def get_all_pending(self, state, dict_):\n+    def get_all_pending(self, state, dict_,\n+                                passive=attributes.PASSIVE_NO_INITIALIZE):\n         c = self._get_collection_history(\n-            state, attributes.PASSIVE_NO_INITIALIZE)\n+            state, passive)\n         return [\n                 (attributes.instance_state(x), x)\n                 for x in"
+        }
+      ]
+    },
+    {
+      "sha": "230c0d5a19978872fae4e1261736a9e300ae9bf1",
+      "message": "- Fixed ORM bug where the :func:`.class_mapper` function would mask\nAttributeErrors or KeyErrors that should raise during mapper\nconfiguration due to user errors.  The catch for attribute/keyerror\nhas been made more specific to not include the configuration step.\nfixes #3047",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/base.py",
+          "patch": "@@ -351,12 +351,13 @@ def _inspect_mapped_class(class_, configure=False):\n         if not class_manager.is_mapped:\n             return None\n         mapper = class_manager.mapper\n+    except exc.NO_STATE:\n+        return None\n+    else:\n         if configure and mapper._new_mappers:\n             mapper._configure_all()\n         return mapper\n \n-    except exc.NO_STATE:\n-        return None\n \n def class_mapper(class_, configure=True):\n     \"\"\"Given a class, return the primary :class:`.Mapper` associated"
+        }
+      ]
+    },
+    {
+      "sha": "77ed03652580c5db925729c573b76ca32393dc67",
+      "message": "- Fixed bug where calling :meth:`.Insert.values` with an empty list\nor tuple would raise an IndexError.   It now produces an empty\ninsert construct as would be the case with an empty dictionary.",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/sql/dml.py",
+          "patch": "@@ -37,6 +37,7 @@ def process_single(p):\n                 return p\n \n         if isinstance(parameters, (list, tuple)) and \\\n+                parameters and \\\n               isinstance(parameters[0], (list, tuple, dict)):\n \n             if not self._supports_multi_parameters:"
+        }
+      ]
+    },
+    {
+      "sha": "58d3a4147361315fec2979e7bf933f4bd30ae46b",
+      "message": "Fix TypeError for class_mapper called w/ iterable\n\nWhen the class_ passed is not a mapped class but is actually an iterable, the string formatting operation fails with a TypeError, and the expected ArgumentError is not raised. Calling code which is using reflection and expects this error will fail (e.g. the sadisplay module).",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/base.py",
+          "patch": "@@ -375,7 +375,7 @@ def class_mapper(class_, configure=True):\n     if mapper is None:\n         if not isinstance(class_, type):\n             raise sa_exc.ArgumentError(\n-                    \"Class object expected, got '%r'.\" % class_)\n+                    \"Class object expected, got '%r'.\" % (class_, ))\n         raise exc.UnmappedClassError(class_)\n     else:\n         return mapper"
+        }
+      ]
+    },
+    {
+      "sha": "16ab0d61ef7e3e324bec71a672983384eba48389",
+      "message": "Fixes issue where GAE error handling can cause AttributeError: 'NoneType' object has no attribute 'group'",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/dialects/mysql/gaerdbms.py",
+          "patch": "@@ -50,7 +50,9 @@ def create_connect_args(self, url):\n \n     def _extract_error_code(self, exception):\n         match = re.compile(r\"^(\\d+):\").match(str(exception))\n-        code = match.group(1)\n+        # The rdbms api will wrap then re-raise some types of errors\n+        # making this regex return no matches.\n+        code = match.group(1) if match else None\n         if code:\n             return int(code)\n "
+        }
+      ]
+    },
+    {
+      "sha": "7ad0c8cb2b76c1de223787785cf5c77d43192db2",
+      "message": "- [bug] Fixed issue whereby attribute-based\ncolumn access on a row would raise\nAttributeError with non-C version,\nNoSuchColumnError with C version.  Now\nraises AttributeError in both cases.\n[ticket:2398]",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/engine/base.py",
+          "patch": "@@ -2623,7 +2623,6 @@ def __getitem__(self, key):\n \n         def __getattr__(self, name):\n             try:\n-                # TODO: no test coverage here\n                 return self[name]\n             except KeyError, e:\n                 raise AttributeError(e.args[0])"
+        }
+      ]
+    },
+    {
+      "sha": "d706a661709a2c963f8adde53959c5fc42f26d58",
+      "message": "- [bug] implemented standard \"can't set attribute\" /\n\"can't delete attribute\" AttributeError when\nsetattr/delattr used on a hybrid that doesn't\ndefine fset or fdel. [ticket:2353]",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/ext/hybrid.py",
+          "patch": "@@ -613,9 +613,13 @@ def __get__(self, instance, owner):\n             return self.fget(instance)\n \n     def __set__(self, instance, value):\n+        if self.fset is None:\n+            raise AttributeError(\"can't set attribute\")\n         self.fset(instance, value)\n \n     def __delete__(self, instance):\n+        if self.fdel is None:\n+            raise AttributeError(\"can't delete attribute\")\n         self.fdel(instance)\n \n     def setter(self, fset):"
+        }
+      ]
+    },
+    {
+      "sha": "cf5113115047032dd46724d1e3f56dfca6503eee",
+      "message": "- Added a fully descriptive error message for the\ncase where Column is subclassed and _make_proxy()\nfails to make a copy due to TypeError on the\nconstructor.   The method _constructor should\nbe implemented in this case.",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/__init__.py",
+          "patch": "@@ -116,6 +116,6 @@\n __all__ = sorted(name for name, obj in locals().items()\n                  if not (name.startswith('_') or inspect.ismodule(obj)))\n \n-__version__ = '0.7b2'\n+__version__ = '0.7b3'\n \n del inspect, sys"
+        }
+      ]
+    },
+    {
+      "sha": "4efb07477bc3978650e81912f1766136e388863f",
+      "message": "- Fixed indexing of Query objects by -1. It was erroneously\ntransformed to the empty slice -1:0 that resulted in\nIndexError. [ticket:1968]",
+      "changes": [
+        {
+          "file": "lib/sqlalchemy/orm/query.py",
+          "patch": "@@ -1527,7 +1527,10 @@ def __getitem__(self, item):\n             else:\n                 return list(res)\n         else:\n-            return list(self[item:item+1])[0]\n+            if item == -1:\n+                return list(self)[-1]\n+            else:\n+                return list(self[item:item+1])[0]\n \n     @_generative(_no_statement_condition)\n     def slice(self, start, stop):"
+        }
+      ]
+    },
+    {
+      "sha": "7d3a916fc3bc5d81b6b251a42f196793f5643b76",
+      "message": "- replaced all self.__connection.is_valid with\n\"safe\" self._connection_is_valid.\n- Fixed bug in Connection whereby if a \"disconnect\"\nevent occurred in the \"initialize\" phase of the\nfirst connection pool connect, an AttributeError\nwould be raised when the Connection would attempt\nto invalidate the DBAPI connection.  [ticket:1894]\n- Connection.invalidate() can be called more than\nonce and subsequent calls do nothing.",
+      "changes": [
+        {
+          "file": "test/engine/test_pool.py",
+          "patch": "@@ -668,7 +668,7 @@ def test_invalidate(self):\n         c1 = None\n         c1 = p.connect()\n         assert c1.connection.id != c_id\n-\n+        \n     def test_recreate(self):\n         dbapi = MockDBAPI()\n         p = pool.QueuePool(creator=lambda : dbapi.connect('foo.db'),"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,155 @@
+{
+  "repo_name": "openai/whisper",
+  "commits": [
+    {
+      "sha": "90db0de1896c23cbfaf0c58bc2d30665f709f170",
+      "message": "Bugfix: Illogical \"Avoid computing higher temperatures on no_speech\" (#1903)\n\n* Bugfix: Illogical \"Avoid computing higher temperatures on no_speech\"\r\n\r\nBugfix for https://github.com/openai/whisper/pull/1279\r\n\r\nIt's \"silence\" when decoding has failed due to `compression_ratio_threshold` too, when further down the code it's not \"silence\" anymore.\r\n\r\n\"Silence\" should be only when decoding has failed due to `logprob_threshold`.\r\n\r\nLike described there:\r\nhttps://github.com/openai/whisper/blob/8bc8860694949db53c42ba47ddc23786c2e02a8b/whisper/transcribe.py#L421\r\n\r\nAnd in code there:\r\nhttps://github.com/openai/whisper/blob/8bc8860694949db53c42ba47ddc23786c2e02a8b/whisper/transcribe.py#L243-L251\r\n\r\n* Fix if \"logprob_threshold=None\"\r\n\r\n---------\r\n\r\nCo-authored-by: Jong Wook Kim <jongwook@openai.com>",
+      "changes": [
+        {
+          "file": "whisper/transcribe.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -214,6 +214,8 @@ def decode_with_fallback(segment: torch.Tensor) -> DecodingResult:\n             if (\n                 no_speech_threshold is not None\n                 and decode_result.no_speech_prob > no_speech_threshold\n+                and logprob_threshold is not None\n+                and decode_result.avg_logprob < logprob_threshold\n             ):\n                 needs_fallback = False  # silence\n             if not needs_fallback:"
+        }
+      ]
+    },
+    {
+      "sha": "ba3f3cd54b0e5b8ce1ab3de13e32122d0d5f98ab",
+      "message": "Skip silence around hallucinations (#1838)\n\n* Add clip_timestamps option\r\n\r\n* Add hallucination_silence_threshold option\r\n\r\n* Fix typing for python < 3.9\r\n\r\n---------\r\n\r\nCo-authored-by: Jong Wook Kim <jongwook@openai.com>",
+      "changes": [
+        {
+          "file": "whisper/timing.py",
+          "additions": 1,
+          "deletions": 0,
+          "patch": "@@ -299,6 +299,7 @@ def add_word_timestamps(\n     word_durations = np.array([t.end - t.start for t in alignment])\n     word_durations = word_durations[word_durations.nonzero()]\n     median_duration = np.median(word_durations) if len(word_durations) > 0 else 0.0\n+    median_duration = min(0.7, float(median_duration))\n     max_duration = median_duration * 2\n \n     # hack: truncate long words at sentence boundaries."
+        }
+      ]
+    },
+    {
+      "sha": "8bc8860694949db53c42ba47ddc23786c2e02a8b",
+      "message": "Fix triton env marker (#1887)",
+      "changes": [
+        {
+          "file": "setup.py",
+          "additions": 3,
+          "deletions": 4,
+          "patch": "@@ -1,6 +1,6 @@\n-import os\n import platform\n import sys\n+from pathlib import Path\n \n import pkg_resources\n from setuptools import find_packages, setup\n@@ -28,11 +28,10 @@ def read_version(fname=\"whisper/version.py\"):\n     url=\"https://github.com/openai/whisper\",\n     license=\"MIT\",\n     packages=find_packages(exclude=[\"tests*\"]),\n-    install_requires=requirements\n-    + [\n+    install_requires=[\n         str(r)\n         for r in pkg_resources.parse_requirements(\n-            open(os.path.join(os.path.dirname(__file__), \"requirements.txt\"))\n+            Path(__file__).with_name(\"requirements.txt\").open()\n         )\n     ],\n     entry_points={"
+        }
+      ]
+    },
+    {
+      "sha": "c5d42560760a05584c1c79546a098287e5a771eb",
+      "message": "large-v3 (#1761)\n\n* mel_filters() loads 128 mel bins\r\n\r\n* can load 100-language models\r\n\r\n* large-v3 checkpoint and evals\r\n\r\n* add mandarin alias\r\n\r\n* remove unused path\r\n\r\n* flake8 fix\r\n\r\n* formatting fix",
+      "changes": [
+        {
+          "file": "tests/test_transcribe.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -25,7 +25,7 @@ def test_transcribe(model_name: str):\n     assert \"your country\" in transcription\n     assert \"do for you\" in transcription\n \n-    tokenizer = get_tokenizer(model.is_multilingual)\n+    tokenizer = get_tokenizer(model.is_multilingual, num_languages=model.num_languages)\n     all_tokens = [t for s in result[\"segments\"] for t in s[\"tokens\"]]\n     assert tokenizer.decode(all_tokens) == result[\"text\"]\n     assert tokenizer.decode_with_timestamps(all_tokens).startswith(\"<|0.00|>\")"
+        },
+        {
+          "file": "whisper/__init__.py",
+          "additions": 4,
+          "deletions": 2,
+          "patch": "@@ -25,7 +25,8 @@\n     \"medium\": \"https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt\",\n     \"large-v1\": \"https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a/large-v1.pt\",\n     \"large-v2\": \"https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt\",\n-    \"large\": \"https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt\",\n+    \"large-v3\": \"https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt\",\n+    \"large\": \"https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt\",\n }\n \n # base85-encoded (n_layers, n_heads) boolean arrays indicating the cross-attention heads that are\n@@ -41,7 +42,8 @@\n     \"medium\": b\"ABzY8B0Jh+0{>%R7}kK1fFL7w6%<-Pf*t^=N)Qr&0RR9\",\n     \"large-v1\": b\"ABzY8r9j$a0{>%R7#4sLmoOs{s)o3~84-RPdcFk!JR<kSfC2yj\",\n     \"large-v2\": b\"ABzY8zd+h!0{>%R7=D0pU<_bnWW*tkYAhobTNnu$jnkEkXqp)j;w1Tzk)UH3X%SZd&fFZ2fC2yj\",\n-    \"large\": b\"ABzY8zd+h!0{>%R7=D0pU<_bnWW*tkYAhobTNnu$jnkEkXqp)j;w1Tzk)UH3X%SZd&fFZ2fC2yj\",\n+    \"large-v3\": b\"ABzY8gWO1E0{>%R7(9S+Kn!D~%ngiGaR?*L!iJG9p-nab0JQ=-{D1-g00\",\n+    \"large\": b\"ABzY8gWO1E0{>%R7(9S+Kn!D~%ngiGaR?*L!iJG9p-nab0JQ=-{D1-g00\",\n }\n \n "
+        },
+        {
+          "file": "whisper/audio.py",
+          "additions": 4,
+          "deletions": 4,
+          "patch": "@@ -12,7 +12,6 @@\n # hard-coded audio hyperparameters\n SAMPLE_RATE = 16000\n N_FFT = 400\n-N_MELS = 80\n HOP_LENGTH = 160\n CHUNK_LENGTH = 30\n N_SAMPLES = CHUNK_LENGTH * SAMPLE_RATE  # 480000 samples in a 30-second chunk\n@@ -90,17 +89,18 @@ def pad_or_trim(array, length: int = N_SAMPLES, *, axis: int = -1):\n \n \n @lru_cache(maxsize=None)\n-def mel_filters(device, n_mels: int = N_MELS) -> torch.Tensor:\n+def mel_filters(device, n_mels: int) -> torch.Tensor:\n     \"\"\"\n     load the mel filterbank matrix for projecting STFT into a Mel spectrogram.\n     Allows decoupling librosa dependency; saved using:\n \n         np.savez_compressed(\n             \"mel_filters.npz\",\n             mel_80=librosa.filters.mel(sr=16000, n_fft=400, n_mels=80),\n+            mel_128=librosa.filters.mel(sr=16000, n_fft=400, n_mels=128),\n         )\n     \"\"\"\n-    assert n_mels == 80, f\"Unsupported n_mels: {n_mels}\"\n+    assert n_mels in {80, 128}, f\"Unsupported n_mels: {n_mels}\"\n \n     filters_path = os.path.join(os.path.dirname(__file__), \"assets\", \"mel_filters.npz\")\n     with np.load(filters_path, allow_pickle=False) as f:\n@@ -109,7 +109,7 @@ def mel_filters(device, n_mels: int = N_MELS) -> torch.Tensor:\n \n def log_mel_spectrogram(\n     audio: Union[str, np.ndarray, torch.Tensor],\n-    n_mels: int = N_MELS,\n+    n_mels: int = 80,\n     padding: int = 0,\n     device: Optional[Union[str, torch.device]] = None,\n ):"
+        },
+        {
+          "file": "whisper/decoding.py",
+          "additions": 7,
+          "deletions": 2,
+          "patch": "@@ -32,7 +32,9 @@ def detect_language(\n         list of dictionaries containing the probability distribution over all languages.\n     \"\"\"\n     if tokenizer is None:\n-        tokenizer = get_tokenizer(model.is_multilingual)\n+        tokenizer = get_tokenizer(\n+            model.is_multilingual, num_languages=model.num_languages\n+        )\n     if (\n         tokenizer.language is None\n         or tokenizer.language_token not in tokenizer.sot_sequence\n@@ -514,7 +516,10 @@ def __init__(self, model: \"Whisper\", options: DecodingOptions):\n \n         language = options.language or \"en\"\n         tokenizer = get_tokenizer(\n-            model.is_multilingual, language=language, task=options.task\n+            model.is_multilingual,\n+            num_languages=model.num_languages,\n+            language=language,\n+            task=options.task,\n         )\n         self.tokenizer: Tokenizer = tokenizer\n         self.options: DecodingOptions = self._verify_options(options)"
+        },
+        {
+          "file": "whisper/model.py",
+          "additions": 7,
+          "deletions": 2,
+          "patch": "@@ -236,7 +236,8 @@ def __init__(self, dims: ModelDimensions):\n             self.dims.n_text_head,\n             self.dims.n_text_layer,\n         )\n-        # use the last half layers for alignment by default; see `set_alignment_heads()` below\n+        # use the last half among the decoder layers for time alignment by default;\n+        # to use a specific set of heads, see `set_alignment_heads()` below.\n         all_heads = torch.zeros(\n             self.dims.n_text_layer, self.dims.n_text_head, dtype=torch.bool\n         )\n@@ -269,7 +270,11 @@ def device(self):\n \n     @property\n     def is_multilingual(self):\n-        return self.dims.n_vocab == 51865\n+        return self.dims.n_vocab >= 51865\n+\n+    @property\n+    def num_languages(self):\n+        return self.dims.n_vocab - 51765 - int(self.is_multilingual)\n \n     def install_kv_cache_hooks(self, cache: Optional[dict] = None):\n         \"\"\""
+        },
+        {
+          "file": "whisper/transcribe.py",
+          "additions": 7,
+          "deletions": 2,
+          "patch": "@@ -119,7 +119,7 @@ def transcribe(\n         decode_options[\"fp16\"] = False\n \n     # Pad 30-seconds of silence to the input audio, for slicing\n-    mel = log_mel_spectrogram(audio, padding=N_SAMPLES)\n+    mel = log_mel_spectrogram(audio, model.dims.n_mels, padding=N_SAMPLES)\n     content_frames = mel.shape[-1] - N_FRAMES\n \n     if decode_options.get(\"language\", None) is None:\n@@ -140,7 +140,12 @@ def transcribe(\n \n     language: str = decode_options[\"language\"]\n     task: str = decode_options.get(\"task\", \"transcribe\")\n-    tokenizer = get_tokenizer(model.is_multilingual, language=language, task=task)\n+    tokenizer = get_tokenizer(\n+        model.is_multilingual,\n+        num_languages=model.num_languages,\n+        language=language,\n+        task=task,\n+    )\n \n     if word_timestamps and task == \"translate\":\n         warnings.warn(\"Word-level timestamps on translations may not be reliable.\")"
+        }
+      ]
+    },
+    {
+      "sha": "b7d277acd59c19edab3c75b8bf362ddd27fddcc7",
+      "message": "handling transcribe exceptions. (#1682)\n\n* handling transcribe() exceptions.\r\n\r\n* printing stacktrace\r\n\r\n---------\r\n\r\nCo-authored-by: invalid <invalid@email.com>\r\nCo-authored-by: Jong Wook Kim <jongwook@nyu.edu>\r\nCo-authored-by: Jong Wook Kim <jongwook@openai.com>",
+      "changes": [
+        {
+          "file": "whisper/transcribe.py",
+          "additions": 7,
+          "deletions": 2,
+          "patch": "@@ -1,5 +1,6 @@\n import argparse\n import os\n+import traceback\n import warnings\n from typing import TYPE_CHECKING, Optional, Tuple, Union\n \n@@ -468,8 +469,12 @@ def valid_model_name(name):\n         warnings.warn(\"--max_words_per_line has no effect with --max_line_width\")\n     writer_args = {arg: args.pop(arg) for arg in word_options}\n     for audio_path in args.pop(\"audio\"):\n-        result = transcribe(model, audio_path, temperature=temperature, **args)\n-        writer(result, audio_path, **writer_args)\n+        try:\n+            result = transcribe(model, audio_path, temperature=temperature, **args)\n+            writer(result, audio_path, **writer_args)\n+        except Exception as e:\n+            traceback.print_exc()\n+            print(f\"Skipping {audio_path} due to {type(e).__name__}: {str(e)}\")\n \n \n if __name__ == \"__main__\":"
+        }
+      ]
+    },
+    {
+      "sha": "b38a1f20f4b23f3f3099af2c3e0ca95627276ddf",
+      "message": "Fix exception when an audio file with no speech is provided (#1396)\n\nCo-authored-by: Jong Wook Kim <jongwook@openai.com>",
+      "changes": [
+        {
+          "file": "whisper/utils.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -145,7 +145,7 @@ def iterate_subtitles():\n             if len(subtitle) > 0:\n                 yield subtitle\n \n-        if \"words\" in result[\"segments\"][0]:\n+        if len(result[\"segments\"]) > 0 and \"words\" in result[\"segments\"][0]:\n             for subtitle in iterate_subtitles():\n                 subtitle_start = self.format_timestamp(subtitle[0][\"start\"])\n                 subtitle_end = self.format_timestamp(subtitle[-1][\"end\"])"
+        }
+      ]
+    },
+    {
+      "sha": "21010ef454fb25954b0914785180311fb077add9",
+      "message": "fix doc of TextDecoder (#1526)\n\nSigned-off-by: haoshengqiang <haoshengqiang@xiaohongshu.com>\r\nCo-authored-by: haoshengqiang <haoshengqiang@xiaohongshu.com>",
+      "changes": [
+        {
+          "file": "whisper/model.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -197,7 +197,7 @@ def forward(self, x: Tensor, xa: Tensor, kv_cache: Optional[dict] = None):\n         \"\"\"\n         x : torch.LongTensor, shape = (batch_size, <= n_ctx)\n             the text tokens\n-        xa : torch.Tensor, shape = (batch_size, n_mels, n_audio_ctx)\n+        xa : torch.Tensor, shape = (batch_size, n_audio_ctx, n_audio_state)\n             the encoded audio features to be attended on\n         \"\"\"\n         offset = next(iter(kv_cache.values())).shape[1] if kv_cache else 0"
+        }
+      ]
+    },
+    {
+      "sha": "248b6cb124225dd263bb9bd32d060b6517e067f8",
+      "message": "fix condition_on_previous_text (#1224)\n\nprompt_reset_since is set before all_tokens is extended hence does not have the expected effect.",
+      "changes": [
+        {
+          "file": "whisper/transcribe.py",
+          "additions": 4,
+          "deletions": 4,
+          "patch": "@@ -312,10 +312,6 @@ def new_segment(\n                 )\n                 seek += segment_size\n \n-            if not condition_on_previous_text or result.temperature > 0.5:\n-                # do not feed the prompt tokens if a high temperature was used\n-                prompt_reset_since = len(all_tokens)\n-\n             if word_timestamps:\n                 add_word_timestamps(\n                     segments=current_segments,\n@@ -361,6 +357,10 @@ def new_segment(\n                 [token for segment in current_segments for token in segment[\"tokens\"]]\n             )\n \n+            if not condition_on_previous_text or result.temperature > 0.5:\n+                # do not feed the prompt tokens if a high temperature was used\n+                prompt_reset_since = len(all_tokens)\n+\n             # update progress bar\n             pbar.update(min(content_frames, seek) - previous_seek)\n "
+        }
+      ]
+    },
+    {
+      "sha": "b0022b3283232b2b9f19262360cd80ec9975aeb4",
+      "message": "Update decoding.py (#1155)\n\n* Update decoding.py\r\n\r\nFollowing the suggestions of @Jeronymous in https://github.com/openai/whisper/pull/914 and https://github.com/openai/whisper/discussions/924, it solves the problem of endless loop.\r\n\r\n* Removed blank line and whitespaces in empty lines.\r\n\r\n* Suggested changes according to the linter\r\n\r\n---------\r\n\r\nCo-authored-by: Jong Wook Kim <jongwook@openai.com>",
+      "changes": [
+        {
+          "file": "whisper/decoding.py",
+          "additions": 7,
+          "deletions": 0,
+          "patch": "@@ -471,6 +471,13 @@ def apply(self, logits: Tensor, tokens: Tensor):\n                 # timestamps shouldn't decrease; forbid timestamp tokens smaller than the last\n                 logits[k, self.tokenizer.timestamp_begin : timestamps[-1]] = -np.inf\n \n+                # to force that timestamps are strictly increasing\n+                if last_was_timestamp and not penultimate_was_timestamp:\n+                    timestamp_last = timestamps[-1]\n+                else:\n+                    timestamp_last = timestamps[-1] + 1\n+                logits[k, self.tokenizer.timestamp_begin : timestamp_last] = -np.inf\n+\n         if tokens.shape[1] == self.sample_begin:\n             # suppress generating non-timestamp tokens at the beginning\n             logits[:, : self.tokenizer.timestamp_begin] = -np.inf"
+        }
+      ]
+    },
+    {
+      "sha": "5f9ac653b7f0fa772af9aa8e2cec89726b526c3e",
+      "message": "Fix truncated words list when the replacement character is decoded (#1089)",
+      "changes": [
+        {
+          "file": "tests/test_tokenizer.py",
+          "additions": 10,
+          "deletions": 0,
+          "patch": "@@ -12,3 +12,13 @@ def test_tokenizer():\n     assert gpt2_tokenizer.decode(gpt2_tokens) == text\n     assert multilingual_tokenizer.decode(multilingual_tokens) == text\n     assert len(gpt2_tokens) > len(multilingual_tokens)\n+\n+\n+def test_split_on_unicode():\n+    multilingual_tokenizer = get_tokenizer(multilingual=True)\n+\n+    tokens = [8404, 871, 287, 6, 246, 526, 3210, 20378]\n+    words, word_tokens = multilingual_tokenizer.split_tokens_on_unicode(tokens)\n+\n+    assert words == [\" elle\", \" est\", \" l\", \"'\", \"\ufffd\", \"\u00e9\", \"rit\", \"oire\"]\n+    assert word_tokens == [[8404], [871], [287], [6], [246], [526], [3210], [20378]]"
+        }
+      ]
+    }
+  ]
+}

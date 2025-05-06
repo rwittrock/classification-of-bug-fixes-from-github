@@ -1,0 +1,95 @@
+{
+  "repo_name": "pypa/pip",
+  "commits": [
+    {
+      "sha": "0a1571ba03d8a87e0ad47e70f93e990128b5fd13",
+      "message": "Fix a NoneType AttributeError when evaluating hashes.",
+      "changes": [
+        {
+          "file": "src/pip/_internal/models/link.py",
+          "patch": "@@ -200,11 +200,11 @@ def has_hash(self):\n         return self.hash_name is not None\n \n     def is_hash_allowed(self, hashes):\n-        # type: (Hashes) -> bool\n+        # type: (Optional[Hashes]) -> bool\n         \"\"\"\n         Return True if the link has a hash and it is allowed.\n         \"\"\"\n-        if not self.has_hash:\n+        if hashes is None or not self.has_hash:\n             return False\n         # Assert non-None so mypy knows self.hash_name and self.hash are str.\n         assert self.hash_name is not None"
+        }
+      ]
+    },
+    {
+      "sha": "bb14ff42b00f64d885b44329f8b06fc486130592",
+      "message": "Fix NameError when handling InvalidRequirement in install_req_from_req_string (#6419)\n\nPreviously, an InvalidRequirement would raise a NameError while trying\r\nto raise an InstallationError because `req` was not defined.\r\n\r\nDiscovered while working on #6402.",
+      "changes": [
+        {
+          "file": "src/pip/_internal/req/constructors.py",
+          "patch": "@@ -319,7 +319,7 @@ def install_req_from_req_string(\n     try:\n         req = Requirement(req_string)\n     except InvalidRequirement:\n-        raise InstallationError(\"Invalid requirement: '%s'\" % req)\n+        raise InstallationError(\"Invalid requirement: '%s'\" % req_string)\n \n     domains_not_allowed = [\n         PyPI.file_storage_domain,"
+        }
+      ]
+    },
+    {
+      "sha": "d245434c021d604d12bec18c32332964afd23772",
+      "message": "Fix #5889: AttributeError: 'NoneType' object has no attribute 'netloc' (#6336)",
+      "changes": [
+        {
+          "file": "src/pip/_internal/req/constructors.py",
+          "patch": "@@ -325,7 +325,8 @@ def install_req_from_req_string(\n         PyPI.file_storage_domain,\n         TestPyPI.file_storage_domain,\n     ]\n-    if req.url and comes_from.link.netloc in domains_not_allowed:\n+    if (req.url and comes_from and comes_from.link and\n+            comes_from.link.netloc in domains_not_allowed):\n         # Explicitly disallow pypi packages that depend on external urls\n         raise InstallationError(\n             \"Packages installed from PyPI cannot depend on packages \""
+        }
+      ]
+    },
+    {
+      "sha": "6cdecce71d540dba4df9b415dbdbd9bc4107be86",
+      "message": "Fix an IndexError crash when a legacy build of a wheel fails.",
+      "changes": [
+        {
+          "file": "tests/lib/__init__.py",
+          "patch": "@@ -21,6 +21,10 @@\n pyversion_tuple = sys.version_info\n \n \n+def assert_paths_equal(actual, expected):\n+    os.path.normpath(actual) == os.path.normpath(expected)\n+\n+\n def path_to_url(path):\n     \"\"\"\n     Convert a path to URI. The path will be made absolute and"
+        }
+      ]
+    },
+    {
+      "sha": "10911fe88194cb512d56185e34a0466c64e88616",
+      "message": "Fix error when autocompleting after flag\n\nWhen running autocomplete after any command-line option with unspecified\n'metavar' attribute, a traceback for an 'AttributeError' would be\ndisplayed. This is fixed for first checking if 'metavar' was defined.\nFixes #5751",
+      "changes": [
+        {
+          "file": "src/pip/_internal/cli/autocompletion.py",
+          "patch": "@@ -116,7 +116,8 @@ def get_path_completion_type(cwords, cword, opts):\n             continue\n         for o in str(opt).split('/'):\n             if cwords[cword - 2].split('=')[0] == o:\n-                if any(x in ('path', 'file', 'dir')\n+                if not opt.metavar or any(\n+                        x in ('path', 'file', 'dir')\n                         for x in opt.metavar.split('/')):\n                     return opt.metavar\n "
+        }
+      ]
+    },
+    {
+      "sha": "a5e06a506c4b3c52deabc6f31a85b2f02b0753f5",
+      "message": "Do not break built-in logging module when pip embedded in script\n\nFixes #2553. When a Python script embeds pip and tries to log something from a different thread, an AttributeError is raised.",
+      "changes": [
+        {
+          "file": "pip/utils/logging.py",
+          "patch": "@@ -39,7 +39,7 @@ def indent_log(num=2):\n \n \n def get_indentation():\n-    return _log_state.indentation\n+    return getattr(_log_state, 'indentation', 0)\n \n \n class IndentingFormatter(logging.Formatter):"
+        }
+      ]
+    },
+    {
+      "sha": "de265f44d401fabb3dc006dbf7f3e58b37ac6a20",
+      "message": "Issue a warning for an unsuported hash type and catch TypeError as well",
+      "changes": [
+        {
+          "file": "pip/download.py",
+          "patch": "@@ -336,8 +336,10 @@ def _check_hash(download_hash, link):\n def _get_hash_from_file(target_file, link):\n     try:\n         download_hash = hashlib.new(link.hash_name)\n-    except ValueError:\n-        logger.fatal(\"Unsupported hash name %s for package %s\" % (link.hash_name, link))\n+    except (ValueError, TypeError):\n+        logger.warn(\"Unsupported hash name %s for package %s\" % (link.hash_name, link))\n+        return None\n+\n     fp = open(target_file, 'rb')\n     while True:\n         chunk = fp.read(4096)"
+        }
+      ]
+    },
+    {
+      "sha": "04838268e11fd95c33137104af5993b9779dca24",
+      "message": "Fix issue #366 - pip throws IndexError when it calls `scraped_rel_links`",
+      "changes": [
+        {
+          "file": "pip/index.py",
+          "patch": "@@ -549,7 +549,7 @@ def scraped_rel_links(self):\n             href_match = self._href_re.search(self.content, pos=match.end())\n             if not href_match:\n                 continue\n-            url = match.group(1) or match.group(2) or match.group(3)\n+            url = href_match.group(1) or href_match.group(2) or href_match.group(3)\n             if not url:\n                 continue\n             url = self.clean_link(urlparse.urljoin(self.base_url, url))"
+        }
+      ]
+    },
+    {
+      "sha": "0efece20e4997391efc74867ce9932454df837a7",
+      "message": "bugfix to python lesser than 2.6 - AttributeError: addinfourl instance has no attribute 'getcode'",
+      "changes": [
+        {
+          "file": "tests/pypi_server.py",
+          "patch": "@@ -87,7 +87,7 @@ def _cache_url(self, filepath):\n         fp = open(filepath, 'wb')\n         # when it uses file:// scheme, code is None and there is no msg attr\n         # but it has been successfully opened\n-        status = '%s %s' % (response.getcode() or 200, getattr(response, 'msg', 'OK'))\n+        status = '%s %s' % (response.code or 200, getattr(response, 'msg', 'OK'))\n         headers = ['%s: %s' % (key, value) for key, value in response.headers.items()]\n         body = response.read()\n         fp.write('\\n'.join([status] + headers + ['', body]))\n@@ -124,7 +124,6 @@ def test_cache_proxy():\n     r = CachedResponse(url, here)\n     try:\n         assert r.code == response.code\n-        assert r.getcode() == response.getcode()\n         assert r.msg == response.msg\n         assert r.read() == response.read()\n         assert r.url == response.url"
+        }
+      ]
+    }
+  ]
+}

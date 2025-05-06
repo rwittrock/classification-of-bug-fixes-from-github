@@ -1,0 +1,479 @@
+{
+  "repo_name": "django/django",
+  "commits": [
+    {
+      "sha": "738e9e615dc81b561c9fb01439119f4475c2e25b",
+      "message": "Fixed #26743 -- Fixed UnboundLocalError crash when deserializing m2m fields and value isn't iterable.",
+      "changes": [
+        {
+          "file": "django/core/serializers/base.py",
+          "patch": "@@ -282,9 +282,13 @@ def m2m_convert(value):\n         def m2m_convert(v):\n             return model._meta.pk.to_python(v)\n \n+    try:\n+        pks_iter = iter(field_value)\n+    except TypeError as e:\n+        raise M2MDeserializationError(e, field_value)\n     try:\n         values = []\n-        for pk in field_value:\n+        for pk in pks_iter:\n             values.append(m2m_convert(pk))\n         return values\n     except Exception as e:"
+        }
+      ]
+    },
+    {
+      "sha": "f97a6123c07de5099fdf8b7d00ef7d20ed354e07",
+      "message": "Refs #25367 -- Made Query.build_filter() raise TypeError on non-conditional expressions.",
+      "changes": [
+        {
+          "file": "django/db/models/sql/query.py",
+          "patch": "@@ -1230,7 +1230,9 @@ def build_filter(self, filter_expr, branch_negated=False, current_negated=False,\n                 allow_joins=allow_joins,\n                 split_subq=split_subq,\n             )\n-        if hasattr(filter_expr, 'resolve_expression') and getattr(filter_expr, 'conditional', False):\n+        if hasattr(filter_expr, 'resolve_expression'):\n+            if not getattr(filter_expr, 'conditional', False):\n+                raise TypeError('Cannot filter against a non-conditional expression.')\n             condition = self.build_lookup(\n                 ['exact'], filter_expr.resolve_expression(self, allow_joins=allow_joins), True\n             )"
+        },
+        {
+          "file": "tests/queries/test_query.py",
+          "patch": "@@ -144,3 +144,9 @@ def test_filter_conditional_join(self):\n         msg = 'Joined field references are not permitted in this query'\n         with self.assertRaisesMessage(FieldError, msg):\n             query.build_where(filter_expr)\n+\n+    def test_filter_non_conditional(self):\n+        query = Query(Item)\n+        msg = 'Cannot filter against a non-conditional expression.'\n+        with self.assertRaisesMessage(TypeError, msg):\n+            query.build_where(Func(output_field=CharField()))"
+        }
+      ]
+    },
+    {
+      "sha": "6fe9c45b725cd21eacbb50263bd3449e1a3edf17",
+      "message": "Fixed #30024 -- Made urlencode() and Client raise TypeError when None is passed as data.",
+      "changes": [
+        {
+          "file": "django/test/client.py",
+          "patch": "@@ -192,7 +192,12 @@ def is_file(thing):\n     # file, or a *list* of form values and/or files. Remember that HTTP field\n     # names can be duplicated!\n     for (key, value) in data.items():\n-        if is_file(value):\n+        if value is None:\n+            raise TypeError(\n+                'Cannot encode None as POST data. Did you mean to pass an '\n+                'empty string or omit the value?'\n+            )\n+        elif is_file(value):\n             lines.extend(encode_file(boundary, key, value))\n         elif not isinstance(value, str) and is_iterable(value):\n             for item in value:"
+        }
+      ]
+    },
+    {
+      "sha": "eb002e7892793fb9f593efaed8d3ea52a2bfc96c",
+      "message": "Fixed #29135 -- Prevented get_object/list_or_404() from hiding AttributeError raised by QuerySet filtering.",
+      "changes": [
+        {
+          "file": "tests/get_object_or_404/models.py",
+          "patch": "@@ -25,11 +25,17 @@ def get_queryset(self):\n         return super().get_queryset().filter(authors__name__icontains='sir')\n \n \n+class AttributeErrorManager(models.Manager):\n+    def get_queryset(self):\n+        raise AttributeError('AttributeErrorManager')\n+\n+\n class Article(models.Model):\n     authors = models.ManyToManyField(Author)\n     title = models.CharField(max_length=50)\n     objects = models.Manager()\n     by_a_sir = ArticleManager()\n+    attribute_error_objects = AttributeErrorManager()\n \n     def __str__(self):\n         return self.title"
+        }
+      ]
+    },
+    {
+      "sha": "66657eb01f36081f33d847390e4f7034ff3e9f52",
+      "message": "Improved messages in IndexErrors raised by GDAL objects.",
+      "changes": [
+        {
+          "file": "django/contrib/gis/gdal/datasource.py",
+          "patch": "@@ -89,12 +89,12 @@ def __getitem__(self, index):\n         if isinstance(index, str):\n             layer = capi.get_layer_by_name(self.ptr, force_bytes(index))\n             if not layer:\n-                raise IndexError('invalid OGR Layer name given: \"%s\"' % index)\n+                raise IndexError('Invalid OGR layer name given: %s.' % index)\n         elif isinstance(index, int):\n             if 0 <= index < self.layer_count:\n                 layer = capi.get_layer(self._ptr, index)\n             else:\n-                raise IndexError('index out of range')\n+                raise IndexError('Index out of range when accessing layers in a datasource: %s.' % index)\n         else:\n             raise TypeError('Invalid index type: %s' % type(index))\n         return Layer(layer, self)"
+        },
+        {
+          "file": "django/contrib/gis/gdal/feature.py",
+          "patch": "@@ -38,7 +38,7 @@ def __getitem__(self, index):\n         elif 0 <= index < self.num_fields:\n             i = index\n         else:\n-            raise IndexError('index out of range')\n+            raise IndexError('Index out of range when accessing field in a feature: %s.' % index)\n         return Field(self, i)\n \n     def __len__(self):\n@@ -111,5 +111,5 @@ def index(self, field_name):\n         \"Return the index of the given field name.\"\n         i = capi.get_field_index(self.ptr, force_bytes(field_name))\n         if i < 0:\n-            raise IndexError('invalid OFT field name given: \"%s\"' % field_name)\n+            raise IndexError('Invalid OFT field name given: %s.' % field_name)\n         return i"
+        },
+        {
+          "file": "django/contrib/gis/gdal/geometries.py",
+          "patch": "@@ -564,7 +564,7 @@ def __getitem__(self, index):\n             elif dim == 3:\n                 return (x.value, y.value, z.value)\n         else:\n-            raise IndexError('index out of range: %s' % index)\n+            raise IndexError('Index out of range when accessing points of a line string: %s.' % index)\n \n     def __len__(self):\n         \"Return the number of points in the LineString.\"\n@@ -616,7 +616,7 @@ def __getitem__(self, index):\n         if 0 <= index < self.geom_count:\n             return OGRGeometry(capi.clone_geom(capi.get_geom_ref(self.ptr, index)), self.srs)\n         else:\n-            raise IndexError('index out of range: %s' % index)\n+            raise IndexError('Index out of range when accessing rings of a polygon: %s.' % index)\n \n     # Polygon Properties\n     @property\n@@ -655,7 +655,7 @@ def __getitem__(self, index):\n         if 0 <= index < self.geom_count:\n             return OGRGeometry(capi.clone_geom(capi.get_geom_ref(self.ptr, index)), self.srs)\n         else:\n-            raise IndexError('index out of range: %s' % index)\n+            raise IndexError('Index out of range when accessing geometry in a collection: %s.' % index)\n \n     def __len__(self):\n         \"Return the number of geometries in this Geometry Collection.\""
+        }
+      ]
+    },
+    {
+      "sha": "5cbcb3683964205ce023157ca181d05a31be2ab5",
+      "message": "Fixed #28350 -- Fixed UnboundLocalError crash in RenameField with nonexistent field.\n\nThanks Tim for the review.",
+      "changes": [
+        {
+          "file": "tests/migrations/test_operations.py",
+          "patch": "@@ -1,5 +1,6 @@\n import unittest\n \n+from django.core.exceptions import FieldDoesNotExist\n from django.db import connection, migrations, models, transaction\n from django.db.migrations.migration import Migration\n from django.db.migrations.operations import CreateModel\n@@ -1368,6 +1369,12 @@ def test_rename_field(self):\n         self.assertEqual(definition[1], [])\n         self.assertEqual(definition[2], {'model_name': \"Pony\", 'old_name': \"pink\", 'new_name': \"blue\"})\n \n+    def test_rename_missing_field(self):\n+        state = ProjectState()\n+        state.add_model(ModelState('app', 'model', []))\n+        with self.assertRaisesMessage(FieldDoesNotExist, \"app.model has no field named 'field'\"):\n+            migrations.RenameField('model', 'field', 'new_field').state_forwards('app', state)\n+\n     def test_alter_unique_together(self):\n         \"\"\"\n         Tests the AlterUniqueTogether operation."
+        }
+      ]
+    },
+    {
+      "sha": "5d28fef8f9329e440ee67cefc900dbf89f4c524c",
+      "message": "Made NumPoints raise TypeError on MySQL when it's used on fields besides LineStringField.",
+      "changes": [
+        {
+          "file": "django/contrib/gis/db/models/functions.py",
+          "patch": "@@ -382,9 +382,10 @@ class NumPoints(GeoFunc):\n     output_field_class = IntegerField\n     arity = 1\n \n-    def as_sqlite(self, compiler, connection):\n+    def as_sql(self, compiler, connection):\n         if self.source_expressions[self.geom_param_pos].output_field.geom_type != 'LINESTRING':\n-            raise TypeError(\"SpatiaLite NumPoints can only operate on LineString content\")\n+            if not connection.features.supports_num_points_poly:\n+                raise TypeError('NumPoints can only operate on LineString content on this database.')\n         return super(NumPoints, self).as_sql(compiler, connection)\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "59afe61a970dd60df388e7cda9041ef3c0e770cb",
+      "message": "Fixed #27140 -- Prevented template rendering from hiding a property's TypeError.",
+      "changes": [
+        {
+          "file": "django/template/base.py",
+          "patch": "@@ -892,9 +892,8 @@ def _resolve_lookup(self, context):\n                             raise AttributeError\n                         current = getattr(current, bit)\n                     except (TypeError, AttributeError) as e:\n-                        # Reraise an AttributeError raised by a @property\n-                        if (isinstance(e, AttributeError) and\n-                                not isinstance(current, BaseContext) and bit in dir(current)):\n+                        # Reraise if the exception was raised by a @property\n+                        if not isinstance(current, BaseContext) and bit in dir(current):\n                             raise\n                         try:  # list-index lookup\n                             current = current[int(bit)]"
+        },
+        {
+          "file": "tests/template_tests/syntax_tests/test_filter_syntax.py",
+          "patch": "@@ -237,3 +237,8 @@ def test_filter_syntax25(self):\n         \"\"\"\n         with self.assertRaises(AttributeError):\n             self.engine.render_to_string('filter-syntax25', {'var': SomeClass()})\n+\n+    @setup({'template': '{{ var.type_error_attribute }}'})\n+    def test_type_error_attribute(self):\n+        with self.assertRaises(TypeError):\n+            self.engine.render_to_string('template', {'var': SomeClass()})"
+        },
+        {
+          "file": "tests/template_tests/utils.py",
+          "patch": "@@ -137,6 +137,10 @@ def noisy_fail_attribute(self):\n     def attribute_error_attribute(self):\n         raise AttributeError\n \n+    @property\n+    def type_error_attribute(self):\n+        raise TypeError\n+\n \n class OtherClass:\n     def method(self):"
+        }
+      ]
+    },
+    {
+      "sha": "956cde800490d2d9e1e5fcc83755a9226de27f24",
+      "message": "Fixed #26104 -- Fixed TypeError when passing number to forms.DurationField.",
+      "changes": [
+        {
+          "file": "django/forms/fields.py",
+          "patch": "@@ -488,7 +488,7 @@ def to_python(self, value):\n             return None\n         if isinstance(value, datetime.timedelta):\n             return value\n-        value = parse_duration(value)\n+        value = parse_duration(force_str(value))\n         if value is None:\n             raise ValidationError(self.error_messages['invalid'], code='invalid')\n         return value"
+        },
+        {
+          "file": "tests/forms_tests/tests/test_fields.py",
+          "patch": "@@ -722,6 +722,10 @@ class DurationForm(Form):\n             str(f['duration'])\n         )\n \n+    def test_durationfield_integer_value(self):\n+        f = DurationField()\n+        self.assertEqual(datetime.timedelta(0, 10800), f.clean(10800))\n+\n     def test_durationfield_prepare_value(self):\n         field = DurationField()\n         td = datetime.timedelta(minutes=15, seconds=30)"
+        }
+      ]
+    },
+    {
+      "sha": "cd40d9e721eb4f5d05f57a74c6f1fd5d4aaef444",
+      "message": "Fixed #25657 -- Ignored exceptions when destroying geometry objects\n\nDue to randomness of garbage collection with geometry objects, it's\neasier to simply ignore AttributeError/TypeError generally raised when\nparts of objects are already garbage-collected.\nThanks Sergey Fedoseev and Tim Graham for reviewing the patch.",
+      "changes": [
+        {
+          "file": "django/contrib/gis/gdal/datasource.py",
+          "patch": "@@ -87,8 +87,10 @@ def __init__(self, ds_input, ds_driver=False, write=False, encoding='utf-8'):\n \n     def __del__(self):\n         \"Destroys this DataStructure object.\"\n-        if self._ptr and capi:\n+        try:\n             capi.destroy_ds(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n     def __iter__(self):\n         \"Allows for iteration over the layers in a data source.\""
+        },
+        {
+          "file": "django/contrib/gis/gdal/feature.py",
+          "patch": "@@ -29,8 +29,10 @@ def __init__(self, feat, layer):\n \n     def __del__(self):\n         \"Releases a reference to this object.\"\n-        if self._ptr and capi:\n+        try:\n             capi.destroy_feature(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n     def __getitem__(self, index):\n         \"\"\""
+        },
+        {
+          "file": "django/contrib/gis/gdal/geometries.py",
+          "patch": "@@ -121,8 +121,10 @@ def __init__(self, geom_input, srs=None):\n \n     def __del__(self):\n         \"Deletes this Geometry.\"\n-        if self._ptr and capi:\n+        try:\n             capi.destroy_geom(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n     # Pickle routines\n     def __getstate__(self):"
+        },
+        {
+          "file": "django/contrib/gis/gdal/raster/source.py",
+          "patch": "@@ -131,8 +131,10 @@ def __init__(self, ds_input, write=False):\n             raise GDALException('Invalid data source input type: \"{}\".'.format(type(ds_input)))\n \n     def __del__(self):\n-        if self._ptr and capi:\n+        try:\n             capi.close_ds(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n     def __str__(self):\n         return self.name"
+        },
+        {
+          "file": "django/contrib/gis/geos/geometry.py",
+          "patch": "@@ -123,8 +123,10 @@ def __del__(self):\n         Destroys this Geometry; in other words, frees the memory used by the\n         GEOS C++ object.\n         \"\"\"\n-        if self._ptr and capi:\n+        try:\n             capi.destroy_geom(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n     def __copy__(self):\n         \"\"\""
+        },
+        {
+          "file": "django/contrib/gis/geos/prepared.py",
+          "patch": "@@ -21,8 +21,10 @@ def __init__(self, geom):\n         self.ptr = capi.geos_prepare(geom.ptr)\n \n     def __del__(self):\n-        if self._ptr and capi:\n+        try:\n             capi.prepared_destroy(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n     def contains(self, other):\n         return capi.prepared_contains(self.ptr, other.ptr)"
+        },
+        {
+          "file": "django/contrib/gis/geos/prototypes/io.py",
+          "patch": "@@ -120,8 +120,10 @@ def __init__(self):\n \n     def __del__(self):\n         # Cleaning up with the appropriate destructor.\n-        if self._ptr:\n+        try:\n             self._destructor(self._ptr)\n+        except (AttributeError, TypeError):\n+            pass  # Some part might already have been garbage collected\n \n # ### Base WKB/WKT Reading and Writing objects ###\n "
+        }
+      ]
+    },
+    {
+      "sha": "20ff296cb15a53b8b9517a834688e57749b43e21",
+      "message": "Fixed #24859 -- Made QuerySet.get() with UUIDField raise TypeError on bad value.\n\nFor consistency with AutoField.",
+      "changes": [
+        {
+          "file": "tests/model_fields/test_uuid.py",
+          "patch": "@@ -37,6 +37,13 @@ def test_null_handling(self):\n         loaded = NullableUUIDModel.objects.get()\n         self.assertEqual(loaded.field, None)\n \n+    def test_pk_validated(self):\n+        with self.assertRaisesMessage(TypeError, 'is not a valid UUID'):\n+            PrimaryKeyUUIDModel.objects.get(pk={})\n+\n+        with self.assertRaisesMessage(TypeError, 'is not a valid UUID'):\n+            PrimaryKeyUUIDModel.objects.get(pk=[])\n+\n     def test_wrong_value(self):\n         self.assertRaisesMessage(\n             ValueError, 'badly formed hexadecimal UUID string',"
+        }
+      ]
+    },
+    {
+      "sha": "4dd1f4c5eb7a617c1ee512e7a7c732d530e13916",
+      "message": "Explicitly checked for LookupError in contenttypes migration",
+      "changes": [
+        {
+          "file": "django/contrib/contenttypes/migrations/0002_remove_content_type_name.py",
+          "patch": "@@ -9,7 +9,7 @@ def add_legacy_name(apps, schema_editor):\n     for ct in ContentType.objects.all():\n         try:\n             ct.name = apps.get_model(ct.app_label, ct.model)._meta.object_name\n-        except:\n+        except LookupError:\n             ct.name = ct.model\n         ct.save()\n "
+        }
+      ]
+    },
+    {
+      "sha": "63ff4177467fbcceedf9c87e9cab4ae31a4ce119",
+      "message": "Fixed a tuple/int comparison in spatialite backend\n\nOn Python 3, comparing tuple with int raises a TypeError.",
+      "changes": [
+        {
+          "file": "django/contrib/gis/db/backends/spatialite/operations.py",
+          "patch": "@@ -21,7 +21,7 @@ class SpatiaLiteOperations(DatabaseOperations, BaseSpatialOperations):\n \n     @property\n     def valid_aggregates(self):\n-        if self.spatial_version >= 3:\n+        if self.spatial_version >= (3, 0, 0):\n             return {'Collect', 'Extent', 'Union'}\n         else:\n             return {'Union'}"
+        }
+      ]
+    },
+    {
+      "sha": "8f334e55be99ae271d82f9b961a2dc6258487d9c",
+      "message": "Fixed #13843 -- Prevented AttributeError during geometry objects deletion",
+      "changes": [
+        {
+          "file": "django/contrib/gis/gdal/datasource.py",
+          "patch": "@@ -96,7 +96,7 @@ def __init__(self, ds_input, ds_driver=False, write=False, encoding='utf-8'):\n \n     def __del__(self):\n         \"Destroys this DataStructure object.\"\n-        if self._ptr:\n+        if self._ptr and capi:\n             capi.destroy_ds(self._ptr)\n \n     def __iter__(self):"
+        },
+        {
+          "file": "django/contrib/gis/gdal/feature.py",
+          "patch": "@@ -34,7 +34,7 @@ def __init__(self, feat, layer):\n \n     def __del__(self):\n         \"Releases a reference to this object.\"\n-        if self._ptr:\n+        if self._ptr and capi:\n             capi.destroy_feature(self._ptr)\n \n     def __getitem__(self, index):"
+        },
+        {
+          "file": "django/contrib/gis/gdal/geometries.py",
+          "patch": "@@ -127,7 +127,7 @@ def __init__(self, geom_input, srs=None):\n \n     def __del__(self):\n         \"Deletes this Geometry.\"\n-        if self._ptr:\n+        if self._ptr and capi:\n             capi.destroy_geom(self._ptr)\n \n     # Pickle routines"
+        },
+        {
+          "file": "django/contrib/gis/gdal/srs.py",
+          "patch": "@@ -97,7 +97,7 @@ def __init__(self, srs_input=''):\n \n     def __del__(self):\n         \"Destroys this spatial reference.\"\n-        if self._ptr:\n+        if self._ptr and capi:\n             capi.release_srs(self._ptr)\n \n     def __getitem__(self, target):"
+        },
+        {
+          "file": "django/contrib/gis/geos/geometry.py",
+          "patch": "@@ -115,7 +115,7 @@ def __del__(self):\n         Destroys this Geometry; in other words, frees the memory used by the\n         GEOS C++ object.\n         \"\"\"\n-        if self._ptr:\n+        if self._ptr and capi:\n             capi.destroy_geom(self._ptr)\n \n     def __copy__(self):"
+        },
+        {
+          "file": "django/contrib/gis/geos/prepared.py",
+          "patch": "@@ -23,7 +23,7 @@ def __init__(self, geom):\n         self.ptr = capi.geos_prepare(geom.ptr)\n \n     def __del__(self):\n-        if self._ptr:\n+        if self._ptr and capi:\n             capi.prepared_destroy(self._ptr)\n \n     def contains(self, other):"
+        },
+        {
+          "file": "django/contrib/gis/geos/prototypes/threadsafe.py",
+          "patch": "@@ -12,7 +12,7 @@ def __init__(self):\n         self.ptr = lgeos.initGEOS_r(notice_h, error_h)\n \n     def __del__(self):\n-        if self.ptr:\n+        if self.ptr and lgeos:\n             lgeos.finishGEOS_r(self.ptr)\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "0dd05c9e66ebb5cb97136f84373f43582783e1a6",
+      "message": "Fixed #16383 -- Raised the AttributeError raised in property of an object when used in a template.\n\nThanks maraujop for the report and Hiroki and Tim Graham for review.",
+      "changes": [
+        {
+          "file": "django/template/base.py",
+          "patch": "@@ -773,7 +773,10 @@ def _resolve_lookup(self, context):\n                         if isinstance(current, BaseContext) and getattr(type(current), bit):\n                             raise AttributeError\n                         current = getattr(current, bit)\n-                    except (TypeError, AttributeError):\n+                    except (TypeError, AttributeError) as e:\n+                        # Reraise an AttributeError raised by a @property\n+                        if isinstance(e, AttributeError) and not isinstance(current, BaseContext) and bit in dir(current):\n+                            raise\n                         try:  # list-index lookup\n                             current = current[int(bit)]\n                         except (IndexError,  # list index out of range"
+        }
+      ]
+    },
+    {
+      "sha": "2c837233f5de7d5e309833e39782c7a208a03880",
+      "message": "Fixed #21574 -- Handle bytes consistently in utils.text.normalize_newlines.\n\nAll input is now coerced to text before being normalized.\nThis changes nothing under Python 2 but it allows bytes\nto be passed to the function without a TypeError under Python3\n(bytes are assumed to be utf-8 encoded text).\n\nThanks to trac user vajrasky for the report.",
+      "changes": [
+        {
+          "file": "django/utils/text.py",
+          "patch": "@@ -250,7 +250,9 @@ def get_text_list(list_, last_word=ugettext_lazy('or')):\n \n \n def normalize_newlines(text):\n-    return force_text(re_newlines.sub('\\n', text))\n+    \"\"\"Normalizes CRLF and CR newlines to just LF.\"\"\"\n+    text = force_text(text)\n+    return re_newlines.sub('\\n', text)\n normalize_newlines = allow_lazy(normalize_newlines, six.text_type)\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "2e3c7d882015375c130c21884d83cb9fb7759d94",
+      "message": "Trigger AttributeError in ValidationError.message_dict when error_dict is missing.\n\nThe goal of this change is twofold; firstly, matching the behavior of Django 1.6\nand secondly, an AttributeError is more informative than an obscure ValueError\nabout mismatching sequence lengths.\n\nRefs #20867.",
+      "changes": [
+        {
+          "file": "django/core/exceptions.py",
+          "patch": "@@ -123,6 +123,10 @@ def __init__(self, message, code=None, params=None):\n \n     @property\n     def message_dict(self):\n+        # Trigger an AttributeError if this ValidationError\n+        # doesn't have an error_dict.\n+        getattr(self, 'error_dict')\n+\n         return dict(self)\n \n     @property"
+        }
+      ]
+    },
+    {
+      "sha": "bbc73e6a12227f5ed52fd38bc37f56f434a0a72c",
+      "message": "Fixed #21566 -- Fixed AttributeError when using bulk_create with ForeignObject.",
+      "changes": [
+        {
+          "file": "django/db/models/query.py",
+          "patch": "@@ -389,7 +389,7 @@ def bulk_create(self, objs, batch_size=None):\n             return objs\n         self._for_write = True\n         connection = connections[self.db]\n-        fields = self.model._meta.local_fields\n+        fields = self.model._meta.local_concrete_fields\n         with transaction.commit_on_success_unless_managed(using=self.db):\n             if (connection.features.can_combine_inserts_with_and_without_auto_increment_pk\n                     and self.model._meta.has_auto_field):"
+        }
+      ]
+    },
+    {
+      "sha": "aba75b0d71808ed9ebc625e31a47da158f25b29d",
+      "message": "Fixed TypeError when rendering ModelState with multiple bases.",
+      "changes": [
+        {
+          "file": "django/db/migrations/state.py",
+          "patch": "@@ -176,7 +176,7 @@ def render(self, app_cache):\n             for base in self.bases\n         )\n         if None in bases:\n-            raise InvalidBasesError(\"Cannot resolve one or more bases from %r\" % self.bases)\n+            raise InvalidBasesError(\"Cannot resolve one or more bases from %r\" % (self.bases,))\n         # Turn fields into a dict for the body, add other bits\n         body = dict(self.fields)\n         body['Meta'] = meta"
+        }
+      ]
+    },
+    {
+      "sha": "50633e7353694ff54f14b04469be3792f286182f",
+      "message": "Fixed #12568 -- no error when accessing custom field's descriptor\n\nThe SubfieldBase's descriptor caused an AttributeError when accessed\nfrom the class. Introspection didn't like that.\n\nPatch by Trac alias supervacuo.",
+      "changes": [
+        {
+          "file": "django/db/models/fields/subclassing.py",
+          "patch": "@@ -30,7 +30,7 @@ def __init__(self, field):\n \n     def __get__(self, obj, type=None):\n         if obj is None:\n-            raise AttributeError('Can only be accessed via an instance.')\n+            return self\n         return obj.__dict__[self.field.name]\n \n     def __set__(self, obj, value):"
+        }
+      ]
+    },
+    {
+      "sha": "a772ea8117c42a0027c79212a572f87614bb7173",
+      "message": "Fixed #21115 -- Fixed NameError in migrate --list command",
+      "changes": [
+        {
+          "file": "django/core/management/commands/migrate.py",
+          "patch": "@@ -264,7 +264,7 @@ def show_migration_list(self, connection, apps=None):\n         if apps:\n             invalid_apps = []\n             for app in apps:\n-                if app_label not in loader.migrated_apps:\n+                if app not in loader.migrated_apps:\n                     invalid_apps.append(app)\n             if invalid_apps:\n                 raise CommandError(\"No migrations present for: %s\" % (\", \".join(invalid_apps)))"
+        }
+      ]
+    },
+    {
+      "sha": "28a571348bca9c5a3c137e495e7d3c9349a5bd56",
+      "message": "Fix #20745: Don't silence TypeError raised inside templates.\n\nThanks to robin for the report and claudep for the review.",
+      "changes": [
+        {
+          "file": "tests/template_tests/tests.py",
+          "patch": "@@ -98,6 +98,9 @@ def method3(self):\n     def method4(self):\n         raise SomeOtherException\n \n+    def method5(self):\n+        raise TypeError\n+\n     def __getitem__(self, key):\n         if key == 'silent_fail_key':\n             raise SomeException\n@@ -680,6 +683,9 @@ def get_template_tests(self):\n             # Fail silently when accessing a non-simple method\n             'basic-syntax20': (\"{{ var.method2 }}\", {\"var\": SomeClass()}, (\"\",\"INVALID\")),\n \n+            # Don't silence a TypeError if it was raised inside a callable\n+            'basic-syntax20b': (\"{{ var.method5 }}\", {\"var\": SomeClass()}, TypeError),\n+\n             # Don't get confused when parsing something that is almost, but not\n             # quite, a template tag.\n             'basic-syntax21': (\"a {{ moo %} b\", {}, \"a {{ moo %} b\"),"
+        }
+      ]
+    },
+    {
+      "sha": "f9ab543720532400e8b0d490cdbe67ea09ae9c17",
+      "message": "Fixed #20084 -- Provided option to validate formset max_num on server.\n\nThis is provided as a new \"validate_max\" formset_factory option defaulting to\nFalse, since the non-validating behavior of max_num is longstanding, and there\nis certainly code relying on it. (In fact, even the Django admin relies on it\nfor the case where there are more existing inlines than the given max_num). It\nmay be that at some point we want to deprecate validate_max=False and\neventually remove the option, but this commit takes no steps in that direction.\n\nThis also fixes the DoS-prevention absolute_max enforcement so that it causes a\nform validation error rather than an IndexError, and ensures that absolute_max\nis always 1000 more than max_num, to prevent surprising changes in behavior\nwith max_num close to absolute_max.\n\nLastly, this commit fixes the previous inconsistency between a regular formset\nand a model formset in the precedence of max_num and initial data. Previously\nin a regular formset, if the provided initial data was longer than max_num, it\nwas truncated; in a model formset, all initial forms would be displayed\nregardless of max_num. Now regular formsets are the same as model formsets; all\ninitial forms are displayed, even if more than max_num. (But if validate_max is\nTrue, submitting these forms will result in a \"too many forms\" validation\nerror!) This combination of behaviors was chosen to keep the max_num validation\nsimple and consistent, and avoid silent data loss due to truncation of initial\ndata.\n\nThanks to Preston for discussion of the design choices.",
+      "changes": [
+        {
+          "file": "django/contrib/contenttypes/generic.py",
+          "patch": "@@ -435,7 +435,7 @@ def generic_inlineformset_factory(model, form=ModelForm,\n                                   fields=None, exclude=None,\n                                   extra=3, can_order=False, can_delete=True,\n                                   max_num=None,\n-                                  formfield_callback=None):\n+                                  formfield_callback=None, validate_max=False):\n     \"\"\"\n     Returns a ``GenericInlineFormSet`` for the given kwargs.\n \n@@ -457,7 +457,8 @@ def generic_inlineformset_factory(model, form=ModelForm,\n                                    formfield_callback=formfield_callback,\n                                    formset=formset,\n                                    extra=extra, can_delete=can_delete, can_order=can_order,\n-                                   fields=fields, exclude=exclude, max_num=max_num)\n+                                   fields=fields, exclude=exclude, max_num=max_num,\n+                                   validate_max=validate_max)\n     FormSet.ct_field = ct_field\n     FormSet.ct_fk_field = fk_field\n     return FormSet"
+        }
+      ]
+    },
+    {
+      "sha": "cf7afeb2d18b22f857a35d5cb698e2c180aadd2f",
+      "message": "Fixed a NameError in geoip/libgeoip if the GeoIP library is not found.\n\nThx to Bouke Haarsma for the report.",
+      "changes": [
+        {
+          "file": "django/contrib/gis/geoip/libgeoip.py",
+          "patch": "@@ -19,8 +19,8 @@\n \n # Getting the path to the GeoIP library.\n if lib_name: lib_path = find_library(lib_name)\n-if lib_path is None: raise GeoIPException('Could not find the GeoIP library (tried \"%s\"). '\n-                                          'Try setting GEOIP_LIBRARY_PATH in your settings.' % lib_name)\n+if lib_path is None: raise RuntimeError('Could not find the GeoIP library (tried \"%s\"). '\n+                                        'Try setting GEOIP_LIBRARY_PATH in your settings.' % lib_name)\n lgeoip = CDLL(lib_path)\n \n # Getting the C `free` for the platform."
+        }
+      ]
+    },
+    {
+      "sha": "50d573d2c0b3e17cbf1aa240b03b52e4ad0c32cd",
+      "message": "Fixed #18979 -- Avoid endless loop caused by \"val in PermLookupDict\"\n\nFixed by defining __iter__ which raises TypeError. This was done to\nPermWrapper earlier.",
+      "changes": [
+        {
+          "file": "django/contrib/auth/context_processors.py",
+          "patch": "@@ -11,6 +11,11 @@ def __repr__(self):\n     def __getitem__(self, perm_name):\n         return self.user.has_perm(\"%s.%s\" % (self.module_name, perm_name))\n \n+    def __iter__(self):\n+        # To fix 'item in perms.someapp' and __getitem__ iteraction we need to\n+        # define __iter__. See #18979 for details.\n+        raise TypeError(\"PermLookupDict is not iterable.\")\n+\n     def __bool__(self):\n         return self.user.has_module_perms(self.module_name)\n     __nonzero__ = __bool__ # Python 2"
+        }
+      ]
+    },
+    {
+      "sha": "bb7da7844ff9f11286509c22a2549bbd4553d58d",
+      "message": "Fixed #18845 -- Do not swallow AttributeErrors when running commands",
+      "changes": [
+        {
+          "file": "django/core/management/__init__.py",
+          "patch": "@@ -103,10 +103,12 @@ def get_commands():\n         _commands = dict([(name, 'django.core') for name in find_commands(__path__[0])])\n \n         # Find the installed apps\n+        from django.conf import settings\n         try:\n-            from django.conf import settings\n             apps = settings.INSTALLED_APPS\n-        except (AttributeError, ImproperlyConfigured):\n+        except ImproperlyConfigured:\n+            # Still useful for commands that do not require functional settings,\n+            # like startproject or help\n             apps = []\n \n         # Find and load the management module for each installed app."
+        }
+      ]
+    },
+    {
+      "sha": "3174b5f2f5bb0b0a6b775a1a50464b6bf2a4b067",
+      "message": "Fixed #18982 - Caught TypeError in DateField.clean\n\nThanks gwahl at fusionbox com.",
+      "changes": [
+        {
+          "file": "django/forms/fields.py",
+          "patch": "@@ -341,7 +341,7 @@ def to_python(self, value):\n             for format in self.input_formats:\n                 try:\n                     return self.strptime(value, format)\n-                except ValueError:\n+                except (ValueError, TypeError):\n                     continue\n         raise ValidationError(self.error_messages['invalid'])\n "
+        },
+        {
+          "file": "tests/regressiontests/forms/tests/fields.py",
+          "patch": "@@ -356,6 +356,11 @@ def test_datefield_4(self):\n         self.assertEqual(datetime.date(2006, 10, 25), f.clean(' 25 October 2006 '))\n         self.assertRaisesMessage(ValidationError, \"'Enter a valid date.'\", f.clean, '   ')\n \n+    def test_datefield_5(self):\n+        # Test null bytes (#18982)\n+        f = DateField()\n+        self.assertRaisesMessage(ValidationError, \"'Enter a valid date.'\", f.clean, 'a\\x00b')\n+\n     # TimeField ###################################################################\n \n     def test_timefield_1(self):"
+        }
+      ]
+    },
+    {
+      "sha": "ccd1bb0d81381b5611fb5caf2c4ebe5927fe2095",
+      "message": "Remove Admin's swallowing of AttributeError (#16655, #18593, #18747)\n\nDuring the new-admin changes, catching of AttributeError was added to\nthe admin.  This patch removes that as it's no longer possible to add a\nvalue to a ModelAdmin that is not available.  Adding an attribute that\ncan not be called causes an ImproperlyConfigured exception to be raised.",
+      "changes": [
+        {
+          "file": "django/contrib/admin/templatetags/admin_list.py",
+          "patch": "@@ -182,7 +182,7 @@ def items_for_result(cl, result, form):\n         row_class = ''\n         try:\n             f, attr, value = lookup_field(field_name, result, cl.model_admin)\n-        except (AttributeError, ObjectDoesNotExist):\n+        except ObjectDoesNotExist:\n             result_repr = EMPTY_CHANGELIST_VALUE\n         else:\n             if f is None:"
+        },
+        {
+          "file": "tests/regressiontests/admin_views/customadmin.py",
+          "patch": "@@ -49,3 +49,4 @@ def queryset(self, request):\n site.register(models.ChapterXtra1, base_admin.ChapterXtra1Admin)\n site.register(User, UserLimitedAdmin)\n site.register(models.UndeletableObject, base_admin.UndeletableObjectAdmin)\n+site.register(models.Simple, base_admin.AttributeErrorRaisingAdmin)"
+        },
+        {
+          "file": "tests/regressiontests/admin_views/models.py",
+          "patch": "@@ -649,3 +649,9 @@ class UndeletableObject(models.Model):\n     Refs #10057.\n     \"\"\"\n     name = models.CharField(max_length=255)\n+\n+\n+class Simple(models.Model):\n+    \"\"\"\n+    Simple model with nothing on it for use in testing\n+    \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "367bfaa5226eaae3278989e63f16063d5cc46cd8",
+      "message": "Don't swallow AttributeError in core.urlresolvers.get_callable.",
+      "changes": [
+        {
+          "file": "tests/regressiontests/urlpatterns_reverse/views_broken.py",
+          "patch": "@@ -0,0 +1,2 @@\n+# I just raise an AttributeError to confuse the view loading mechanism\n+raise AttributeError('I am here to confuse django.core.urlresolvers.get_callable')"
+        }
+      ]
+    },
+    {
+      "sha": "10d90cba83d5dfbe52eb5501279c3db71b42dd41",
+      "message": "Fixed #16935 - misleading message if AttributeError escapes during SimpleTemplateResponse.render\n\nThanks to isagalaev for the report.\n\nAs discussed on django-devs, this reverts some of the changes in [16568]\ni.e.  the addition of `SimpleTemplateResponse.__getattr__`, because this\nmakes it much harder to debug the common case of an AttributeError somewhere\nduring the rendering of a SimpleTemplateResponse.\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@16917 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "tests/regressiontests/templates/response.py",
+          "patch": "@@ -9,8 +9,7 @@\n import django.template.context\n from django.template import Template, Context\n from django.template.response import (TemplateResponse, SimpleTemplateResponse,\n-                                      ContentNotRenderedError,\n-                                      DiscardedAttributeError)\n+                                      ContentNotRenderedError)\n \n def test_processor(request):\n     return {'processors': 'yes'}\n@@ -198,7 +197,7 @@ def test_pickling(self):\n \n         # ...and requesting any of those attributes raises an exception\n         for attr in template_attrs:\n-            with self.assertRaises(DiscardedAttributeError) as cm:\n+            with self.assertRaises(AttributeError):\n                 getattr(unpickled_response, attr)\n \n     def test_repickling(self):\n@@ -282,7 +281,7 @@ def test_pickling(self):\n \n         # ...and requesting any of those attributes raises an exception\n         for attr in template_attrs:\n-            with self.assertRaises(DiscardedAttributeError) as cm:\n+            with self.assertRaises(AttributeError):\n                 getattr(unpickled_response, attr)\n \n     def test_repickling(self):"
+        }
+      ]
+    },
+    {
+      "sha": "b4cdf4d111e2a536abddeb38d029e71bb0d41ddb",
+      "message": "Fixed #10802 -- Handle ImportErrors and AttributeErrors gracefully when raised by the URL resolver system during startup. Many thanks, IonelMaries and Bas Peschier.\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@16420 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "tests/regressiontests/urlpatterns_reverse/erroneous_views_module.py",
+          "patch": "@@ -0,0 +1,4 @@\n+import non_existent\n+\n+def erroneous_view(request):\n+    pass"
+        },
+        {
+          "file": "tests/regressiontests/urlpatterns_reverse/views.py",
+          "patch": "@@ -16,6 +16,11 @@ def absolute_kwargs_view(request, arg1=1, arg2=2):\n def defaults_view(request, arg1, arg2):\n     pass\n \n+def erroneous_view(request):\n+    import non_existent\n+\n+uncallable = \"Can I be a view? Pleeeease?\"\n+\n class ViewClass(object):\n     def __call__(self, request, *args, **kwargs):\n         return HttpResponse('')"
+        }
+      ]
+    },
+    {
+      "sha": "909e002808135ee943643e6b1866e9aa5cb0b42d",
+      "message": "Fix UnboundLocalError than could occur during ModelAdmin validation.\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@16262 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "django/contrib/admin/validation.py",
+          "patch": "@@ -247,9 +247,9 @@ def validate_fields_spec(cls, model, opts, flds, label):\n             try:\n                 f = opts.get_field(field)\n             except models.FieldDoesNotExist:\n-                # If we can't find a field on the model that matches,\n-                # it could be an extra field on the form.\n-                pass\n+                # If we can't find a field on the model that matches, it could be an\n+                # extra field on the form; nothing to check so move on to the next field.\n+                continue\n             if isinstance(f, models.ManyToManyField) and not f.rel.through._meta.auto_created:\n                 raise ImproperlyConfigured(\"'%s.%s' \"\n                     \"can't include the ManyToManyField field '%s' because \""
+        }
+      ]
+    },
+    {
+      "sha": "0e9692bc66ed7cfbbcb4c8031b36e82751685238",
+      "message": "Fixed #13689 -- Convert the per_page value to an integer upon initialization of the Paginator class to prevent unpleasant TypeErrors. Thanks, rbanffy, Eric Florenzano and Claude Paroz.\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@16073 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "django/core/paginator.py",
+          "patch": "@@ -13,8 +13,8 @@ class EmptyPage(InvalidPage):\n class Paginator(object):\n     def __init__(self, object_list, per_page, orphans=0, allow_empty_first_page=True):\n         self.object_list = object_list\n-        self.per_page = per_page\n-        self.orphans = orphans\n+        self.per_page = int(per_page)\n+        self.orphans = int(orphans)\n         self.allow_empty_first_page = allow_empty_first_page\n         self._num_pages = self._count = None\n "
+        },
+        {
+          "file": "tests/regressiontests/pagination_regress/tests.py",
+          "patch": "@@ -94,6 +94,11 @@ def test_paginator(self):\n             (([1, 2], 1, 1, True), (2, 1, [1])),\n             (([1, 2, 3], 2, 1, True), (3, 1, [1])),\n             ((eleven, 10, 1, True), (11, 1, [1])),\n+            # Non-integer inputs\n+            ((ten, '4', 1, False), (10, 3, [1, 2, 3])),\n+            ((ten, u'4', 1, False), (10, 3, [1, 2, 3])),\n+            ((ten, 4, '1', False), (10, 3, [1, 2, 3])),\n+            ((ten, 4, u'1', False), (10, 3, [1, 2, 3])),\n         )\n         for params, output in tests:\n             self.check_paginator(params, output)"
+        }
+      ]
+    },
+    {
+      "sha": "3cf8502d35cdfbb4f868a848b1f38dcc275f6be1",
+      "message": "Fixed #4976 -- Stopped humanize template tags to raise a TypeError if passed a value of ``None``. Thanks, Simon G. and Adam Vandenberg.\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@15000 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "django/contrib/humanize/templatetags/humanize.py",
+          "patch": "@@ -43,7 +43,10 @@ def intword(value):\n     numbers over 1 million. For example, 1000000 becomes '1.0 million', 1200000\n     becomes '1.2 million' and '1200000000' becomes '1.2 billion'.\n     \"\"\"\n-    value = int(value)\n+    try:\n+        value = int(value)\n+    except (TypeError, ValueError):\n+        return value\n     if value < 1000000:\n         return value\n     if value < 1000000000:\n@@ -66,7 +69,7 @@ def apnumber(value):\n     \"\"\"\n     try:\n         value = int(value)\n-    except ValueError:\n+    except (TypeError, ValueError):\n         return value\n     if not 0 < value < 10:\n         return value"
+        },
+        {
+          "file": "django/forms/formsets.py",
+          "patch": "@@ -263,6 +263,7 @@ def is_valid(self):\n         # We loop over every form.errors here rather than short circuiting on the\n         # first failure to make sure validation gets triggered for every form.\n         forms_valid = True\n+        err = self.errors\n         for i in range(0, self.total_form_count()):\n             form = self.forms[i]\n             if self.can_delete:"
+        }
+      ]
+    },
+    {
+      "sha": "3498849532151f618ff36eea4bd315de6f500687",
+      "message": "Fixed #14424 -- corrected a NameError when instantiating a RelatedFieldWidgetWrapper.\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@14683 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "django/contrib/admin/widgets.py",
+          "patch": "@@ -203,7 +203,7 @@ def __init__(self, widget, rel, admin_site, can_add_related=None):\n         # Backwards compatible check for whether a user can add related\n         # objects.\n         if can_add_related is None:\n-            can_add_related = rel_to in self.admin_site._registry\n+            can_add_related = rel.to in admin_site._registry\n         self.can_add_related = can_add_related\n         # so we can check if the related object is registered with this AdminSite\n         self.admin_site = admin_site"
+        },
+        {
+          "file": "tests/regressiontests/admin_widgets/models.py",
+          "patch": "@@ -1,8 +1,9 @@\n from django.db import models\n from django.contrib.auth.models import User\n \n-class MyFileField(models.FileField): \n-    pass \n+\n+class MyFileField(models.FileField):\n+    pass\n \n class Member(models.Model):\n     name = models.CharField(max_length=100)"
+        }
+      ]
+    },
+    {
+      "sha": "1d5165e3be03ffb2b886b34cf0c1377ce958d12d",
+      "message": "Fixed #12776 -- `User.get_profile` now raises `SiteProfileNotAvailable` instead of `AttributeError` in certain circumstances.  Thanks, Bruno Reni\u00e9.\n\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@12506 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "django/contrib/auth/tests/__init__.py",
+          "patch": "@@ -6,6 +6,7 @@\n         import RemoteUserTest, RemoteUserNoCreateTest, RemoteUserCustomTest\n from django.contrib.auth.tests.auth_backends import BackendTest, RowlevelBackendTest, AnonymousUserBackendTest, NoAnonymousUserBackendTest\n from django.contrib.auth.tests.tokens import TOKEN_GENERATOR_TESTS\n+from django.contrib.auth.tests.models import ProfileTestCase\n \n # The password for the fixture data users is 'password'\n "
+        }
+      ]
+    },
+    {
+      "sha": "8b9cf79ff645db608f92143d733df24d883a26e9",
+      "message": "Fixed #11783 -- ordinal template tag now catches TypeError. Thanks, realpolitik and punteney\n\ngit-svn-id: http://code.djangoproject.com/svn/django/trunk@12199 bcc190cf-cafb-0310-a4f2-bffc1f526a37",
+      "changes": [
+        {
+          "file": "django/contrib/humanize/templatetags/humanize.py",
+          "patch": "@@ -14,7 +14,7 @@ def ordinal(value):\n     \"\"\"\n     try:\n         value = int(value)\n-    except ValueError:\n+    except (TypeError, ValueError):\n         return value\n     t = (_('th'), _('st'), _('nd'), _('rd'), _('th'), _('th'), _('th'), _('th'), _('th'), _('th'))\n     if value % 100 in (11, 12, 13): # special case"
+        },
+        {
+          "file": "tests/regressiontests/humanize/tests.py",
+          "patch": "@@ -22,10 +22,10 @@ def humanize_tester(self, test_list, result_list, method):\n     def test_ordinal(self):\n         test_list = ('1','2','3','4','11','12',\n                      '13','101','102','103','111',\n-                     'something else')\n+                     'something else', None)\n         result_list = ('1st', '2nd', '3rd', '4th', '11th',\n                        '12th', '13th', '101st', '102nd', '103rd',\n-                       '111th', 'something else')\n+                       '111th', 'something else', None)\n \n         self.humanize_tester(test_list, result_list, 'ordinal')\n "
+        }
+      ]
+    }
+  ]
+}

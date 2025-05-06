@@ -1,0 +1,39 @@
+{
+  "repo_name": "nvbn/thefuck",
+  "commits": [
+    {
+      "sha": "c205683a8df8a57e2db1e9816a5a7ce3255b08fc",
+      "message": "git_push: Handle branch names containing 'set-upstream' (#759)\n\nThis should fix https://github.com/nvbn/thefuck/issues/723 (IndexError when using bitbucket)",
+      "changes": [
+        {
+          "file": "thefuck/rules/git_push.py",
+          "patch": "@@ -6,7 +6,7 @@\n @git_support\n def match(command):\n     return ('push' in command.script_parts\n-            and 'set-upstream' in command.output)\n+            and 'git push --set-upstream' in command.output)\n \n \n def _get_upstream_option_index(command_parts):"
+        }
+      ]
+    },
+    {
+      "sha": "44c06c483ef779a56d3de2899264cf1355e456e4",
+      "message": "fix(whois): check if there's at least one argument to `whois`\n\nThis avoids thefuck failing when there's no arguments. It fails with:\n\n```\n  ...\n  File \"thefuck/rules/whois.py\", line 26, in get_new_command\n    url = command.script.split()[1]\nIndexError: list index out of range\n```\n\nSigned-off-by: Pablo Santiago Blum de Aguiar <scorphus@gmail.com>",
+      "changes": [
+        {
+          "file": "tests/rules/test_whois.py",
+          "patch": "@@ -11,6 +11,10 @@ def test_match(command):\n     assert match(command, None)\n \n \n+def test_not_match():\n+    assert not match(Command(script='whois'), None)\n+\n+\n @pytest.mark.parametrize('command, new_command', [\n     (Command('whois https://en.wikipedia.org/wiki/Main_Page'), 'whois en.wikipedia.org'),\n     (Command('whois https://en.wikipedia.org/'), 'whois en.wikipedia.org'),"
+        },
+        {
+          "file": "thefuck/rules/whois.py",
+          "patch": "@@ -19,7 +19,7 @@ def match(command, settings):\n         - www.google.fr \u2192 subdomain: www, domain: 'google.fr';\n         - google.co.uk \u2192 subdomain: None, domain; 'google.co.uk'.\n     \"\"\"\n-    return 'whois' in command.script\n+    return 'whois' in command.script and len(command.script.split()) > 1\n \n \n def get_new_command(command, settings):"
+        }
+      ]
+    },
+    {
+      "sha": "484a53e314356985f0ba9c3215077bcf45a0ff23",
+      "message": "fix(brew_unknown_command): make subprocess.check_output return str\n\nFix `TypeError: can't concat bytes to str` error on Python 3.4.\n\nSigned-off-by: Pablo Santiago Blum de Aguiar <scorphus@gmail.com>",
+      "changes": [
+        {
+          "file": "thefuck/rules/brew_unknown_command.py",
+          "patch": "@@ -12,7 +12,8 @@\n def _get_brew_path_prefix():\n     \"\"\"To get brew path\"\"\"\n     try:\n-        return subprocess.check_output(['brew', '--prefix']).strip()\n+        return subprocess.check_output(['brew', '--prefix'],\n+                                       universal_newlines=True).strip()\n     except:\n         return None\n "
+        }
+      ]
+    }
+  ]
+}

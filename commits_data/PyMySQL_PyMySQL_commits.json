@@ -1,0 +1,35 @@
+{
+  "repo_name": "PyMySQL/PyMySQL",
+  "commits": [
+    {
+      "sha": "a29347c27ba49ff3bb89ca15f0fb87cd5ce0ffa4",
+      "message": "Fix `TypeError` with Python 2.7 (#575)\n\nTypeError: 'encoding' is an invalid keyword argument\r\nfor this function",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -9,7 +9,7 @@\n else:\n     version = \"%d.%d.%d\" % version_tuple[:3]\n \n-with open('./README.rst', encoding='utf-8') as f:\n+with io.open('./README.rst', encoding='utf-8') as f:\n     readme = f.read()\n \n setup("
+        }
+      ]
+    },
+    {
+      "sha": "28fc9b95677e3090e931269bc93e2cf4aa20767e",
+      "message": "py3+ fix for TypeError: Type str doesnt support the buffer API",
+      "changes": [
+        {
+          "file": "pymysql/connections.py",
+          "patch": "@@ -303,7 +303,7 @@ def read_uint64(self):\n         return result\n \n     def read_string(self):\n-        end_pos = self._data.find('\\0', self._position)\n+        end_pos = self._data.find(b'\\0', self._position)\n         if end_pos < 0:\n             return None\n         result = self._data[self._position:end_pos]"
+        }
+      ]
+    },
+    {
+      "sha": "97fd2066e4de9ec00a8641a0722de51f35508d97",
+      "message": "Fix TypeError when multi statement generates warning\n\nFixes #343",
+      "changes": [
+        {
+          "file": "pymysql/cursors.py",
+          "patch": "@@ -298,7 +298,11 @@ def _do_get_result(self):\n             self._show_warnings(conn)\n \n     def _show_warnings(self, conn):\n+        if self._result and self._result.has_next:\n+            return\n         ws = conn.show_warnings()\n+        if ws is None:\n+            return\n         for w in ws:\n             warnings.warn(w[-1], err.Warning, 4)\n "
+        }
+      ]
+    }
+  ]
+}

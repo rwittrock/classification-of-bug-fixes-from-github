@@ -1,0 +1,15 @@
+{
+  "repo_name": "espnet/espnet",
+  "commits": [
+    {
+      "sha": "c4bde1a34611c8d3526c93e66bf167a8712cf2f8",
+      "message": "Fix error on waveform generation by WaveNet\n\nFixes \r\n\r\n```\r\n2019-08-31 06:52:12,670 (generate_wav_from_fbank:167) INFO: generation speed = 0.27367370203519414 (sec / sample)\r\nTraceback (most recent call last):\r\n  File \"/home1/irteam/users/ryuichi/espnet_upstream/egs/ljspeech/tts1/../../../utils/generate_wav_from_fbank.py\", line 180, in <module>\r\n    main()\r\n  File \"/home1/irteam/users/ryuichi/espnet_upstream/egs/ljspeech/tts1/../../../utils/generate_wav_from_fbank.py\", line 171, in main\r\n    y = mlsa_filter(y)\r\n  File \"/home1/irteam/users/ryuichi/espnet_upstream/egs/ljspeech/tts1/../../../utils/generate_wav_from_fbank.py\", line 70, in __call__\r\n    coef = np.tile(self.coef, [num_frames, 1])\r\nAttributeError: 'TimeInvariantMLSAFilter' object has no attribute 'coef'\r\n```",
+      "changes": [
+        {
+          "file": "utils/generate_wav_from_fbank.py",
+          "patch": "@@ -43,6 +43,7 @@ class TimeInvariantMLSAFilter(object):\n     \"\"\"\n \n     def __init__(self, coef, alpha, n_shift):\n+        self.coef = coef\n         self.n_shift = n_shift\n         self.mlsa_filter = pysptk.synthesis.Synthesizer(\n             pysptk.synthesis.MLSADF("
+        }
+      ]
+    }
+  ]
+}

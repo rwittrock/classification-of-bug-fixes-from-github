@@ -1,0 +1,15 @@
+{
+  "repo_name": "locustio/locust",
+  "commits": [
+    {
+      "sha": "1f4106f465888e7af8713bb225426ca85544da2d",
+      "message": "Workaround for AttributeError: 'CompatRequest' object has no attribute 'type' in Cookiejar",
+      "changes": [
+        {
+          "file": "locust/contrib/fasthttp.py",
+          "patch": "@@ -32,6 +32,11 @@ class ConnectionRefusedError(Exception):\n # More info: https://github.com/requests/requests/pull/871\n CompatRequest.unverifiable = False\n \n+# Workaround for AttributeError: 'CompatRequest' object has no attribute 'type' in Cookiejar\n+# https://github.com/locustio/locust/issues/1138\n+# Might allow secure cookies over non-secure connections but that is a minor concern in a load testing tool\n+CompatRequest.type = \"https\"\n+\n # Regexp for checking if an absolute URL was specified\n absolute_http_url_regexp = re.compile(r\"^https?://\", re.I)\n "
+        }
+      ]
+    }
+  ]
+}

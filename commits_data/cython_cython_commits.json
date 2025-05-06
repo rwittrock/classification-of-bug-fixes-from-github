@@ -1,0 +1,45 @@
+{
+  "repo_name": "cython/cython",
+  "commits": [
+    {
+      "sha": "d17e481cd6f1871a66ca2e04b0b86671100235f2",
+      "message": "Better error when using non-existant attributes from cimported modules.\n\nWhen not imported, this caused was a runtime NameError.  Now an error\nis given at compile time.",
+      "changes": [
+        {
+          "file": "Cython/Compiler/Symtab.py",
+          "patch": "@@ -1255,6 +1255,7 @@ def declare_module(self, name, scope, pos):\n                 return entry\n         else:\n             entry = self.declare_var(name, py_object_type, pos)\n+            entry.is_variable = 0\n         entry.as_module = scope\n         self.add_imported_module(scope)\n         return entry"
+        }
+      ]
+    },
+    {
+      "sha": "c4ba71f488535cab6ea78c3e56e0a977d9a0f853",
+      "message": "Raise TypeError for non-string hasattr.\n\nThis fixes #1702.",
+      "changes": [
+        {
+          "file": "Cython/Compiler/Builtin.py",
+          "patch": "@@ -111,7 +111,7 @@ def declare_in_type(self, self_type):\n                         t.real_type, [\n                             PyrexTypes.CFuncTypeArg(\"arg\", t, None)\n                             ],\n-                            is_strict_signature = True, nogil=True)) \n+                            is_strict_signature = True, nogil=True))\n                         for t in (PyrexTypes.c_float_complex_type,\n                                   PyrexTypes.c_double_complex_type,\n                                   PyrexTypes.c_longdouble_complex_type)\n@@ -144,7 +144,8 @@ def declare_in_type(self, self_type):\n                     utility_code=getattr3_utility_code),\n     BuiltinFunction('getattr',    \"OO\",   \"O\",     \"__Pyx_GetAttr\",\n                     utility_code=getattr_utility_code),\n-    BuiltinFunction('hasattr',    \"OO\",   \"b\",     \"PyObject_HasAttr\"),\n+    BuiltinFunction('hasattr',    \"OO\",   \"b\",     \"__Pyx_HasAttr\",\n+                    utility_code = UtilityCode.load(\"HasAttr\", \"Builtins.c\")),\n     BuiltinFunction('hash',       \"O\",    \"h\",     \"PyObject_Hash\"),\n     #('hex',       \"\",     \"\",      \"\"),\n     #('id',        \"\",     \"\",      \"\"),"
+        }
+      ]
+    },
+    {
+      "sha": "49e7d5096b4eb420150c76ebac2200c76e40d11e",
+      "message": "Acquire GIL in nogil contexts to raise UnboundLocalError for unbound memoryview slices",
+      "changes": [
+        {
+          "file": "Cython/Compiler/Code.py",
+          "patch": "@@ -1784,12 +1784,16 @@ def put_error_if_neg(self, pos, value):\n #        return self.putln(\"if (unlikely(%s < 0)) %s\" % (value, self.error_goto(pos)))  # TODO this path is almost _never_ taken, yet this macro makes is slower!\n         return self.putln(\"if (%s < 0) %s\" % (value, self.error_goto(pos)))\n \n-    def put_error_if_unbound(self, pos, entry):\n+    def put_error_if_unbound(self, pos, entry, in_nogil_context=False):\n         import ExprNodes\n         if entry.from_closure:\n             func = '__Pyx_RaiseClosureNameError'\n             self.globalstate.use_utility_code(\n                 ExprNodes.raise_closure_name_error_utility_code)\n+        elif entry.type.is_memoryviewslice and in_nogil_context:\n+            func = '__Pyx_RaiseUnboundMemoryviewSliceNogil'\n+            self.globalstate.use_utility_code(\n+                ExprNodes.raise_unbound_memoryview_utility_code_nogil)\n         else:\n             func = '__Pyx_RaiseUnboundLocalError'\n             self.globalstate.use_utility_code("
+        }
+      ]
+    },
+    {
+      "sha": "bf1e213306f14ef602745dcceb117afcfb08f074",
+      "message": "Make UnboundLocalError message same as in CPython",
+      "changes": [
+        {
+          "file": "Cython/Compiler/Code.py",
+          "patch": "@@ -1419,6 +1419,13 @@ def put_error_if_neg(self, pos, value):\n #        return self.putln(\"if (unlikely(%s < 0)) %s\" % (value, self.error_goto(pos)))  # TODO this path is almost _never_ taken, yet this macro makes is slower!\n         return self.putln(\"if (%s < 0) %s\" % (value, self.error_goto(pos)))\n \n+    def put_error_if_unbound(self, pos, entry):\n+        self.put('if (unlikely(!%s)) { '\n+                 'PyErr_SetString(PyExc_UnboundLocalError, \"'\n+                 \"local variable '%s' referenced before assignment\"\n+                 '\"); %s }' %\n+                 (entry.cname, entry.name, self.error_goto(pos)))\n+\n     def set_error_info(self, pos):\n         self.funcstate.should_declare_error_indicator = True\n         if self.c_line_in_traceback:"
+        }
+      ]
+    }
+  ]
+}

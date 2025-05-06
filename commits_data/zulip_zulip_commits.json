@@ -1,0 +1,105 @@
+{
+  "repo_name": "zulip/zulip",
+  "commits": [
+    {
+      "sha": "76492b25ae10c911352d52b7e5f446e69b680f98",
+      "message": "setup_venv: Install pip.txt requirements with --force-reinstall.\n\nvirtualenv on Ubuntu 16.04, when creating a new environment, downloads\nthe current version of setuptools, then replaces its pkg_resources\nwith an old copy from\n/usr/share/python-wheels/pkg_resources-0.0.0-py2.py3-none-any.whl.\nThis causes problems, a simple example of which is reproducible from\nthe ubuntu:16.04 Docker base image as follows:\n\n    apt-get update\n    apt-get -y install python3-virtualenv\n    python3 -m virtualenv -p python3 /ve\n    /ve/bin/pip install sockjs-tornado\n    /ve/bin/pip download sockjs-tornado\n\n\u2192 `AttributeError: '_NamespacePath' object has no attribute 'sort'`\n\nMore relevantly, it breaks pip-compile in the same way.  To fix this,\nwe need to force setuptools to be reinstalled, even if we\u2019re asking\nfor the same version.\n\nSigned-off-by: Anders Kaseorg <anders@zulipchat.com>",
+      "changes": [
+        {
+          "file": "scripts/lib/setup_venv.py",
+          "patch": "@@ -93,7 +93,7 @@\n def install_venv_deps(pip, requirements_file):\n     # type: (str, str) -> None\n     pip_requirements = os.path.join(ZULIP_PATH, \"requirements\", \"pip.txt\")\n-    run([pip, \"install\", \"-U\", \"--requirement\", pip_requirements])\n+    run([pip, \"install\", \"--force-reinstall\", \"--requirement\", pip_requirements])\n     run([pip, \"install\", \"--no-deps\", \"--requirement\", requirements_file])\n \n def get_index_filename(venv_path):"
+        }
+      ]
+    },
+    {
+      "sha": "d3139266c8748890b5965b866957a900365c6f2f",
+      "message": "setup_venv: Uninstall typing on Python >3.4.\n\nOtherwise this causes an error\n```\nAttributeError: type object 'Callable' has no attribute '_abc_registry'\n```\non 3.7. While the error is specific to 3.7, it is safer to uninstall\ntyping for all the versions that don't require a pip-provided typing\nlibrary.",
+      "changes": [
+        {
+          "file": "tools/lib/provision.py",
+          "patch": "@@ -290,6 +290,10 @@ def install_yum_deps(deps_to_install, retry=False):\n                 print(\"Unrecognized output. `subscription-manager` might not be available\")\n \n     run([\"sudo\", \"yum\", \"install\", \"-y\"] + yum_extra_flags + deps_to_install)\n+    if vendor in [\"CentOS\", \"RedHat\"]:\n+        # This is how a pip3 is installed to /usr/bin in CentOS/RHEL\n+        # for python35 and later.\n+        run([\"sudo\", \"python36\", \"-m\", \"ensurepip\"])\n     postgres_dir = 'pgsql-%s' % (POSTGRES_VERSION,)\n     for cmd in ['pg_config', 'pg_isready', 'psql']:\n         # Our tooling expects these postgres scripts to be at"
+        }
+      ]
+    },
+    {
+      "sha": "541bc0afda656e1003916fef6755aeca70078668",
+      "message": "sessions: Fix filling memcached caches.\n\nOur recent change in 2fa77d9d543a4eaa7c97250816543909965da747 to\ndisable the cached_db cache backend broke upgrade-zulip-from-git with\nan attributeerror; we fix that by checking the session engine before\ntrying to access its cache-related attributes.",
+      "changes": [
+        {
+          "file": "zerver/lib/cache_helpers.py",
+          "patch": "@@ -71,6 +71,11 @@ def recipient_cache_items(items_for_remote_cache: Dict[str, Tuple[Recipient]],\n session_engine = import_module(settings.SESSION_ENGINE)\n def session_cache_items(items_for_remote_cache: Dict[str, str],\n                         session: Session) -> None:\n+    if settings.SESSION_ENGINE != \"django.contrib.sessions.backends.cached_db\":\n+        # If we're not using the cached_db session engine, we there\n+        # will be no store.cache_key attribute, and in any case we\n+        # don't need to fill the cache, since it won't exist.\n+        return\n     store = session_engine.SessionStore(session_key=session.session_key)  # type: ignore # import_module\n     items_for_remote_cache[store.cache_key] = store.decode(session.session_data)\n "
+        }
+      ]
+    },
+    {
+      "sha": "ef72cf5c7c608aa5a3b03e76a04ff6457ab65d5a",
+      "message": "bug fix: Fix wikipedia bot in case no results are found.\nIncorrect Index access in wikipedia.py resulted in IndexError and\nwikipedia bot to crash for few queries. This causes the bug to be fixed.\nReplaced url to avoid 2 redirects and enhance performance.\nFixes: #3508.",
+      "changes": [
+        {
+          "file": "contrib_bots/bots/wikipedia/wikipedia.py",
+          "patch": "@@ -60,12 +60,12 @@ def handle_message(self, message, client, state_handler):\n             logging.error('unsuccessful data')\n             return\n \n-        search_string = data.json()['query']['search'][0]['title'].replace(' ', '_')\n-        url = 'https://wikipedia.org/wiki/' + search_string\n         new_content = 'For search term \"' + query\n         if len(data.json()['query']['search']) == 0:\n             new_content = 'I am sorry. The search term you provided is not found :slightly_frowning_face:'\n         else:\n+            search_string = data.json()['query']['search'][0]['title'].replace(' ', '_')\n+            url = 'https://en.wikipedia.org/wiki/' + search_string\n             new_content = new_content + '\", ' + url\n \n         client.send_message(dict("
+        }
+      ]
+    },
+    {
+      "sha": "2e865f03bf04b80de5464ec5b03d5e0515cae3b3",
+      "message": "Protect against nameless HTML tags in tools/lib/template_parser.py.\n\nFixed IndexError when there is only zero or more whitespace characters\nbetween < and >. (str.split() will return an empty list in this case, which\nmeans there is no index 0.)",
+      "changes": [
+        {
+          "file": "tools/tests/test_template_parser.py",
+          "patch": "@@ -127,6 +127,13 @@ def test_validate_incomplete_html_tag_2(self):\n         '''\n         self._assert_validate_error('Tag missing >', text=my_html)\n \n+    def test_validate_empty_html_tag(self):\n+        # type: () -> None\n+        my_html = '''\n+            < >\n+        '''\n+        self._assert_validate_error('Tag name missing', text=my_html)\n+\n     def test_code_blocks(self):\n         # type: () -> None\n "
+        }
+      ]
+    },
+    {
+      "sha": "c59740385da47b4548e907de21c84d63bd015d45",
+      "message": "zerver/lib/str_utils.py: Replace ValueError by TypeError.\n\nWhen a parameter of a wrong type is passed to a `force_*` method\nin str_utils.py, raise a TypeError.",
+      "changes": [
+        {
+          "file": "zerver/lib/str_utils.py",
+          "patch": "@@ -45,7 +45,7 @@ def force_text(s, encoding='utf-8'):\n     elif isinstance(s, binary_type):\n         return s.decode(encoding)\n     else:\n-        raise ValueError(\"force_text expects a string type\")\n+        raise TypeError(\"force_text expects a string type\")\n \n def force_bytes(s, encoding='utf-8'):\n     # type: (Union[text_type, binary_type], str) -> binary_type\n@@ -55,7 +55,7 @@ def force_bytes(s, encoding='utf-8'):\n     elif isinstance(s, text_type):\n         return s.encode(encoding)\n     else:\n-        raise ValueError(\"force_bytes expects a string type\")\n+        raise TypeError(\"force_bytes expects a string type\")\n \n def force_str(s, encoding='utf-8'):\n     # type: (Union[text_type, binary_type], str) -> str\n@@ -67,7 +67,7 @@ def force_str(s, encoding='utf-8'):\n     elif isinstance(s, binary_type):\n         return s.decode(encoding)\n     else:\n-        raise ValueError(\"force_str expects a string type\")\n+        raise TypeError(\"force_str expects a string type\")\n \n def dict_with_str_keys(dct, encoding='utf-8'):\n     # type: (Mapping[NonBinaryStr, Any], str) -> Dict[str, Any]"
+        }
+      ]
+    },
+    {
+      "sha": "b59b5cac357240960479534bbe3580c1ca683b00",
+      "message": "Fix TypeError in Google OAuth authenticator.\n\nrequests 1.0 changed response.json attribute to response.json()\ninstancemethod. The code wasn't updated to match that change,\ncausing a TypeError when attempting to use the Google OAuth\nAuthenticator backend.\n\nThis is fixed simply by using response.json() instead of response.json.",
+      "changes": [
+        {
+          "file": "zerver/views/__init__.py",
+          "patch": "@@ -693,15 +693,15 @@ def finish_google_oauth2(request):\n     )\n     if resp.status_code != 200:\n         raise Exception('Could not convert google pauth2 code to access_token\\r%r' % resp.text)\n-    access_token = resp.json['access_token']\n+    access_token = resp.json()['access_token']\n \n     resp = requests.get(\n         'https://www.googleapis.com/plus/v1/people/me',\n         params={'access_token': access_token}\n     )\n     if resp.status_code != 200:\n         raise Exception('Google login failed making API call\\r%r' % resp.text)\n-    body = resp.json\n+    body = resp.json()\n \n     try:\n         full_name = body['name']['formatted']"
+        }
+      ]
+    },
+    {
+      "sha": "5c6cd40fe7c0ddc5a58ac7553125827d50fbd84a",
+      "message": "recipient_for_emails: Fix type error\n\nFixes\n[\n  File \"/srv/zulip/zerver/lib/actions.py\", line 605, in recipient_for_emails\n    if not (normalized_emails & admin_realm_admin_emails or normalized_emails & settings.CROSS_REALM_BOT_EMAILS):\nTypeError: unsupported operand type(s) for &: 'set' and 'list'\n\n(imported from commit f39a95dad7b3207e9188fc03926cd116061ef3f3)",
+      "changes": [
+        {
+          "file": "zerver/lib/actions.py",
+          "patch": "@@ -600,7 +600,7 @@ def recipient_for_emails(emails, not_forged_mirror_message,\n     if len(realm_domains) == 2:\n         # I'm assuming that cross-realm PMs with the \"admin realm\" are rare, and therefore can be slower\n         admin_realm = Realm.objects.get(domain=settings.ADMIN_DOMAIN)\n-        admin_realm_admin_emails = [u.email for u in admin_realm.get_admin_users()]\n+        admin_realm_admin_emails = {u.email for u in admin_realm.get_admin_users()}\n         # We allow settings.CROSS_REALM_BOT_EMAILS for the hardcoded emails for the feedback and notification bots\n         if not (normalized_emails & admin_realm_admin_emails or normalized_emails & settings.CROSS_REALM_BOT_EMAILS):\n             raise ValidationError(\"You can't send private messages outside of your organization.\")"
+        }
+      ]
+    },
+    {
+      "sha": "50e8d8b69a39ebea7347f7b45aa7d822b4690f12",
+      "message": "Specify default for EMAIL_GATEWAY_EXAMPLE\n\nOtherwise the app would crash when it tried to build template context:\n\nTraceback (most recent call last):\n  [...]\n  File \".../zerver/context_processors.py\", line 23, in add_settings\n    'email_gateway_example': settings.EMAIL_GATEWAY_EXAMPLE,\n  File \"/usr/lib/python2.7/dist-packages/django/conf/__init__.py\", line 55, in __getattr__\n    return getattr(self._wrapped, name)\nAttributeError: 'Settings' object has no attribute 'EMAIL_GATEWAY_EXAMPLE'\n\n(imported from commit 6cc5d3f150326a55230ea91e6c228ae9b1e19df3)",
+      "changes": [
+        {
+          "file": "zproject/settings.py",
+          "patch": "@@ -234,6 +234,7 @@\n                     'TWITTER_ACCESS_TOKEN_SECRET': '',\n                     'EMBEDLY_KEY': '',\n                     'EMAIL_GATEWAY_PATTERN': '',\n+                    'EMAIL_GATEWAY_EXAMPLE': '',\n                     'EMAIL_GATEWAY_BOT': None,\n                     'EMAIL_GATEWAY_LOGIN': None,\n                     'EMAIL_GATEWAY_PASSWORD': None,"
+        }
+      ]
+    },
+    {
+      "sha": "eb0f8bda09dbec3ffd22868e7ee0480e2467e966",
+      "message": "Ensure the last_reminder datatetime is tz-aware\n\nI don't fully understand the need for this, but I have seen some\ntracebacks on app that complain:\n\nFile \"/home/humbug/humbug-deployments/2013-07-11-19-28-10/zephyr/lib/actions.py\", line 1289, in handle_missedmessage_emails\n    timestamp - user_profile.last_reminder < waitperiod):\nTypeError: can't subtract offset-naive and offset-aware datetimes\n\nSince timestamp in this case comes from timestamp_to_datetime\nthat explicitly sets the tzinfo, we know it's tz-aware. The only\nother possibility is that user_profile.last_reminder is **not**\ntz-aware, though I am not sure why that would be the case.\n\n(imported from commit 67e33f4510e91fa9de504f0c610515581312c98b)",
+      "changes": [
+        {
+          "file": "zephyr/lib/actions.py",
+          "patch": "@@ -15,6 +15,7 @@\n from django.utils.importlib import import_module\n from django.template import loader\n from django.core.mail import EmailMultiAlternatives\n+from django.utils.timezone import utc, is_naive\n \n from confirmation.models import Confirmation\n \n@@ -1284,6 +1285,12 @@ def handle_missedmessage_emails(user_profile_id, missed_email_events):\n                                                                 message__id__in=message_ids,\n                                                                 flags=~UserMessage.flags.read)]\n \n+    last_reminder = user_profile.last_reminder\n+    if last_reminder is not None and is_naive(last_reminder):\n+        logging.warning(\"Loaded a user_profile.last_reminder for user %s that's not tz-aware: %s\"\n+                          % (user_profile.user.email, last_reminder))\n+        last_reminder = last_reminder.replace(tzinfo=utc)\n+\n     waitperiod = datetime.timedelta(hours=UserProfile.EMAIL_REMINDER_WAITPERIOD)\n     if len(messages) == 0 or (user_profile.last_reminder and \\\n                               timestamp - user_profile.last_reminder < waitperiod):"
+        }
+      ]
+    }
+  ]
+}

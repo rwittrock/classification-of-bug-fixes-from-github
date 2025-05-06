@@ -1,0 +1,25 @@
+{
+  "repo_name": "rq/rq",
+  "commits": [
+    {
+      "sha": "e2f398be8001b409326d640ad551603468b80f17",
+      "message": "fix --worker-ttl command line arg\n\nMake sure it's converted to an int, since the rest of the code expects it to be.  Without this patch, trying to use that argument gets you something like this:\r\n\r\n(cogo)[dbonner@bonnervm18 syseng]$ rqworker --worker-ttl 86400\r\n21:52:07 RQ worker started, version 0.4.6\r\nTraceback (most recent call last):\r\n  File \"/opt/cogo/bin/rqworker\", line 9, in <module>\r\n    load_entry_point('rq==0.4.6', 'console_scripts', 'rqworker')()\r\n  File \"/home/dbonner/src/github/rq/rq/scripts/rqworker.py\", line 102, in main\r\n    w.work(burst=args.burst)\r\n  File \"/home/dbonner/src/github/rq/rq/worker.py\", line 354, in work\r\n    timeout = None if burst else max(1, self.default_worker_ttl - 60)\r\nTypeError: unsupported operand type(s) for -: 'str' and 'int'",
+      "changes": [
+        {
+          "file": "rq/scripts/rqworker.py",
+          "patch": "@@ -30,7 +30,7 @@ def parse_args():\n     parser.add_argument('--job-class', '-j', action='store', default='rq.job.Job', help='RQ Job class to use')\n     parser.add_argument('--path', '-P', default='.', help='Specify the import path.')\n     parser.add_argument('--results-ttl', default=None, help='Default results timeout to be used')\n-    parser.add_argument('--worker-ttl', default=None, help='Default worker timeout to be used')\n+    parser.add_argument('--worker-ttl', type=int, default=None, help='Default worker timeout to be used')\n     parser.add_argument('--verbose', '-v', action='store_true', default=False, help='Show more output')\n     parser.add_argument('--quiet', '-q', action='store_true', default=False, help='Show less output')\n     parser.add_argument('--sentry-dsn', action='store', default=None, metavar='URL', help='Report exceptions to this Sentry DSN')  # noqa"
+        }
+      ]
+    },
+    {
+      "sha": "b886ba76dec436a5d2d888032338baaa1fbb07db",
+      "message": "Fix AttributeError.",
+      "changes": [
+        {
+          "file": "rq/local.py",
+          "patch": "@@ -161,7 +161,10 @@ def top(self):\n             return None\n \n     def __len__(self):\n-        return len(self._local.stack)\n+        stack = getattr(self._local, 'stack', None)\n+        if stack is None:\n+            return 0\n+        return len(stack)\n \n \n class LocalManager(object):"
+        }
+      ]
+    }
+  ]
+}

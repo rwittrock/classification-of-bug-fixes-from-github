@@ -1,0 +1,65 @@
+{
+  "repo_name": "spotify/luigi",
+  "commits": [
+    {
+      "sha": "5d99d60e9349156e2b213d8ac7ec8f348ee15b07",
+      "message": "Fix error: AttributeError: 'Task' object has no attribute 'param_visibilities' (#2509)",
+      "changes": [
+        {
+          "file": "luigi/scheduler.py",
+          "patch": "@@ -822,7 +822,7 @@ def add_task(self, task_id=None, status=PENDING, runnable=True,\n             task.family = family\n         if not getattr(task, 'module', None):\n             task.module = module\n-        if not task.param_visibilities:\n+        if not getattr(task, 'param_visibilities', None):\n             task.param_visibilities = _get_default(param_visibilities, {})\n         if not task.params:\n             task.set_params(params)"
+        }
+      ]
+    },
+    {
+      "sha": "6861ee35e29b3372f3e49007947861e97ae4214f",
+      "message": "Uses a sane default for pysftp_conn_kwargs (#1825)\n\npysftp_conn_kwargs defaults to None, which causes a TypeError when passed\r\nwith ** for the kwargs of pysftp.connect. This fixes that bug by replacing\r\nNone with {} when storing pysftp_conn_kwargs in the RemoteFileSystem\r\nobject.",
+      "changes": [
+        {
+          "file": "luigi/contrib/ftp.py",
+          "patch": "@@ -53,7 +53,7 @@ def __init__(self, host, username=None, password=None, port=None,\n         self.tls = tls\n         self.timeout = timeout\n         self.sftp = sftp\n-        self.pysftp_conn_kwargs = pysftp_conn_kwargs\n+        self.pysftp_conn_kwargs = pysftp_conn_kwargs or {}\n \n         if port is None:\n             if self.sftp:"
+        }
+      ]
+    },
+    {
+      "sha": "cce8bd114b4082cda3559ced5596e93b54194bf0",
+      "message": "Raise Queue.Empty for get() on empty queue\n\nWorker._handle_next_task() expects get() on an empty queue to raise Queue.Empty, but the dummy implementation DequeQueue raises IndexError instead. It probaly only shows up if you create custom workers that derive from Worker, but it is still inconsistent with multiprocessing.Queue.",
+      "changes": [
+        {
+          "file": "luigi/worker.py",
+          "patch": "@@ -271,7 +271,10 @@ def put(self, obj, block=None, timeout=None):\n         return self.append(obj)\n \n     def get(self, block=None, timeout=None):\n-        return self.pop()\n+        try:\n+            return self.pop()\n+        except IndexError:\n+            raise Queue.Empty\n \n \n class AsyncCompletionException(Exception):"
+        }
+      ]
+    },
+    {
+      "sha": "0a4dd63162f6a9f20e3e9ce6bb8d685a2c50a210",
+      "message": "Scheduler UI: Fix python3 issues in resources view\n\nPreviously there was an `AttributeError` stack trace in the logs of the\nserver and the resources view didn't work.",
+      "changes": [
+        {
+          "file": "luigi/scheduler.py",
+          "patch": "@@ -1093,7 +1093,7 @@ def resources(self):\n         ''' get total resources and available ones '''\n         used_resources = self._used_resources()\n         ret = collections.defaultdict(dict)\n-        for resource, total in self._resources.iteritems():\n+        for resource, total in six.iteritems(self._resources):\n             ret[resource]['total'] = total\n             if resource in used_resources:\n                 ret[resource]['used'] = used_resources[resource]"
+        }
+      ]
+    },
+    {
+      "sha": "2db9768958c9665c2bb78f040054a25534205fc4",
+      "message": "A Fix the TypeError whenever prune is called before update has been invoked\nin worker.",
+      "changes": [
+        {
+          "file": "luigi/scheduler.py",
+          "patch": "@@ -224,7 +224,7 @@ class Worker(object):\n     Structure for tracking worker activity and keeping their references.\n     \"\"\"\n \n-    def __init__(self, worker_id, last_active=None):\n+    def __init__(self, worker_id, last_active=time.time()):\n         self.id = worker_id\n         self.reference = None  # reference to the worker in the real world. (Currently a dict containing just the host)\n         self.last_active = last_active  # seconds since epoch"
+        }
+      ]
+    },
+    {
+      "sha": "2d292f8035a52844a4dd601ebff894d55d4ebbdf",
+      "message": "Only check if struct is iterable\n\nInstead of also checking if there's a TypeError while iterating through struct",
+      "changes": [
+        {
+          "file": "test/task_test.py",
+          "patch": "@@ -85,6 +85,7 @@ def test_flatten(self):\n         self.assertEquals(flatten('foo'), ['foo'])\n         self.assertEquals(flatten(42), [42])\n         self.assertEquals(flatten((len(i) for i in [\"foo\", \"troll\"])), [3, 5])\n+        self.assertRaises(TypeError, flatten, (len(i) for i in [\"foo\", \"troll\", None]))\n \n \n if __name__ == '__main__':"
+        }
+      ]
+    }
+  ]
+}

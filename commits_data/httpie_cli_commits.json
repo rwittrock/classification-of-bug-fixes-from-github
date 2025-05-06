@@ -1,0 +1,35 @@
+{
+  "repo_name": "httpie/cli",
+  "commits": [
+    {
+      "sha": "c5ca9d248eaad2dc04f2388a784a62d2e2bcbc84",
+      "message": "Allow stdin to be a closed fd\n\nBefore this change, the following invocation would not work\n\n```\n$ http http://neverhttps.com <&-\n```\n\nThe \"<&-\" at the end closes the stdin fd. Specifically, it would fail with\n\n```\n  ...\n  File \"/home/mgsloan/.local/lib/python3.6/site-packages/httpie/context.py\", line 26, in Environment\n    stdin_isatty = stdin.isatty()\nAttributeError: 'NoneType' object has no attribute 'isatty'\n```\n\nThis can occur when httpie is being programmatically invoked, and may\nas well be supported.",
+      "changes": [
+        {
+          "file": "httpie/context.py",
+          "patch": "@@ -23,7 +23,7 @@ class Environment(object):\n     is_windows = is_windows\n     config_dir = DEFAULT_CONFIG_DIR\n     stdin = sys.stdin\n-    stdin_isatty = stdin.isatty()\n+    stdin_isatty = stdin.isatty() if stdin else False\n     stdin_encoding = None\n     stdout = sys.stdout\n     stdout_isatty = stdout.isatty()\n@@ -61,7 +61,7 @@ def __init__(self, **kwargs):\n         self.__dict__.update(**kwargs)\n \n         # Keyword arguments > stream.encoding > default utf8\n-        if self.stdin_encoding is None:\n+        if self.stdin and self.stdin_encoding is None:\n             self.stdin_encoding = getattr(\n                 self.stdin, 'encoding', None) or 'utf8'\n         if self.stdout_encoding is None:"
+        }
+      ]
+    },
+    {
+      "sha": "282cc455e322ad64685658f814b18bf0dae26292",
+      "message": "Avoid \"TypeError: keyword arguments must be strings\" on Python 3.3.",
+      "changes": [
+        {
+          "file": "httpie/sessions.py",
+          "patch": "@@ -48,7 +48,10 @@ def get_response(session_name, requests_kwargs, config_dir, args,\n     session.load()\n \n     request_headers = requests_kwargs.get('headers', {})\n-    requests_kwargs['headers'] = dict(session.headers, **request_headers)\n+\n+    requests_kwargs['headers'] = dict(session.headers)\n+    requests_kwargs['headers'].update(request_headers)\n+\n     session.update_headers(request_headers)\n \n     if args.auth:"
+        }
+      ]
+    },
+    {
+      "sha": "2d7df0afb4836aed5bdf5fa10c2cb36d072db8ae",
+      "message": "Fixed AttributeError in Content-Type vendor removal.",
+      "changes": [
+        {
+          "file": "httpie/pretty.py",
+          "patch": "@@ -19,7 +19,7 @@\n              if '256color' in os.environ.get('TERM', '')\n              else TerminalFormatter)\n \n-application_content_type_re = re.compile(r'application/(.+\\+)?(json|xml)$')\n+application_content_type_re = re.compile(r'application/(.+\\+)(json|xml)$')\n \n \n class PrettyHttp(object):"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "repo_name": "tornadoweb/tornado",
+  "commits": [
+    {
+      "sha": "0efe23ed1725af8017ef6af1f8c3aa31fee6fe55",
+      "message": "netutil: Preload the \"latin1\" codec\n\nFor reasons not yet understood, some Solaris users get intermittent\n\"LookupError: unknown encoding: latin1\", this has been reported to\nfix it.\n\nFixes #584",
+      "changes": [
+        {
+          "file": "tornado/netutil.py",
+          "patch": "@@ -96,6 +96,9 @@\n # thread now.\n u'foo'.encode('idna')\n \n+# For undiagnosed reasons, 'latin1' codec may also need to be preloaded.\n+u'foo'.encode('latin1')\n+\n # These errnos indicate that a non-blocking operation must be retried\n # at a later time.  On most platforms they're the same value, but on\n # some they differ."
+        }
+      ]
+    },
+    {
+      "sha": "d49e5e8774840bfe48397e316215f659c2fb8abf",
+      "message": "Avoid spurious warnings at shutdown\n\nWhen there are still active coroutines at interpreter shutdown, you can\nsee sometimes warnings such as:\n\nException ignored in: <bound method Future.__del__ of <tornado.concurrent.Future object at 0x7f56a8b142e8>>\nTraceback (most recent call last):\n  File \"/home/antoine/tornado/tornado/concurrent.py\", line 338, in __del__\nTypeError: 'NoneType' object is not callable\n\nThese are distracting and don't bear any useful information, so silence them.",
+      "changes": [
+        {
+          "file": "tornado/test/util_test.py",
+          "patch": "@@ -6,7 +6,7 @@\n \n import tornado.escape\n from tornado.escape import utf8\n-from tornado.util import raise_exc_info, Configurable, exec_in, ArgReplacer, timedelta_to_seconds, import_object, re_unescape, PY3\n+from tornado.util import raise_exc_info, Configurable, exec_in, ArgReplacer, timedelta_to_seconds, import_object, re_unescape, is_finalizing, PY3\n from tornado.test.util import unittest\n \n if PY3:\n@@ -220,3 +220,8 @@ def test_re_unescape_raises_error_on_invalid_input(self):\n             re_unescape('\\\\b')\n         with self.assertRaises(ValueError):\n             re_unescape('\\\\Z')\n+\n+\n+class IsFinalizingTest(unittest.TestCase):\n+    def test_basic(self):\n+        self.assertFalse(is_finalizing())"
+        }
+      ]
+    },
+    {
+      "sha": "ba81424a140a8f6288212e30970308ad76a5347f",
+      "message": "Avoid uncaught exception when _xsrf argument could not be decoded.\nThis is primarily to avoid \"TypeError: a bytes-like object is required, not 'NoneType\" in \"check_xsrf_cookie\"",
+      "changes": [
+        {
+          "file": "tornado/web.py",
+          "patch": "@@ -1265,6 +1265,8 @@ def check_xsrf_cookie(self):\n             raise HTTPError(403, \"'_xsrf' argument missing from POST\")\n         _, token, _ = self._decode_xsrf_token(token)\n         _, expected_token, _ = self._get_raw_xsrf_token()\n+        if not token:\n+            raise HTTPError(403, \"'_xsrf' argument has invalid format\")\n         if not _time_independent_equals(utf8(token), utf8(expected_token)):\n             raise HTTPError(403, \"XSRF cookie does not match POST argument\")\n "
+        }
+      ]
+    },
+    {
+      "sha": "e85e0b68ab28ccd8728a87e5791dc30732192ef3",
+      "message": "re_unescape with a much simpler method; raise TypeError on invalid input",
+      "changes": [
+        {
+          "file": "tornado/web.py",
+          "patch": "@@ -3024,6 +3024,10 @@ def _find_groups(self):\n                 if paren_loc >= 0:\n                     pieces.append('%s' + fragment[paren_loc + 1:])\n             else:\n+                try:\n+                    unescaped_fragment = re_unescape(fragment)\n+                except ValueError as exc:\n+                    raise ValueError(exc.args[0] + '; invalid url: %r' % pattern)\n                 pieces.append(re_unescape(fragment))\n \n         return (''.join(pieces), self.regex.groups)"
+        }
+      ]
+    },
+    {
+      "sha": "e442a6dcdc52002481fa421a9c7768eada75dc03",
+      "message": "This is a fix to check  the argument to RequestHandler.write()\nis one of the accepted types: dict, bytes or unicode and raise a TypeError otherwise",
+      "changes": [
+        {
+          "file": "tornado/web.py",
+          "patch": "@@ -604,6 +604,8 @@ def write(self, chunk):\n             raise RuntimeError(\"Cannot write() after finish().  May be caused \"\n                                \"by using async operations without the \"\n                                \"@asynchronous decorator.\")\n+        if not isinstance(chunk, (bytes_type, unicode_type, dict)):\n+            raise TypeError(\"write() only accepts bytes, unicode, and dict objects\")\n         if isinstance(chunk, dict):\n             chunk = escape.json_encode(chunk)\n             self.set_header(\"Content-Type\", \"application/json; charset=UTF-8\")"
+        }
+      ]
+    },
+    {
+      "sha": "d80fa56c06be8293089005b4e11187be3c1f343e",
+      "message": "use getattr to check for close method in IOLoop.close\n\ninstead of catching AttributeError directly",
+      "changes": [
+        {
+          "file": "tornado/ioloop.py",
+          "patch": "@@ -505,9 +505,10 @@ def close(self, all_fds=False):\n         if all_fds:\n             for fd in self._handlers.keys():\n                 try:\n-                    try:\n-                        fd.close()\n-                    except AttributeError:\n+                    close_method = getattr(fd, 'close', None)\n+                    if close_method is not None:\n+                        close_method()\n+                    else:\n                         os.close(fd)\n                 except Exception:\n                     gen_log.debug(\"error closing fd %s\", fd, exc_info=True)"
+        }
+      ]
+    },
+    {
+      "sha": "293d15d55993282863904af5621b83ed7532a43d",
+      "message": "Only catch pycurl.error, not all Exceptions around a call to multi.socket_action.\n\nThis was hiding an AttributeError being thrown on older versions of pycurl\n(which did not expose the socket_action method).",
+      "changes": [
+        {
+          "file": "tornado/httpclient.py",
+          "patch": "@@ -198,7 +198,7 @@ def _handle_events(self, fd, events):\n         while True:\n             try:\n                 ret, num_handles = self._multi.socket_action(fd, action)\n-            except Exception, e:\n+            except pycurl.error, e:\n                 ret = e[0]\n             if ret != pycurl.E_CALL_MULTI_PERFORM:\n                 break\n@@ -212,7 +212,7 @@ def _handle_timeout(self):\n                 try:\n                     ret, num_handles = self._multi.socket_action(\n                                             pycurl.SOCKET_TIMEOUT, 0)\n-                except Exception, e:\n+                except pycurl.error, e:\n                     ret = e[0]\n                 if ret != pycurl.E_CALL_MULTI_PERFORM:\n                     break"
+        }
+      ]
+    },
+    {
+      "sha": "b5365d8c015b11a26b5ac6f29a40cd4d59e550e3",
+      "message": "Make options.__getattr__ raise AttributeError instead of Error for consistency\nwith standard attribute lookups (so getattr(options, 'foo', None) works\nif no option 'foo' has been defined).",
+      "changes": [
+        {
+          "file": "tornado/options.py",
+          "patch": "@@ -175,7 +175,7 @@ def instance(cls):\n     def __getattr__(self, name):\n         if isinstance(self.get(name), _Option):\n             return self[name].value()\n-        raise Error(\"Unrecognized option %r\" % name)\n+        raise AttributeError(\"Unrecognized option %r\" % name)\n \n \n class _Option(object):"
+        }
+      ]
+    }
+  ]
+}

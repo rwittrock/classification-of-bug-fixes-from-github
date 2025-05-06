@@ -1,0 +1,35 @@
+{
+  "repo_name": "geekcomputers/Python",
+  "commits": [
+    {
+      "sha": "631070700593906a1a1c6468aa99c4b786eec6c0",
+      "message": "`True` is a builtin but `true` in an undefined name\n\nThe current code will raise NameError if __isEmpty()__ is called.",
+      "changes": [
+        {
+          "file": "stack.py",
+          "patch": "@@ -13,7 +13,7 @@ def size(stack):\n # Stack is empty if the size is 0 \n def isEmpty(stack): \n \tif size(stack) == 0: \n-\t\treturn true \n+\t\treturn True \n \n # Function to add an item to stack . \n # It increases size by 1 "
+        }
+      ]
+    },
+    {
+      "sha": "c3fbc5eba53fb7759ff10cab60902d6192e466a1",
+      "message": "NameError fix calculator.py\n\nusing the normal input() function was causing a NameError.\r\nchanging it to raw_input() fixed this.",
+      "changes": [
+        {
+          "file": "calculator.py",
+          "patch": "@@ -44,7 +44,7 @@ def calc(k):\n \n     print (\"\\nScientific Calculator\\nEg: pi * sin(90) - sqrt(81)\")\n \n-    k = input(\"\\nWhat is \")\n+    k = raw_input(\"\\nWhat is \") # Using input() function is causing NameError. Changing it to raw_input() fixes this.\n \n     k = k.replace(' ', '')\n     k = k.replace('^', '**')"
+        }
+      ]
+    },
+    {
+      "sha": "e11049831e39c04bffc4f7a3b38d02d942fa5a02",
+      "message": "Traceback (most recent call last):\n  File \"check_for_sqlite_files.py\", line 32, in <module>\n    if isSQLite3(files):\n  File \"check_for_sqlite_files.py\", line 22, in isSQLite3\n    fd.close()\nNameError: global name 'fd' is not defined",
+      "changes": [
+        {
+          "file": "check_for_sqlite_files.py",
+          "patch": "@@ -18,7 +18,8 @@ def isSQLite3(filename):\n     if getsize(filename) < 100: # SQLite database file header is 100 bytes\r\n         return False\r\n     else:\r\n-        Header = open(filename, 'rb').read(100)\r\n+        fd = open(filename, 'rb')\r\n+        Header = fd.read(100)\r\n         fd.close()\r\n \r\n         if Header[0:16] == 'SQLite format 3\\000':\r"
+        }
+      ]
+    }
+  ]
+}

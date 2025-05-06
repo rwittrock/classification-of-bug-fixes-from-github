@@ -1,0 +1,15 @@
+{
+  "repo_name": "conan-io/conan",
+  "commits": [
+    {
+      "sha": "10a0bb39160817802b1c695b5f62e4d2549b6d73",
+      "message": "#3953 Inspect -a shouln't raise AttributeError (#5419)\n\nSigned-off-by: Uilian Ries <uilianries@gmail.com>",
+      "changes": [
+        {
+          "file": "conans/client/conan_api.py",
+          "patch": "@@ -278,8 +278,8 @@ def inspect(self, path, attributes, remote_name=None):\n             try:\n                 attr = getattr(conanfile, attribute)\n                 result[attribute] = attr\n-            except AttributeError as e:\n-                raise ConanException(str(e))\n+            except AttributeError:\n+                result[attribute] = ''\n         return result\n \n     @api_method"
+        }
+      ]
+    }
+  ]
+}

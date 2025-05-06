@@ -1,0 +1,35 @@
+{
+  "repo_name": "falconry/falcon",
+  "commits": [
+    {
+      "sha": "1390abe34d264fcf6306a59876cb6422fdfd2027",
+      "message": "Ensure we actually have args in the list (#1255)\n\nResolves #1254  by simply checking that the list of args we're inspecting actually has contents, avoiding potential `IndexErrors` (see example in the issue).\r\n\r\nCloses: #1254",
+      "changes": [
+        {
+          "file": "falcon/util/misc.py",
+          "patch": "@@ -314,7 +314,7 @@ def get_argnames(func):\n     # be present, so we normalize the results by removing 'self' as needed.\n     # Note that this behavior varies between 3.x versions as well as between\n     # 3.x and 2.7.\n-    if args[0] == 'self':\n+    if args and args[0] == 'self':\n         args = args[1:]\n \n     return args"
+        }
+      ]
+    },
+    {
+      "sha": "163783d8a78149d92acdc43689fd743842ea93b3",
+      "message": "fix(api): 405 Method Not Allowed - False positive\n\nThis patch removes the TypeError heuristic code altogether, since it\nhas been problematic in the past (and often masks app bugs).\n\nBREAKING CHANGE: You can no longer overload a single resource class to\n    respond to multiple routes that differ by URI template params. This\n    has come to be viewed as an anti-pattern, and so it will no longer\n    be supported.\n\n    If you attempt to have a single OxResource that you try to overload to\n    respond to both, e.g., \"PUT /oxen/old-ben\" and \"GET /oxen\", it will\n    no longer work after this commit.\n\n    Developers should be advised to resist the temptation to overload their\n    resources; instead, create OxResource and OxenResource. It is common to\n    put these two classes in the same module.\n\nFixes Issue #205",
+      "changes": [
+        {
+          "file": "falcon/responders.py",
+          "patch": "@@ -20,7 +20,6 @@\n from falcon.status_codes import HTTP_400\n from falcon.status_codes import HTTP_404\n from falcon.status_codes import HTTP_405\n-from falcon.status_codes import HTTP_500\n \n \n def path_not_found(req, resp, **kwargs):\n@@ -33,11 +32,6 @@ def bad_request(req, resp, **kwargs):\n     resp.status = HTTP_400\n \n \n-def internal_server_error(req, resp, **kwargs):\n-    \"\"\"Sets response to \"500 Internal Server Error\", no body.\"\"\"\n-    resp.status = HTTP_500\n-\n-\n def create_method_not_allowed(allowed_methods):\n     \"\"\"Creates a responder for \"405 Method Not Allowed\"\n "
+        }
+      ]
+    },
+    {
+      "sha": "6636d0b0ec43c4552bddc8271c4987479886835e",
+      "message": "fix(setup): NameError -> AttributeError",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -15,7 +15,7 @@\n with_cython = False\n try:\n     sys.pypy_version_info\n-except NameError:\n+except AttributeError:\n     PYPY = False\n \n if not PYPY:"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "repo_name": "bottlepy/bottle",
+  "commits": [
+    {
+      "sha": "ccadf88107eb934c500be6526811d39a9b449ceb",
+      "message": "uvloop: Pass loop to aiohttp to fix backend \"uvloop\"\n\nBacktrace was:\n\nTraceback (most recent call last):\n  File \"[..]/lib/python3.6/site-packages/aiohttp/server.py\", line 239, in start\n    httpstream = reader.set_parser(self._request_parser)\n  File \"[..]/lib/python3.6/site-packages/aiohttp/parsers.py\", line 199, in set_parser\n    self.unset_parser()\n  File \"[..]/lib/python3.6/site-packages/aiohttp/parsers.py\", line 209, in unset_parser\n    if self._loop.is_closed():\nAttributeError: 'NoneType' object has no attribute 'is_closed'",
+      "changes": [
+        {
+          "file": "bottle.py",
+          "patch": "@@ -3525,6 +3525,7 @@ def run(self, handler):\n         protocol_factory = lambda: WSGIServerHttpProtocol(\n             handler,\n             readpayload=True,\n+            loop=self.loop,\n             debug=(not self.quiet))\n         self.loop.run_until_complete(self.loop.create_server(protocol_factory,\n                                                              self.host,"
+        }
+      ]
+    },
+    {
+      "sha": "1a2a72cea0400e7095f6a40f0aa8fe83af995c75",
+      "message": "BUGFIX: avoid cryptic TypeError when pickling FormsDict objects.",
+      "changes": [
+        {
+          "file": "bottle.py",
+          "patch": "@@ -1765,6 +1765,9 @@ def getunicode(self, name, default=None, encoding=None):\n             return default\n \n     def __getattr__(self, name, default=unicode()):\n+        # Without this guard, pickle generates a cryptic TypeError:\n+        if name.startswith('__') and name.endswith('__'):\n+            return super(FormsDict, self).__getattr__(name)\n         return self.getunicode(name, default=default)\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "07a56a660f6cda4a2585551c695609edcf5b3846",
+      "message": "Fix NameError exception in load_app (_load call)\n\nload_app still uses _load() but the function was renamed to load() in 8ebf74ea",
+      "changes": [
+        {
+          "file": "bottle.py",
+          "patch": "@@ -2165,7 +2165,7 @@ def load_app(target):\n         does not affect the current default application, but returns a separate\n         application object. See :func:`load` for details. \"\"\"\n     tmp = app.push() # Create a new \"default application\"\n-    rv = _load(target) # Import the target module\n+    rv = load(target) # Import the target module\n     app.remove(tmp) # Remove the temporary added default application\n     return rv if isinstance(rv, Bottle) else tmp\n "
+        }
+      ]
+    },
+    {
+      "sha": "55aca7b5864996c125debfc85d1c1ff764526bfe",
+      "message": "Fix: AttributeError in is_ajax (fix #162)",
+      "changes": [
+        {
+          "file": "bottle.py",
+          "patch": "@@ -968,7 +968,7 @@ def get_cookie(self, key, secret=None):\n     def is_ajax(self):\n         ''' True if the request was generated using XMLHttpRequest '''\n         #TODO: write tests\n-        return self.header.get('X-Requested-With') == 'XMLHttpRequest'\n+        return self.headers.get('X-Requested-With') == 'XMLHttpRequest'\n \n \n class Response(threading.local):"
+        }
+      ]
+    }
+  ]
+}

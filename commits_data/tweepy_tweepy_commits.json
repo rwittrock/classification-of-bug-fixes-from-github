@@ -1,0 +1,35 @@
+{
+  "repo_name": "tweepy/tweepy",
+  "commits": [
+    {
+      "sha": "3aa99df070391195621ccbe8bdd8141d76066c4b",
+      "message": "Fix AttributeError\n\nAttributeError: 'Response' object has no attribute 'status'",
+      "changes": [
+        {
+          "file": "tweepy/binder.py",
+          "patch": "@@ -178,7 +178,7 @@ def execute(self):\n                     self._reset_time = int(reset_time)\n                 if self.wait_on_rate_limit and self._remaining_calls == 0 and (\n                         # if ran out of calls before waiting switching retry last call\n-                        resp.status == 429 or resp.status == 420):\n+                        resp.status_code == 429 or resp.status_code == 420):\n                     continue\n                 retry_delay = self.retry_delay\n                 # Exit request loop if non-retry error code"
+        }
+      ]
+    },
+    {
+      "sha": "d81f3776ab2a31840701fe22a9a78c15bdf47842",
+      "message": "IdIterator fix TypeError: _call() got multiple values for keyword argument 'max_id'.\n\nThe problem is that max_id is passed in self.method as param but also\nkept in kargs. Doing a kargs.pop with None as default value for 'max_id'\nsolves the problem as not keeping 'max_id' in two places anymore.",
+      "changes": [
+        {
+          "file": "tweepy/cursor.py",
+          "patch": "@@ -84,7 +84,7 @@ class IdIterator(BaseIterator):\n \n     def __init__(self, method, args, kargs):\n         BaseIterator.__init__(self, method, args, kargs)\n-        self.max_id = kargs.get('max_id')\n+        self.max_id = kargs.pop('max_id', None)\n         self.num_tweets = 0\n         self.results = []\n         self.model_results = []"
+        }
+      ]
+    },
+    {
+      "sha": "9a4d1c49a69d0f84a67b5897dc2647148bb7de00",
+      "message": "Fix for UnboundLocalError in APIMethod.execute",
+      "changes": [
+        {
+          "file": "tweepy/binder.py",
+          "patch": "@@ -139,7 +139,7 @@ def execute(self):\n                     conn.request(self.method, url, headers=self.headers, body=self.post_data)\n                     resp = conn.getresponse()\n                 except Exception, e:\n-                    raise TweepError('Failed to send request: %s' % e, resp)\n+                    raise TweepError('Failed to send request: %s' % e)\n \n                 # Exit request loop if non-retry error code\n                 if self.retry_errors:"
+        }
+      ]
+    }
+  ]
+}

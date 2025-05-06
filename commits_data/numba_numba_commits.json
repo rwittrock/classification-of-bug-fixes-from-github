@@ -1,0 +1,75 @@
+{
+  "repo_name": "numba/numba",
+  "commits": [
+    {
+      "sha": "af9ab1b161436b00e0001880ba6829a0427bb10a",
+      "message": "Catch AttributeError from getattr",
+      "changes": [
+        {
+          "file": "numba/ir_utils.py",
+          "patch": "@@ -1819,7 +1819,7 @@ def find_global_value(func_ir, var):\n         try:\n             val = getattr(prev_val, dfn.attr)\n             return val\n-        except KeyError:\n+        except AttributeError:\n             raise GuardException\n \n     raise GuardException"
+        }
+      ]
+    },
+    {
+      "sha": "ce2652097d3fca0138b499330b68f9807533de06",
+      "message": "Fixed two module teardown races in py2.\n\nCommit 52caaf2ccd78aee4995fe3e1aca16af271b9d944 introduced two\nsingle-threaded race conditions in Python 2 between the module\nteardown mechanism and Environment.__del__.\n\n - If the numba.lowering module is torn down too early, its `time`\n   global variable (referencing the time module) can be reset to\n   None. The commit avoids a similar race with the _keepalive global\n   variable, but that extra None-checking logic is missing for the\n   time module. In practice, this race is almost never lost.\n\n - If the time module is torn down before the last Environment.__del__\n   method is called, but before numba.lowering is torn down then\n   time.time will be None. In practice, this is the race that is\n   frequently lost when certain complex applications exit. In such\n   situations, the following message is printed to stderr:\n\n      Exception TypeError: \"'NoneType' object is not callable\" in\n      <bound method Environment.__del__ of <numba.lowering.Environment\n      object at ...>> ignored\n\nThis commit fixes both races.",
+      "changes": [
+        {
+          "file": "numba/lowering.py",
+          "patch": "@@ -50,6 +50,8 @@ def __del__(self):\n             return\n         if _keepalive is None:\n             return\n+        if time is None or time.time is None:\n+            return\n         _keepalive.append((time.time(), self))\n         if len(_keepalive) > 10:\n             cur = time.time()"
+        }
+      ]
+    },
+    {
+      "sha": "275ed9a1a487ef41ab0f8a32b9400c3e380ea332",
+      "message": "fix raising IndexError\n\nIn setitem and getitem, the validity of the index is checked at the\ncompiler level in `handle_index`. So an invalid index *should* never\npropagate to the c-level. Note that, there are currently still guards in\nplace to ensure we don't have undefined behaviour. But this, also means\nsuch IndexErrors will no longer be raised silently and we will always\nget an AssertionError if an invalid index makes it to the c level.",
+      "changes": [
+        {
+          "file": "numba/listobject.py",
+          "patch": "@@ -567,8 +567,6 @@ def integer_impl(l, index):\n             status, item = _list_getitem(l, castedindex)\n             if status == ListStatus.LIST_OK:\n                 return _nonoptional(item)\n-            elif status == ListStatus.LIST_ERR_INDEX:\n-                raise IndexError(\"list index out of range\")\n             else:\n                 raise AssertionError(\"internal list error during getitem\")\n \n@@ -637,9 +635,7 @@ def impl_integer(l, index, item):\n             casteditem = _cast(item, itemty)\n             status = _list_setitem(l, castedindex, casteditem)\n             if status == ListStatus.LIST_OK:\n-                pass\n-            elif status == ListStatus.LIST_ERR_INDEX:\n-                raise IndexError(\"list index out of range from c\")\n+                return\n             else:\n                 raise AssertionError(\"internal list error during settitem\")\n "
+        }
+      ]
+    },
+    {
+      "sha": "ddf91e1895eed6d57b8a3a2ae57c4891311578b8",
+      "message": "fix copy and edit error\n\nIn this case, __getitem__ should raise an IndexError.",
+      "changes": [
+        {
+          "file": "numba/typed/typedlist.py",
+          "patch": "@@ -120,7 +120,7 @@ def __setitem__(self, i, item):\n \n     def __getitem__(self, i):\n         if not self._typed:\n-            raise KeyError(i)\n+            raise IndexError\n         else:\n             return _getitem(self, i)\n "
+        }
+      ]
+    },
+    {
+      "sha": "7b778548f0e438a15241a8a14c1806a26dc7d41c",
+      "message": "Fixed an example that threw a TypeError when executed.",
+      "changes": [
+        {
+          "file": "examples/nogil.py",
+          "patch": "@@ -9,7 +9,7 @@\n from numba import jit\n \n nthreads = 4\n-size = 1e6\n+size = 10**6\n \n def func_np(a, b):\n     \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "d86cb825af1706f707f678e4cb86caa5d4e62900",
+      "message": "Also move UntypedAttributeError",
+      "changes": [
+        {
+          "file": "numba/errors.py",
+          "patch": "@@ -71,6 +71,13 @@ def __init__(self, msg, loc=None):\n             super(TypingError, self).__init__(\"%s\" % (msg,))\n \n \n+class UntypedAttributeError(TypingError):\n+    def __init__(self, value, attr):\n+        msg = 'Unknown attribute \"{attr}\" of type {type}'.format(type=value,\n+                                                              attr=attr)\n+        super(UntypedAttributeError, self).__init__(msg)\n+\n+\n class ByteCodeSupportError(NumbaError):\n     \"\"\"\n     Failure to extract the bytecode of the user's function."
+        }
+      ]
+    },
+    {
+      "sha": "a61cc1278798b6ce1d0026e3034a00f850cee201",
+      "message": "Bad index type is now a TypeError.",
+      "changes": [
+        {
+          "file": "numba/typing/builtins.py",
+          "patch": "@@ -364,7 +364,7 @@ def normalize_index(index):\n             if (ty not in types.integer_domain and\n                         ty not in types.real_domain and\n                         ty != types.slice3_type):\n-                raise ValueError('Type %s of index %s is unsupported for indexing'\n+                raise TypeError('Type %s of index %s is unsupported for indexing'\n                                  % (ty, index))\n         return index\n "
+        }
+      ]
+    }
+  ]
+}

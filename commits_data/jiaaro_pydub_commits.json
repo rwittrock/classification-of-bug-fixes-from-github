@@ -1,0 +1,25 @@
+{
+  "repo_name": "jiaaro/pydub",
+  "commits": [
+    {
+      "sha": "3ccc9567ad1a14c238eef9566c90bb3014d88ba9",
+      "message": "Explicitly raise TypeError",
+      "changes": [
+        {
+          "file": "pydub/audio_segment.py",
+          "patch": "@@ -268,8 +268,8 @@ def __radd__(self, rarg):\n         \"\"\"\n         if rarg == 0:\n             return self\n-        else:\n-            return self.__add__(rarg)\n+        raise TypeError(\"Gains must be the second addend after the \"\n+                        \"AudioSegment\")\n \n     def __sub__(self, arg):\n         if isinstance(arg, AudioSegment):"
+        }
+      ]
+    },
+    {
+      "sha": "9e5d66be78eb0a5378d2237f80299c582b1b1538",
+      "message": "Pass on other arguments...doomed to fail, but with appropriate TypeError",
+      "changes": [
+        {
+          "file": "pydub/audio_segment.py",
+          "patch": "@@ -268,6 +268,8 @@ def __radd__(self, rarg):\n         \"\"\"\n         if rarg == 0:\n             return self\n+        else:\n+            return self.__add__(rarg)\n \n     def __sub__(self, arg):\n         if isinstance(arg, AudioSegment):"
+        }
+      ]
+    }
+  ]
+}

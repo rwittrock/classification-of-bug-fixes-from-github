@@ -1,0 +1,135 @@
+{
+  "repo_name": "apache/airflow",
+  "commits": [
+    {
+      "sha": "725bc2e748c630acc7de991d682632bd61e4dbe2",
+      "message": "[AIRFLOW-3733] Don't raise NameError in HQL hook to_csv when no rows returned (#4560)",
+      "changes": [
+        {
+          "file": "airflow/hooks/hive_hooks.py",
+          "patch": "@@ -897,6 +897,7 @@ def to_csv(\n         header = next(results_iter)\n         message = None\n \n+        i = 0\n         with open(csv_filepath, 'wb') as f:\n             writer = csv.writer(f,\n                                 delimiter=delimiter,"
+        }
+      ]
+    },
+    {
+      "sha": "1ae7f6f789667e40736392f554ae76e0f8916575",
+      "message": "[AIRFLOW-3876] AttributeError: module 'distutils' has no attribute 'util'\n\nfix for AttributeError: module 'distutils' has no attribute 'util'",
+      "changes": [
+        {
+          "file": "airflow/contrib/hooks/jenkins_hook.py",
+          "patch": "@@ -21,7 +21,7 @@\n from airflow.hooks.base_hook import BaseHook\n \n import jenkins\n-import distutils\n+from distutils.util import strtobool\n \n \n class JenkinsHook(BaseHook):\n@@ -38,7 +38,7 @@ def __init__(self, conn_id='jenkins_default'):\n             connection.extra = 'false'\n             # set a default value to connection.extra\n             # to avoid rising ValueError in strtobool\n-        if distutils.util.strtobool(connection.extra):\n+        if strtobool(connection.extra):\n             connectionPrefix = 'https'\n         url = '%s://%s:%d' % (connectionPrefix, connection.host, connection.port)\n         self.log.info('Trying to connect to %s', url)"
+        }
+      ]
+    },
+    {
+      "sha": "40f4370324063b05bb60347efe0599582ead313c",
+      "message": "[AIRFLOW-2190] Fix TypeError when returning 404 (#4596)\n\nWhen processing HTTP response headers, gunicorn checks that the name of each\r\nheader is a string. Here's the relevant gunicorn code:\r\n\r\nFrom gunicorn/http/wsgi.py, line 257\r\n\r\n    def process_headers(self, headers):\r\n        for name, value in headers:\r\n            if not isinstance(name, string_types):\r\n                raise TypeError('%r is not a string' % name)\r\n\r\nIn Python3, `string_types` is set to the built-in `str`. For Python 2,\r\nit's set to `basestring`. Again, the relevant gunicorn code:\r\n\r\nFrom gunicorn/six.py, line 38:\r\n\r\n    if PY3:\r\n        string_types = str,\r\n        ...\r\n    else:\r\n        string_types = basestring,\r\n\r\nOn Python2 the `b''` syntax returns a `str`, but in Python3 it returns `bytes`.\r\n`bytes` != `str`, so we get the following error when returning a 404 on\r\nPython3:\r\n\r\n    File \"/usr/local/lib/python3.6/site-packages/airflow/www/app.py\", line 166, in root_app\r\n    resp(b'404 Not Found', [(b'Content-Type', b'text/plain')])\r\n    File \"/usr/local/lib/python3.6/site-packages/gunicorn/http/wsgi.py\", line 261, in start_response\r\n    self.process_headers(headers)\r\n    File \"/usr/local/lib/python3.6/site-packages/gunicorn/http/wsgi.py\", line 268, in process_headers\r\n    raise TypeError('%r is not a string' % name)\r\n    TypeError: b'Content-Type' is not a string\r\n\r\nDropping the `b` prefix in favor of the single-quote string syntax should work\r\nfor both Python2 and 3, as demonstrated below:\r\n\r\n    Python 3.7.2 (default, Jan 13 2019, 12:50:15)\r\n    [Clang 10.0.0 (clang-1000.11.45.5)] on darwin\r\n    Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\r\n    >>> isinstance('foo', str)\r\n    True\r\n\r\n    Python 2.7.15 (default, Jan 12 2019, 21:43:48)\r\n    [GCC 4.2.1 Compatible Apple LLVM 10.0.0 (clang-1000.11.45.5)] on darwin\r\n    Type \"help\", \"copyright\", \"credits\" or \"license\" for more information.\r\n    >>> isinstance('foo', basestring)\r\n    True",
+      "changes": [
+        {
+          "file": "airflow/www/app.py",
+          "patch": "@@ -193,7 +193,7 @@ def shutdown_session(exception=None):\n \n \n def root_app(env, resp):\n-    resp(b'404 Not Found', [(b'Content-Type', b'text/plain')])\n+    resp(b'404 Not Found', [('Content-Type', 'text/plain')])\n     return [b'Apache Airflow is not at this location']\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "cba6bb9ffecd3066c296028e52673977c64da4f2",
+      "message": "[AIRFLOW-2939][AIRFLOW-3568] Fix TypeError in GCSToS3Op & S3ToGCSOp (#4371)\n\nFix TypeError on GoogleCloudStorageToS3Operator & S3ToGoogleCloudStorageOperator",
+      "changes": [
+        {
+          "file": "airflow/contrib/operators/gcs_to_s3.py",
+          "patch": "@@ -101,7 +101,7 @@ def execute(self, context):\n             # Google Cloud Storage and not in S3\n             bucket_name, _ = S3Hook.parse_s3_url(self.dest_s3_key)\n             existing_files = s3_hook.list_keys(bucket_name)\n-            files = set(files) - set(existing_files)\n+            files = list(set(files) - set(existing_files))\n \n         if files:\n             hook = GoogleCloudStorageHook("
+        },
+        {
+          "file": "airflow/contrib/operators/s3_to_gcs_operator.py",
+          "patch": "@@ -152,7 +152,7 @@ def execute(self, context):\n                     else:\n                         existing_files.append(f)\n \n-            files = set(files) - set(existing_files)\n+            files = list(set(files) - set(existing_files))\n             if len(files) > 0:\n                 self.log.info('{0} files are going to be synced: {1}.'.format(\n                     len(files), files))"
+        }
+      ]
+    },
+    {
+      "sha": "db9bb7f57dad69d8cee657f0a901ff64558b3ef9",
+      "message": "[AIRFLOW-2981] Fix TypeError in dataflow operators (#3831)\n\n- Fix TypeError in dataflow operators when using GCS jar or py_file",
+      "changes": [
+        {
+          "file": "airflow/contrib/operators/dataflow_operator.py",
+          "patch": "@@ -16,7 +16,7 @@\n # KIND, either express or implied.  See the License for the\n # specific language governing permissions and limitations\n # under the License.\n-\n+import os\n import re\n import uuid\n import copy\n@@ -359,7 +359,7 @@ def google_cloud_to_local(self, file_name):\n         # Extracts bucket_id and object_id by first removing 'gs://' prefix and\n         # then split the remaining by path delimiter '/'.\n         path_components = file_name[self.GCS_PREFIX_LENGTH:].split('/')\n-        if path_components < 2:\n+        if len(path_components) < 2:\n             raise Exception(\n                 'Invalid Google Cloud Storage (GCS) object path: {}.'\n                 .format(file_name))\n@@ -370,7 +370,7 @@ def google_cloud_to_local(self, file_name):\n                                                  path_components[-1])\n         file_size = self._gcs_hook.download(bucket_id, object_id, local_file)\n \n-        if file_size > 0:\n+        if os.stat(file_size).st_size > 0:\n             return local_file\n         raise Exception(\n             'Failed to download Google Cloud Storage GCS object: {}'"
+        }
+      ]
+    },
+    {
+      "sha": "5b7a28c7e0dade62bb4d087f25687821e7f11083",
+      "message": "[AIRFLOW-2845] Asserts in contrib package code are changed on raise ValueError and TypeError (#3690)",
+      "changes": [
+        {
+          "file": "airflow/contrib/hooks/databricks_hook.py",
+          "patch": "@@ -61,7 +61,8 @@ def __init__(\n         self.databricks_conn_id = databricks_conn_id\n         self.databricks_conn = self.get_connection(databricks_conn_id)\n         self.timeout_seconds = timeout_seconds\n-        assert retry_limit >= 1, 'Retry limit must be greater than equal to 1'\n+        if retry_limit < 1:\n+            raise ValueError('Retry limit must be greater than equal to 1')\n         self.retry_limit = retry_limit\n \n     def _parse_host(self, host):"
+        },
+        {
+          "file": "airflow/contrib/operators/mlengine_operator.py",
+          "patch": "@@ -427,7 +427,9 @@ def execute(self, context):\n             gcp_conn_id=self._gcp_conn_id, delegate_to=self._delegate_to)\n \n         if self._operation == 'create':\n-            assert self._version is not None\n+            if not self._version:\n+                raise ValueError(\"version attribute of {} could not \"\n+                                 \"be empty\".format(self.__class__.__name__))\n             return hook.create_version(self._project_id, self._model_name,\n                                        self._version)\n         elif self._operation == 'set_default':"
+        },
+        {
+          "file": "tests/contrib/hooks/test_bigquery_hook.py",
+          "patch": "@@ -414,7 +414,7 @@ def test_extra_time_partitioning_options(self):\n         self.assertEqual(tp_out, expect)\n \n     def test_cant_add_dollar_and_field_name(self):\n-        with self.assertRaises(AssertionError):\n+        with self.assertRaises(ValueError):\n             _cleanse_time_partitioning(\n                 'test.teast$20170101',\n                 {'type': 'DAY', 'field': 'test_field', 'expirationMs': 1000}"
+        },
+        {
+          "file": "tests/contrib/hooks/test_databricks_hook.py",
+          "patch": "@@ -7,9 +7,9 @@\n # to you under the Apache License, Version 2.0 (the\n # \"License\"); you may not use this file except in compliance\n # with the License.  You may obtain a copy of the License at\n-# \n+#\n #   http://www.apache.org/licenses/LICENSE-2.0\n-# \n+#\n # Unless required by applicable law or agreed to in writing,\n # software distributed under the License is distributed on an\n # \"AS IS\" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY\n@@ -110,7 +110,7 @@ def test_parse_host_with_scheme(self):\n         self.assertEquals(host, HOST)\n \n     def test_init_bad_retry_limit(self):\n-        with self.assertRaises(AssertionError):\n+        with self.assertRaises(ValueError):\n             DatabricksHook(retry_limit = 0)\n \n     @mock.patch('airflow.contrib.hooks.databricks_hook.requests')"
+        },
+        {
+          "file": "tests/contrib/hooks/test_gcs_hook.py",
+          "patch": "@@ -66,14 +66,14 @@ class TestGCSBucket(unittest.TestCase):\n     def test_bucket_name_value(self):\n \n         bad_start_bucket_name = '/testing123'\n-        with self.assertRaises(AssertionError):\n+        with self.assertRaises(ValueError):\n \n             gcs_hook.GoogleCloudStorageHook().create_bucket(\n                 bucket_name=bad_start_bucket_name\n             )\n \n         bad_end_bucket_name = 'testing123/'\n-        with self.assertRaises(AssertionError):\n+        with self.assertRaises(ValueError):\n             gcs_hook.GoogleCloudStorageHook().create_bucket(\n                 bucket_name=bad_end_bucket_name\n             )"
+        }
+      ]
+    },
+    {
+      "sha": "02292c5d9068d0fc199d861bdaafa674d5a19348",
+      "message": "[AIRFLOW-2097] tz referenced before assignment\n\nUnboundLocalError: local variable 'tz' referenced before assignment\n\nCloses #3076 from feng-tao/airflow-2097",
+      "changes": [
+        {
+          "file": "airflow/utils/dates.py",
+          "patch": "@@ -70,9 +70,9 @@ def date_range(\n         end_date = timezone.utcnow()\n \n     delta_iscron = False\n+    tz = start_date.tzinfo\n     if isinstance(delta, six.string_types):\n         delta_iscron = True\n-        tz = start_date.tzinfo\n         start_date = timezone.make_naive(start_date, tz)\n         cron = croniter(delta, start_date)\n     elif isinstance(delta, timedelta):"
+        }
+      ]
+    },
+    {
+      "sha": "bfbdeca6536ddcccc3c53ce980b5999f10eed69b",
+      "message": "[AIRFLOW-2029] Fix AttributeError in BigQueryPandasConnector\n\nCloses #2971 from fenglu-g/master",
+      "changes": [
+        {
+          "file": "airflow/contrib/hooks/bigquery_hook.py",
+          "patch": "@@ -156,6 +156,7 @@ def __init__(self,\n                  reauth=False,\n                  verbose=False,\n                  dialect='legacy'):\n+        super(BigQueryPandasConnector, self).__init__(project_id)\n         gbq_check_google_client_version()\n         gbq_test_google_api_imports()\n         self.project_id = project_id"
+        }
+      ]
+    },
+    {
+      "sha": "610f68b22a8277f9521d0b9989b4dd5ce7cbcfe0",
+      "message": "[AIRFLOW-1177] Fix Variable.setdefault w/existing JSON\n\nPreviously due to a logic error if you attempt to\nuse\n`Variable.setdefault()` with\n`deserialize_json=True` and the value\nalready existed it would die with:\n\n    ...\n        my = Variable.setdefault('regions', ['uk'],\ndeserialize_json=True)\n      File \"/usr/local/lib/python3.5/site-\npackages/airflow/models.py\", line 3623, in\nsetdefault\n        return json.loads(obj.val)\n    AttributeError: 'str' object has no attribute\n'val'\n\nThe problem was that the `Variable.get()` call was\nreturning the value,\nnot a variable object.\n\nCloses #2540 from ashb/variable-setdefault-json",
+      "changes": [
+        {
+          "file": "airflow/models.py",
+          "patch": "@@ -3957,18 +3957,15 @@ def setdefault(cls, key, default, deserialize_json=False):\n         :return: Mixed\n         \"\"\"\n         default_sentinel = object()\n-        obj = Variable.get(key, default_var=default_sentinel, deserialize_json=False)\n+        obj = Variable.get(key, default_var=default_sentinel, deserialize_json=deserialize_json)\n         if obj is default_sentinel:\n             if default is not None:\n                 Variable.set(key, default, serialize_json=deserialize_json)\n                 return default\n             else:\n                 raise ValueError('Default Value must be set')\n         else:\n-            if deserialize_json:\n-                return json.loads(obj.val)\n-            else:\n-                return obj.val\n+            return obj\n \n     @classmethod\n     @provide_session"
+        }
+      ]
+    },
+    {
+      "sha": "97675553a93636ed89fc893f0c682251d3554283",
+      "message": "need to import login_user if we're going to use it\n\nlogin is broken in GHE for new users:\r\n```\r\n[2016-07-26 22:11:43,077] {github_enterprise_auth.py:199} ERROR -\r\nTraceback (most recent call last):\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/airflow/contrib/auth/backends/github_enterprise_auth.py\", line 188, in oauth_callback\r\n    'Null response from GHE, denying access.'\r\nairflow.contrib.auth.backends.github_enterprise_auth.AuthenticationError: Null response from GHE, denying access.\r\n[2016-07-26 22:12:12,313] {app.py:1423} ERROR - Exception on / [GET]\r\nTraceback (most recent call last):\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/flask/app.py\", line 1817, in wsgi_app\r\n    response = self.full_dispatch_request()\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/flask/app.py\", line 1477, in full_dispatch_request\r\n    rv = self.handle_user_exception(e)\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/flask/app.py\", line 1381, in handle_user_exception\r\n    reraise(exc_type, exc_value, tb)\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/flask/_compat.py\", line 33, in reraise\r\n    raise value\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/flask/app.py\", line 1475, in full_dispatch_request\r\n    rv = self.dispatch_request()\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/flask/app.py\", line 1461, in dispatch_request\r\n    return self.view_functions[rule.endpoint](**req.view_args)\r\n  File \"/opt/virtualenvs/airflow/lib/python3.5/site-packages/airflow/contrib/auth/backends/github_enterprise_auth.py\", line 215, in oauth_callback\r\n    login_user(GHEUser(user))\r\nNameError: name 'login_user' is not defined```",
+      "changes": [
+        {
+          "file": "airflow/contrib/auth/backends/github_enterprise_auth.py",
+          "patch": "@@ -19,7 +19,8 @@\n # pylint: disable=unused-import\n from flask_login import (current_user,\n                          logout_user,\n-                         login_required)\n+                         login_required,\n+                         login_user)\n # pylint: enable=unused-import\n \n from flask import url_for, redirect, request"
+        }
+      ]
+    },
+    {
+      "sha": "4305c52dffbd3167f46730688f44f27ff0df0836",
+      "message": "Fix AttributeError when starting scheduler\n\nThis PR fixes the exception\n`AttributeError: 'SchedulerJob' object has no attribute 'num_runs'`\nthat is thrown when starting the scheduler without setting `-n`.",
+      "changes": [
+        {
+          "file": "airflow/jobs.py",
+          "patch": "@@ -220,7 +220,7 @@ def __init__(\n \n         if test_mode:\n             self.num_runs = 1\n-        elif num_runs and num_runs > 0:\n+        else:\n             self.num_runs = num_runs\n \n         self.refresh_dags_every = refresh_dags_every"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "repo_name": "lutris/lutris",
+  "commits": [
+    {
+      "sha": "046ca63d7529e0179761d5bfc3779926154149ba",
+      "message": "Fix prelaunch_beat referencing no prelaunch_extractor\n\n```\r\nFile \"/home/rob/Documents/lutris/lutris/game.py\", line 578, in prelaunch_beat\r\n    if self.prelaunch_executor.is_running:\r\nAttributeError: 'NoneType' object has no attribute 'is_running'\r\n```",
+      "changes": [
+        {
+          "file": "lutris/game.py",
+          "patch": "@@ -575,7 +575,7 @@ def xboxdrv_stop(self):\n \n     def prelaunch_beat(self):\n         \"\"\"Watch the prelaunch command\"\"\"\n-        if self.prelaunch_executor.is_running:\n+        if self.prelaunch_executor and self.prelaunch_executor.is_running:\n             return True\n         self.start_game()\n         return False"
+        }
+      ]
+    },
+    {
+      "sha": "5ff68d01574188b676c78315b381785021ebd6dc",
+      "message": "Fix AttributeError when trying to run winecfg.",
+      "changes": [
+        {
+          "file": "lutris/runners/commands/wine.py",
+          "patch": "@@ -244,8 +244,10 @@ def wineexec(\n         MonitoredCommand instance otherwise.\n     \"\"\"\n     executable = str(executable) if executable else \"\"\n-    include_processes = shlex.split(include_processes or \"\")\n-    exclude_processes = shlex.split(exclude_processes or \"\")\n+    if isinstance(include_processes, str):\n+        include_processes = shlex.split(include_processes)\n+    if isinstance(exclude_processes, str):\n+        exclude_processes = shlex.split(exclude_processes)\n     if not wine_path:\n         wine = import_runner(\"wine\")\n         wine_path = wine().get_executable()"
+        }
+      ]
+    },
+    {
+      "sha": "e8041abe54963c82ce89f9242b9460380f8e1c21",
+      "message": "Catch TypeErrors for rating convertion",
+      "changes": [
+        {
+          "file": "lutris/gui/widgets/installer.py",
+          "patch": "@@ -33,7 +33,7 @@ def get_rating(self):\n         \"\"\"Return a string representation of the API rating\"\"\"\n         try:\n             rating = int(self.script[\"rating\"])\n-        except ValueError:\n+        except (ValueError, TypeError):\n             return \"\"\n         return \"\u2b50\" * rating\n "
+        }
+      ]
+    },
+    {
+      "sha": "80ee293e164b15ad2848863510adba81c13699ec",
+      "message": "Catch AttributeError on set_propagate_natural_height",
+      "changes": [
+        {
+          "file": "lutris/gui/installerwindow.py",
+          "patch": "@@ -228,7 +228,10 @@ def _create_label(text):\n             \"<i>{}</i>\".format(self.scripts[0]['notes'])\n         )\n         notes_scrolled_area = Gtk.ScrolledWindow()\n-        notes_scrolled_area.set_propagate_natural_height(True)\n+        try:\n+            notes_scrolled_area.set_propagate_natural_height(True)\n+        except AttributeError:\n+            logger.warning(\"Your version of GTK is OLD\")\n         notes_scrolled_area.set_min_content_height(100)\n         notes_scrolled_area.add(self.notes_label)\n         self.installer_choice_box.pack_start(notes_scrolled_area, True, True, 10)"
+        }
+      ]
+    },
+    {
+      "sha": "02643687353c4ee0378eafffd021a4e071608a25",
+      "message": "Prevent crash on TypeError when fetching icons (Fixes #588)",
+      "changes": [
+        {
+          "file": "lutris/gui/lutriswindow.py",
+          "patch": "@@ -389,8 +389,11 @@ def update_runtime(self):\n         self.threads_stoppers += self.runtime_updater.cancellables\n \n     def sync_icons(self):\n-        resources.fetch_icons([game['slug'] for game in self.game_list],\n-                              callback=self.on_image_downloaded)\n+        try:\n+            resources.fetch_icons([game['slug'] for game in self.game_list],\n+                                  callback=self.on_image_downloaded)\n+        except TypeError as ex:\n+            logger.exception(\"Invalid game list:\\n%s\\nException: %s\", self.game_list, ex)\n \n     def set_status(self, text):\n         for child_widget in self.status_box.get_children():"
+        }
+      ]
+    },
+    {
+      "sha": "530d7cdd44d015cbcf81696a3b15052950147b4a",
+      "message": "Catch TypeErrors when executing commands",
+      "changes": [
+        {
+          "file": "lutris/util/system.py",
+          "patch": "@@ -74,8 +74,8 @@ def execute(command, env=None, cwd=None, log_errors=False, quiet=False):\n                                           stdout=subprocess.PIPE,\n                                           stderr=stderr_handler,\n                                           env=existing_env, cwd=cwd).communicate()\n-    except OSError as ex:\n-        logger.error('Could not run command %s: %s', command, ex)\n+    except (OSError, TypeError) as ex:\n+        logger.error('Could not run command %s (env: %s): %s', command, env, ex)\n         return\n     finally:\n         if stderr_needs_closing:"
+        }
+      ]
+    },
+    {
+      "sha": "659194c26a1df54d1e6f8fe0568712ab10f68310",
+      "message": "Avoid AttributeError when not receiving any response from API (Fixes #548)",
+      "changes": [
+        {
+          "file": "lutris/util/resources.py",
+          "patch": "@@ -49,7 +49,11 @@ def fetch_icons(game_slugs, callback=None):\n             logger.error(\"No page found in %s\", response['next'])\n             break\n         response = api.get_games(game_slugs=missing_media_slugs, page=page)\n-        results += response.get('results', [])\n+        if not response:\n+            logger.warning(\"Unable to get response for page %s\", page)\n+            break\n+        else:\n+            results += response.get('results', [])\n \n     banner_downloads = []\n     icon_downloads = []"
+        }
+      ]
+    },
+    {
+      "sha": "3bc984836aa9dcb96733471f4df3691265e4bf2c",
+      "message": "Return from get_stat on ProcessLookupError (Fixes #476)",
+      "changes": [
+        {
+          "file": "lutris/util/process.py",
+          "patch": "@@ -29,6 +29,7 @@ def get_stat(self, parsed=True):\n                 _stat = stat_file.readline()\n             except ProcessLookupError:\n                 logger.warning('Unable to read stat for process %s', self.pid)\n+                return\n         if parsed:\n             return _stat[_stat.rfind(\")\")+1:].split()\n         return _stat"
+        }
+      ]
+    },
+    {
+      "sha": "33ee786e35935b6809bd8f6505746372da5eb828",
+      "message": "Also catch TypeErrors when getting firmware_count (Fixes #458)",
+      "changes": [
+        {
+          "file": "lutris/runners/libretro.py",
+          "patch": "@@ -159,7 +159,7 @@ def prelaunch(self):\n             core_config = RetroConfig(info_file)\n             try:\n                 firmware_count = int(core_config['firmware_count'])\n-            except ValueError:\n+            except (ValueError, TypeError):\n                 firmware_count = 0\n             system_path = self.get_system_directory(retro_config)\n             notes = core_config['notes'] or ''"
+        }
+      ]
+    },
+    {
+      "sha": "07ce4d2376d1cdc5420e57c8852a3256bbb7efda",
+      "message": "Catch TypeErrors when retrieving cursors",
+      "changes": [
+        {
+          "file": "lutris/util/display.py",
+          "patch": "@@ -12,7 +12,11 @@ def set_cursor(name, window, display=None):\n     if not window:\n         logger.error('No window provided in set_cursor')\n         return\n-    cursor = Gdk.Cursor.new_from_name(display, name)\n+    try:\n+        cursor = Gdk.Cursor.new_from_name(display, name)\n+    except TypeError:\n+        logger.error('Failed to retrive cursor \"%s\" for display \"%s\"', name, display)\n+        return\n     if not cursor:\n         logger.error('Could not get cursor \"%s\" for display \"%s\"', name, display)\n         return"
+        }
+      ]
+    },
+    {
+      "sha": "25cf6f9318bdf2438b49441c0bd88d4afbfa90d2",
+      "message": "Catch ProcessLookupError",
+      "changes": [
+        {
+          "file": "lutris/util/process.py",
+          "patch": "@@ -25,7 +25,10 @@ def get_stat(self, parsed=True):\n         if not os.path.exists(stat_filename):\n             return\n         with open(stat_filename) as stat_file:\n-            _stat = stat_file.readline()\n+            try:\n+                _stat = stat_file.readline()\n+            except ProcessLookupError:\n+                logger.warning('Unable to read stat for process %s', self.pid)\n         if parsed:\n             return _stat[_stat.rfind(\")\")+1:].split()\n         return _stat"
+        }
+      ]
+    },
+    {
+      "sha": "27b25896b27a51fbf7841dadd92f9f5047efc4fa",
+      "message": "Catch TypeError for runtime version",
+      "changes": [
+        {
+          "file": "lutris/util/runtime.py",
+          "patch": "@@ -11,7 +11,7 @@\n def parse_version(version_content):\n     try:\n         version = int(version_content)\n-    except ValueError:\n+    except (ValueError, TypeError):\n         version = 0\n     return version\n "
+        }
+      ]
+    }
+  ]
+}

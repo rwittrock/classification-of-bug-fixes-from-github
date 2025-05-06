@@ -1,0 +1,65 @@
+{
+  "repo_name": "deepseek-ai/DeepSeek-V3",
+  "commits": [
+    {
+      "sha": "1398800ebfcd49c048737e8b1aae69dee46ffefc",
+      "message": "fix scores mask",
+      "changes": [
+        {
+          "file": "inference/model.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -585,8 +585,8 @@ def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:\n             else:\n                 group_scores = scores.topk(2, dim=-1)[0].sum(dim=-1)\n             indices = group_scores.topk(self.topk_groups, dim=-1)[1]\n-            mask = torch.zeros_like(scores[..., 0]).scatter_(1, indices, True)\n-            scores = (scores * mask.unsqueeze(-1)).flatten(1)\n+            mask = scores.new_ones(x.size(0), self.n_groups, dtype=bool).scatter_(1, indices, False)\n+            scores = scores.masked_fill_(mask.unsqueeze(-1), float(\"-inf\")).flatten(1)\n         indices = torch.topk(scores, self.topk, dim=-1)[1]\n         weights = original_scores.gather(1, indices)\n         if self.score_func == \"sigmoid\":"
+        }
+      ]
+    },
+    {
+      "sha": "5ee97a83f0457d0d805b862aeb387358e1801e6d",
+      "message": "fix comment",
+      "changes": [
+        {
+          "file": "inference/model.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -143,7 +143,7 @@ def linear(x: torch.Tensor, weight: torch.Tensor, bias: Optional[torch.Tensor] =\n         quantization-aware computations depending on the input parameters.\n \n     Notes:\n-        - If `weight` is quantized (e.g., `element_size() > 1`), a dequantized version \n+        - If `weight` is quantized (e.g., `element_size() == 1`), a dequantized version \n           is used for computation.\n         - If `gemm_impl == \"bf16\"`, dequantization and a `bf16` GEMM operation are applied.\n         - For other cases, the function applies quantization to `x` and uses `fp8_gemm` for computation."
+        }
+      ]
+    },
+    {
+      "sha": "6a30b43249a5710a3adb18c11763222d3fca8756",
+      "message": "Fix Linear Layer Bias Initialization",
+      "changes": [
+        {
+          "file": "inference/model.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -185,7 +185,7 @@ def __init__(self, in_features: int, out_features: int, bias: bool = False, dtyp\n         else:\n             self.register_parameter(\"scale\", None)\n         if bias:\n-            self.bias = nn.Parameter(torch.empty(self.part_out_features))\n+            self.bias = nn.Parameter(torch.empty(out_features))\n         else:\n             self.register_parameter(\"bias\", None)\n "
+        }
+      ]
+    },
+    {
+      "sha": "2756e130c2430eedc916ca331f5e360b519ed7ab",
+      "message": "clarify assertion error",
+      "changes": [
+        {
+          "file": "inference/convert.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -60,7 +60,7 @@ def main(hf_ckpt_path, save_path, n_experts, mp):\n                 name = name.replace(\"weight_scale_inv\", \"scale\")\n                 name = name.replace(\"e_score_correction_bias\", \"bias\")\n                 key = name.split(\".\")[-2]\n-                assert key in mapping\n+                assert key in mapping, f\"Key {key} not found in mapping\"\n                 new_key, dim = mapping[key]\n                 name = name.replace(key, new_key)\n                 for i in range(mp):\n@@ -70,7 +70,7 @@ def main(hf_ckpt_path, save_path, n_experts, mp):\n                         if idx < i * n_local_experts or idx >= (i + 1) * n_local_experts:\n                             continue\n                     elif dim is not None:\n-                        assert param.size(dim) % mp == 0\n+                        assert param.size(dim) % mp == 0, f\"Dimension {dim} must be divisible by {mp}\"\n                         shard_size = param.size(dim) // mp\n                         new_param = param.narrow(dim, i * shard_size, shard_size).contiguous()\n                     state_dicts[i][name] = new_param\n@@ -92,5 +92,5 @@ def main(hf_ckpt_path, save_path, n_experts, mp):\n     parser.add_argument(\"--n-experts\", type=int, required=True)\n     parser.add_argument(\"--model-parallel\", type=int, required=True)\n     args = parser.parse_args()\n-    assert args.n_experts % args.model_parallel == 0\n+    assert args.n_experts % args.model_parallel == 0, \"Number of experts must be divisible by model parallelism\"\n     main(args.hf_ckpt_path, args.save_path, args.n_experts, args.model_parallel)"
+        },
+        {
+          "file": "inference/generate.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -49,7 +49,7 @@ def generate(\n         List[List[int]]: A list of lists containing the generated tokens for each sequence.\n     \"\"\"\n     prompt_lens = [len(t) for t in prompt_tokens]\n-    assert max(prompt_lens) <= model.max_seq_len\n+    assert max(prompt_lens) <= model.max_seq_len, f\"Prompt length exceeds model maximum sequence length (max_seq_len={model.max_seq_len})\"\n     total_len = min(model.max_seq_len, max_new_tokens + max(prompt_lens))\n     tokens = torch.full((len(prompt_tokens), total_len), -1, dtype=torch.long, device=\"cuda\")\n     for i, t in enumerate(prompt_tokens):\n@@ -145,7 +145,7 @@ def main(\n     else:\n         with open(input_file) as f:\n             prompts = [line.strip() for line in f.readlines()]\n-        assert len(prompts) <= args.max_batch_size\n+        assert len(prompts) <= args.max_batch_size, f\"Number of prompts exceeds maximum batch size ({args.max_batch_size})\"\n         prompt_tokens = [tokenizer.apply_chat_template([{\"role\": \"user\", \"content\": prompt}], add_generation_prompt=True) for prompt in prompts]\n         completion_tokens = generate(model, prompt_tokens, max_new_tokens, tokenizer.eos_token_id, temperature)\n         completions = tokenizer.batch_decode(completion_tokens, skip_special_tokens=True)\n@@ -181,5 +181,5 @@ def main(\n     parser.add_argument(\"--max-new-tokens\", type=int, default=200)\n     parser.add_argument(\"--temperature\", type=float, default=0.2)\n     args = parser.parse_args()\n-    assert args.input_file or args.interactive\n+    assert args.input_file or args.interactive, \"Either input-file or interactive mode must be specified\"\n     main(args.ckpt_path, args.config, args.input_file, args.interactive, args.max_new_tokens, args.temperature)"
+        },
+        {
+          "file": "inference/model.py",
+          "additions": 4,
+          "deletions": 4,
+          "patch": "@@ -96,7 +96,7 @@ def __init__(self, vocab_size: int, dim: int):\n         super().__init__()\n         self.vocab_size = vocab_size\n         self.dim = dim\n-        assert vocab_size % world_size == 0\n+        assert vocab_size % world_size == 0, f\"Vocabulary size must be divisible by world size (world_size={world_size})\"\n         self.part_vocab_size = (vocab_size // world_size)\n         self.vocab_start_idx = rank * self.part_vocab_size\n         self.vocab_end_idx = self.vocab_start_idx + self.part_vocab_size\n@@ -213,7 +213,7 @@ class ColumnParallelLinear(Linear):\n         dtype (optional): Data type for the layer. Defaults to `torch.bfloat16`.\n     \"\"\"\n     def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype = None):\n-        assert out_features % world_size == 0\n+        assert out_features % world_size == 0, f\"Output features must be divisible by world size (world_size={world_size})\"\n         self.part_out_features = out_features // world_size\n         super().__init__(in_features, self.part_out_features, bias, dtype)\n \n@@ -242,7 +242,7 @@ class RowParallelLinear(Linear):\n         dtype (optional): Data type for the layer. Defaults to `torch.bfloat16`.\n     \"\"\"\n     def __init__(self, in_features: int, out_features: int, bias: bool = False, dtype = None):\n-        assert in_features % world_size == 0\n+        assert in_features % world_size == 0, f\"Input features must be divisible by world size (world_size={world_size})\"\n         self.part_in_features = in_features // world_size\n         super().__init__(self.part_in_features, out_features, bias, dtype)\n \n@@ -652,7 +652,7 @@ def __init__(self, args: ModelArgs):\n         \"\"\"\n         super().__init__()\n         self.dim = args.dim\n-        assert args.n_routed_experts % world_size == 0\n+        assert args.n_routed_experts % world_size == 0, f\"Number of experts must be divisible by world size (world_size={world_size})\"\n         self.n_routed_experts = args.n_routed_experts\n         self.n_local_experts = args.n_routed_experts // world_size\n         self.n_activated_experts = args.n_activated_experts"
+        }
+      ]
+    }
+  ]
+}

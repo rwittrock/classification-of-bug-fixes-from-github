@@ -1,0 +1,75 @@
+{
+  "repo_name": "netbox-community/netbox",
+  "commits": [
+    {
+      "sha": "4a290f3834e3947fad8e1f9c484a580a412f0916",
+      "message": "Fixes #2783: Fix AttributeError exception when attempting to delete region(s)",
+      "changes": [
+        {
+          "file": "netbox/dcim/views.py",
+          "patch": "@@ -162,7 +162,7 @@ class RegionBulkImportView(PermissionRequiredMixin, BulkImportView):\n \n class RegionBulkDeleteView(PermissionRequiredMixin, BulkDeleteView):\n     permission_required = 'dcim.delete_region'\n-    queryset = Region.objects.annotate(site_count=Count('sites'))\n+    queryset = Region.objects.all()\n     filter = filters.RegionFilter\n     table = tables.RegionTable\n     default_return_url = 'dcim:region_list'"
+        }
+      ]
+    },
+    {
+      "sha": "a2ff21fab92126174b6dac6c31af40f296c5f513",
+      "message": "Fixes #2334: TypeError raised when WritableNestedSerializer receives a non-integer value",
+      "changes": [
+        {
+          "file": "netbox/utilities/api.py",
+          "patch": "@@ -170,7 +170,9 @@ def to_internal_value(self, data):\n         if data is None:\n             return None\n         try:\n-            return self.Meta.model.objects.get(pk=data)\n+            return self.Meta.model.objects.get(pk=int(data))\n+        except (TypeError, ValueError):\n+            raise ValidationError(\"Primary key must be an integer\")\n         except ObjectDoesNotExist:\n             raise ValidationError(\"Invalid ID\")\n "
+        }
+      ]
+    },
+    {
+      "sha": "d98aa03e9d012715bb4d47d92e7dec92fd30fa6e",
+      "message": "Fixes #2173: Fixed IndexError when automaticating allocating IP addresses from large IPv6 prefixes",
+      "changes": [
+        {
+          "file": "netbox/ipam/api/views.py",
+          "patch": "@@ -160,8 +160,8 @@ def available_ips(self, request, pk=None):\n             requested_ips = request.data if isinstance(request.data, list) else [request.data]\n \n             # Determine if the requested number of IPs is available\n-            available_ips = list(prefix.get_available_ips())\n-            if len(available_ips) < len(requested_ips):\n+            available_ips = prefix.get_available_ips()\n+            if available_ips.size < len(requested_ips):\n                 return Response(\n                     {\n                         \"detail\": \"An insufficient number of IP addresses are available within the prefix {} ({} \"\n@@ -171,8 +171,9 @@ def available_ips(self, request, pk=None):\n                 )\n \n             # Assign addresses from the list of available IPs and copy VRF assignment from the parent prefix\n+            available_ips = iter(available_ips)\n             for requested_ip in requested_ips:\n-                requested_ip['address'] = available_ips.pop(0)\n+                requested_ip['address'] = next(available_ips)\n                 requested_ip['vrf'] = prefix.vrf.pk if prefix.vrf else None\n \n             # Initialize the serializer with a list or a single object depending on what was requested"
+        }
+      ]
+    },
+    {
+      "sha": "603b80db1be167cdfd6da1de5923434a48487f0d",
+      "message": "Fixes #1948: Fix TypeError when attempting to add a member to an existing virtual chassis",
+      "changes": [
+        {
+          "file": "netbox/dcim/views.py",
+          "patch": "@@ -2226,7 +2226,7 @@ def post(self, request, pk):\n             device = member_select_form.cleaned_data['device']\n             device.virtual_chassis = virtual_chassis\n             data = {k: request.POST[k] for k in ['vc_position', 'vc_priority']}\n-            membership_form = forms.DeviceVCMembershipForm(data, validate_vc_position=True, instance=device)\n+            membership_form = forms.DeviceVCMembershipForm(data=data, validate_vc_position=True, instance=device)\n \n             if membership_form.is_valid():\n \n@@ -2242,7 +2242,7 @@ def post(self, request, pk):\n \n         else:\n \n-            membership_form = forms.DeviceVCMembershipForm(request.POST)\n+            membership_form = forms.DeviceVCMembershipForm(data=request.POST)\n \n         return render(request, 'dcim/virtualchassis_add_member.html', {\n             'virtual_chassis': virtual_chassis,"
+        }
+      ]
+    },
+    {
+      "sha": "e0aa2c33e9487b61f849ee036d01aba0729560e6",
+      "message": "Fixes #1850: Fix TypeError when attempting IP address import if only unnamed devices exist",
+      "changes": [
+        {
+          "file": "netbox/utilities/templatetags/helpers.py",
+          "patch": "@@ -111,7 +111,7 @@ def example_choices(field, arg=3):\n         if len(examples) == arg:\n             examples.append('etc.')\n             break\n-        if not id:\n+        if not id or not label:\n             continue\n         examples.append(label)\n     return ', '.join(examples) or 'None'"
+        }
+      ]
+    },
+    {
+      "sha": "6f0f3cc11590c29c4d31f85637cb049d898e032c",
+      "message": "Fixes #1390: Fixed IndexError when viewing available IPs within large IPv6 prefixes",
+      "changes": [
+        {
+          "file": "netbox/ipam/api/views.py",
+          "patch": "@@ -115,7 +115,11 @@ def available_ips(self, request, pk=None):\n                 limit = min(limit, settings.MAX_PAGE_SIZE)\n \n             # Calculate available IPs within the prefix\n-            ip_list = list(prefix.get_available_ips())[:limit]\n+            ip_list = []\n+            for index, ip in enumerate(prefix.get_available_ips(), start=1):\n+                ip_list.append(ip)\n+                if index == limit:\n+                    break\n             serializer = serializers.AvailableIPSerializer(ip_list, many=True, context={\n                 'request': request,\n                 'prefix': prefix.prefix,"
+        }
+      ]
+    },
+    {
+      "sha": "0e5138d6ecc414eab3f668bf2b4de3b0cb0dbdee",
+      "message": "Fixes #872: TypeError on bulk IP address creation (Python 3)",
+      "changes": [
+        {
+          "file": "netbox/utilities/views.py",
+          "patch": "@@ -307,11 +307,12 @@ def post(self, request):\n         if form.is_valid():\n \n             # The first field will be used as the pattern\n-            pattern_field = form.fields.keys()[0]\n+            field_names = list(form.fields.keys())\n+            pattern_field = field_names[0]\n             pattern = form.cleaned_data[pattern_field]\n \n             # All other fields will be copied as object attributes\n-            kwargs = {k: form.cleaned_data[k] for k in form.fields.keys()[1:]}\n+            kwargs = {k: form.cleaned_data[k] for k in field_names[1:]}\n \n             new_objs = []\n             try:"
+        }
+      ]
+    }
+  ]
+}

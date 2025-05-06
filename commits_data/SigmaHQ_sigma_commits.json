@@ -1,0 +1,15 @@
+{
+  "repo_name": "SigmaHQ/sigma",
+  "commits": [
+    {
+      "sha": "654a009c9e8e187fd74acc060a082be7f2f120da",
+      "message": "sumologic backend: remove TypeError",
+      "changes": [
+        {
+          "file": "tools/sigma/backends/sumologic.py",
+          "patch": "@@ -127,7 +127,7 @@ def generate(self, sigmaparser):\n             self.indices = None\n         try:\n             self.interval = sigmaparser.parsedyaml['detection']['timeframe']\n-        except TypeError:\n+        except:\n             pass\n \n         for parsed in sigmaparser.condparsed:"
+        }
+      ]
+    }
+  ]
+}

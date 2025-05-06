@@ -1,0 +1,65 @@
+{
+  "repo_name": "ocrmypdf/OCRmyPDF",
+  "commits": [
+    {
+      "sha": "4d5c9b8cdf02f530a9481fdf7a3b08c6f4d7fc3d",
+      "message": "Fix error in optimize.py on PNGs at -O2\n\nError was\nTypeError: unsupported operand type(s) for -: 'tuple' and 'int'",
+      "changes": [
+        {
+          "file": "src/ocrmypdf/optimize.py",
+          "patch": "@@ -32,7 +32,7 @@\n \n PAGE_GROUP_SIZE = 10\n DEFAULT_JPEG_QUALITY = 75\n-DEFAULT_PNG_QUALITY = (65, 75)\n+DEFAULT_PNG_QUALITY = 70\n \n \n def img_name(root, xref, ext):"
+        }
+      ]
+    },
+    {
+      "sha": "54e74f84cc4b438fcbfecc3c55776e4b9d39a5f4",
+      "message": "Remove special of TypeError from ruffus\n\nsplit_pages would still run if repair_pdf failed, for some reason.\nSince we are no longer splitting pages this is vestigial.",
+      "changes": [
+        {
+          "file": "src/ocrmypdf/__main__.py",
+          "patch": "@@ -596,13 +596,6 @@ def do_ruffus_exception(ruffus_five_tuple, options, log):\n     elif exc_name == 'ruffus.ruffus_exceptions.MissingInputFileError':\n         log.error(cleanup_ruffus_error_message(exc_value))\n         exit_code = ExitCode.input_file\n-    elif exc_name == 'builtins.TypeError':\n-        # Even though repair_pdf will fail, ruffus will still try\n-        # to call split_pages with no input files, likely due to a bug\n-        if task_name == 'split_pages':\n-            log.error(\"Input file '{0}' is not a valid PDF\".format(\n-                options.input_file))\n-            exit_code = ExitCode.input_file\n     elif exc_name == 'builtins.KeyboardInterrupt':\n         log.error(\"Interrupted by user\")\n         exit_code = ExitCode.ctrl_c"
+        }
+      ]
+    },
+    {
+      "sha": "7fc897e6dc1b320dbc477c41d8412e467f6dce50",
+      "message": "Fix NameError 'ghostscript'",
+      "changes": [
+        {
+          "file": "src/ocrmypdf/exec/ghostscript.py",
+          "patch": "@@ -127,9 +127,10 @@ def generate_pdfa(pdf_pages, output_file, compression, log,\n             \"-dAutoFilterGrayImages=true\",\n         ]\n \n-    # Older versions of Ghostscript expect a leading slash, newer ones should\n-    # not have it. See Ghostscript git commit fe1c025d.\n-    strategy = 'RGB' if ghostscript.version() >= '9.19' else '/RGB'\n+    # Older versions of Ghostscript expect a leading slash in \n+    # sColorConversionStrategy, newer ones should not have it. See Ghostscript \n+    # git commit fe1c025d.\n+    strategy = 'RGB' if version() >= '9.19' else '/RGB'\n \n     with NamedTemporaryFile(delete=True) as gs_pdf:\n         args_gs = ["
+        }
+      ]
+    },
+    {
+      "sha": "35162166c5de5bf5430975e5ee38b6274efd48c7",
+      "message": "Fix UnboundLocalError in autobrew.py",
+      "changes": [
+        {
+          "file": ".travis/autobrew.py",
+          "patch": "@@ -62,7 +62,7 @@ def main():\n \n     # Remove the duplicate \"ocrmypdf\" resource block\n     all_resources = poet_resources.split('resource')\n-    kept_resources = [block for block in resources if 'ocrmypdf' not in block]\n+    kept_resources = [block for block in all_resources if 'ocrmypdf' not in block]\n     resources = 'resource'.join(kept_resources)\n \n     with open('ocrmypdf.rb', 'w') as out:"
+        }
+      ]
+    },
+    {
+      "sha": "71b54035ba192313956fd66f579f05c6cc835871",
+      "message": "Bug fix issue #89: trying to perform arithmetic on IndirectObject\n\nTypeError: bad operand type for unary -: 'IndirectObject'",
+      "changes": [
+        {
+          "file": "ocrmypdf/main.py",
+          "patch": "@@ -1043,7 +1043,12 @@ def add_text_layer(\n     # Also, pdf_image may not have its mediabox nailed to (0, 0), so may need\n     # translation\n     page_image = pdf_image.getPage(0)\n-    rotation = page_image.get('/Rotate', 0)\n+    try:\n+        # pypdf DictionaryObject.get() does not resolve indirect objects but\n+        # __getitem__ does\n+        rotation = page_image['/Rotate']\n+    except KeyError:\n+        rotation = 0\n \n     # /Rotate is a clockwise rotation: 90 means page facing \"east\"\n     # The negative of this value is the angle that eliminates that rotation"
+        }
+      ]
+    },
+    {
+      "sha": "1d62ef27a2f9e635d493045045f8a6e46c5e7090",
+      "message": "Fix AttributeError on self.width if Tesseract finds no OCR text\n\nself.width remains undefined unless hOCR finds text.  It might not, if\na page contains only an image for example.\n\nFull error message is:\nAttributeError: \u2018hocrTransform\u2019 object has no attribute \u2018width\u2019",
+      "changes": [
+        {
+          "file": "src/hocrTransform.py",
+          "patch": "@@ -115,6 +115,7 @@ def __init__(self, hocrFileName, dpi):\n \t\t\tself.xmlns = matches.group(1)\n \n \t\t# get dimension in pt (not pixel!!!!) of the OCRed image\n+\t\tself.width, self.height = None, None\n \t\tfor div in self.hocr.findall(\".//%sdiv[@class='ocr_page']\"%(self.xmlns)):\n \t\t\tcoords = self.element_coordinates(div)\n \t\t\tself.width = self.px2pt(coords[2]-coords[0])"
+        }
+      ]
+    }
+  ]
+}

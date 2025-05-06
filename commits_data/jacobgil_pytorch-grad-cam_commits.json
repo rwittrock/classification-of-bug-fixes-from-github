@@ -1,0 +1,15 @@
+{
+  "repo_name": "jacobgil/pytorch-grad-cam",
+  "commits": [
+    {
+      "sha": "f40b2c7febcfbd19034d7a74a2ded5a7fc90558a",
+      "message": "edit tab to 4 spaces or will get TabError",
+      "changes": [
+        {
+          "file": "grad-cam.py",
+          "patch": "@@ -25,7 +25,7 @@ def __call__(self, x):\n         for name, module in self.model._modules.items():\n             x = module(x)\n             if name in self.target_layers:\n-            \tx.register_hook(self.save_gradient)\n+                x.register_hook(self.save_gradient)\n                 outputs += [x]\n         return outputs, x\n "
+        }
+      ]
+    }
+  ]
+}

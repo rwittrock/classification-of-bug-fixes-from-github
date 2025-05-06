@@ -1,0 +1,65 @@
+{
+  "repo_name": "wifiphisher/wifiphisher",
+  "commits": [
+    {
+      "sha": "adc1935436916b494096e5cd6a30d1376260f289",
+      "message": "Catch TypeError whenever an invalid packet is captured.",
+      "changes": [
+        {
+          "file": "wifiphisher/common/recon.py",
+          "patch": "@@ -236,8 +236,11 @@ def get_sorted_access_points(self):\n def get_rssi(non_decoded_packet):\n     # type: (scapy.layers.RadioTap) -> int\n     \"\"\"Return the rssi value of the packet.\"\"\"\n-    return -(256 - max(\n-        ord(non_decoded_packet[-4:-3]), ord(non_decoded_packet[-2:-1])))\n+    try:\n+        return -(256 - max(\n+            ord(non_decoded_packet[-4:-3]), ord(non_decoded_packet[-2:-1])))\n+    except TypeError:\n+        return -100\n \n \n def calculate_signal_strength(rssi):"
+        }
+      ]
+    },
+    {
+      "sha": "f3edc14c84815378a7c5846a82cc119a68e7a8b4",
+      "message": "fix(pywifiphisher): UnboundLocalError in logs\n\nFix an UnboundLocalError that would happen when logging an exception\nin case only a single adapter with monitor mode was supplied.\n\nSee also #764",
+      "changes": [
+        {
+          "file": "wifiphisher/pywifiphisher.py",
+          "patch": "@@ -523,7 +523,7 @@ def start(self):\n         except (interfaces.InvalidInterfaceError,\n                 interfaces.InterfaceCantBeFoundError,\n                 interfaces.InterfaceManagedByNetworkManagerError) as err:\n-            logger.exception(\"Setting {} to monitor mode\".format(mon_iface))\n+            logger.exception(\"The following error has occurred:\")\n             print (\"[{0}!{1}] {2}\").format(R, W, err)\n \n             time.sleep(1)"
+        }
+      ]
+    },
+    {
+      "sha": "2b181c1353d59ec961532daf66adf7fbbbca32b8",
+      "message": "fix(recon): fix issue #545\n\nFixes issue #545 where a TypeError was thrown in case of a malformed packets. This also fixes the issue where the channel number was not found because of malformed packet.",
+      "changes": [
+        {
+          "file": "wifiphisher/common/recon.py",
+          "patch": "@@ -212,7 +212,11 @@ def _create_ap_with_info(self, packet):\n         \"\"\"\n \n         elt_section = packet[dot11.Dot11Elt]\n-        channel = str(ord(packet[dot11.Dot11Elt:3].info))\n+        try:\n+            channel = str(ord(packet[dot11.Dot11Elt:3].info))\n+        except (TypeError, IndexError):\n+            return\n+\n         mac_address = packet.addr3\n         name = None\n         encryption_type = None"
+        }
+      ]
+    },
+    {
+      "sha": "fb0a392dcc76def65dd4049d0e0b7077545b6603",
+      "message": "fix(pywifiphisher): error using internetinterface\n\nFixes an error when using --inetrnetinterface argument when it would cause a TypeError described in #571.",
+      "changes": [
+        {
+          "file": "wifiphisher/pywifiphisher.py",
+          "patch": "@@ -145,7 +145,7 @@ def set_ip_fwd():\n     Popen(\n         ['sysctl', '-w', 'net.ipv4.ip_forward=1'],\n         stdout=DN,\n-        tderr=PIPE\n+        stderr=PIPE\n     )\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "39328f698496833c01447a9748edc5a701c65ccd",
+      "message": "Fix AttributeError after #262\n\nThis patch will fix the AttributeError error after the #262 was pused to the master branch. This error was the produce of non-existence error classes.",
+      "changes": [
+        {
+          "file": "wifiphisher/pywifiphisher.py",
+          "patch": "@@ -861,8 +861,7 @@ def run():\n             interfaces.JammingInterfaceInvalidError,\n             interfaces.ApInterfaceInvalidError,\n             interfaces.NoApInterfaceFoundError,\n-            interfaces.NoMonitorInterfaceFoundError, interfaces.IwCmdError,\n-            interfaces.IwconfigCmdError, interfaces.IfconfigCmdError) as err:\n+            interfaces.NoMonitorInterfaceFoundError) as err:\n         print (\"[{0}!{1}] \" + str(err)).format(R, W)\n         shutdown()\n "
+        }
+      ]
+    },
+    {
+      "sha": "1391fe10c7feffe047c1a0c328042eb75eee1488",
+      "message": "Fix AttributeError after #262\n\nThis patch will fix the AttributeError error after the #262 was pused to the master branch. This error was the produce of non-existence error classes.",
+      "changes": [
+        {
+          "file": "wifiphisher/pywifiphisher.py",
+          "patch": "@@ -863,8 +863,7 @@ def run():\n             interfaces.JammingInterfaceInvalidError,\n             interfaces.ApInterfaceInvalidError,\n             interfaces.NoApInterfaceFoundError,\n-            interfaces.NoMonitorInterfaceFoundError, interfaces.IwCmdError,\n-            interfaces.IwconfigCmdError, interfaces.IfconfigCmdError) as err:\n+            interfaces.NoMonitorInterfaceFoundError) as err:\n         print (\"[{0}!{1}] \" + str(err)).format(R, W)\n         shutdown()\n "
+        }
+      ]
+    }
+  ]
+}

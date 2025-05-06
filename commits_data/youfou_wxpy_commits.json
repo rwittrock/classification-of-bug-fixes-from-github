@@ -1,0 +1,15 @@
+{
+  "repo_name": "youfou/wxpy",
+  "commits": [
+    {
+      "sha": "af7a041ca55999e60ca16d12ec8fcf1c314321c7",
+      "message": "v0.1.1\n\n* \u6539\u8fdb \u5f53 Robot() \u7684 console_qr \u53c2\u6570\u88ab\u8bbe\u4e3a True \u65f6\uff0c\u5728\u5185\u90e8\u4f5c\u4e3a 2 \u6765\u5904\u7406 (\u5148\u524d\u4f5c\u4e3a 1)\uff0c\u5e76\u8865\u5168\u6587\u6863\u3002\n* \u6539\u8fdb \u5f53\u8c03\u7528 User.accept() \u6216 Robot.accept_friend() \u65b9\u6cd5\u6210\u529f\u540e\uff0c\u76f4\u63a5\u8fd4\u56de\u65b0\u52a0\u5165\u7684\u597d\u53cb\u5bf9\u8c61\u3002\n* \u6539\u8fdb \u79fb\u9664 User.accept() \u548c Robot.accept_friend() \u65b9\u6cd5\u7684 verify_content \u53c2\u6570\n(\u770b\u4e0a\u53bb\u6ca1\u6709\u4f5c\u7528)\u3002\n* \u4fee\u590d \u8c03\u7528 Chats.add_all() \u65b9\u6cd5\u65f6\uff0c\u62a5\u53c2\u6570\u6570\u91cf\u9519\u8bef\u7684\u95ee\u9898\u3002(issue 3)\n* \u4fee\u590d \u8c03\u7528 Robot.friends/groups/mps/chats()\n\u7cfb\u5217\u65b9\u6cd5\u540e\uff0c\u82e5\u65e0\u7ed3\u679c(\u4f8b\u5982\u4ece\u672a\u52a0\u5165\u7fa4\u804a/\u5173\u6ce8\u516c\u4f17\u53f7\u65f6)\uff0c\u518d\u8c03\u7528 search() \u65b9\u6cd5\u65f6\u62a5 AttributeError\n\u5f02\u5e38\u7684\u95ee\u9898\u3002(issue 4)",
+      "changes": [
+        {
+          "file": "wxpy/__init__.py",
+          "patch": "@@ -46,7 +46,7 @@ def reply_my_friend(msg):\n from .wx import Chat, Chats, Friend, Group, Groups, MP, Member, Message, Messages, Robot, User\n \n __title__ = 'wxpy'\n-__version__ = '0.1.0'\n+__version__ = '0.1.1'\n __author__ = 'Youfou'\n __license__ = 'MIT'\n __copyright__ = '2017, Youfou'"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "repo_name": "AirtestProject/Airtest",
+  "commits": [
+    {
+      "sha": "cdb9103e6ed241bccdf0763fbc428dbfd1cf106f",
+      "message": "fix\uff1aTypeError: 'float' object cannot be interpreted as an integer",
+      "changes": [
+        {
+          "file": "airtest/aircv/aircv.py",
+          "patch": "@@ -65,7 +65,7 @@ def count_clock_rotate(img):\n \n     # \u5c06\u89d2\u5ea6\u65cb\u8f6c\u8f6c\u5316\u4e3a\u9006\u65f6\u9488\u65cb\u8f6c90\u00b0\u7684\u6b21\u6570:\n     counter_rotate_time = (4 - angle / 90) % 4 if clockwise else (angle / 90) % 4\n-    for i in range(counter_rotate_time):\n+    for i in range(int(counter_rotate_time)):\n         img = count_clock_rotate(img)\n \n     return img"
+        }
+      ]
+    }
+  ]
+}

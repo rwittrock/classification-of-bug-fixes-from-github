@@ -1,0 +1,15 @@
+{
+  "repo_name": "mikf/gallery-dl",
+  "commits": [
+    {
+      "sha": "16783e327fda1bd4cc6e89d7ef0ca1ece0a4a994",
+      "message": "[common] fix UnboundLocalError in Extractor.request()",
+      "changes": [
+        {
+          "file": "gallery_dl/extractor/common.py",
+          "patch": "@@ -53,6 +53,7 @@ def request(self, url, method=\"GET\", encoding=None, fatal=True, retries=3,\n         max_retries = retries\n         while True:\n             try:\n+                response = None\n                 response = self.session.request(method, url, *args, **kwargs)\n                 if fatal:\n                     response.raise_for_status()\n@@ -65,7 +66,7 @@ def request(self, url, method=\"GET\", encoding=None, fatal=True, retries=3,\n                 msg = exc\n             if not retries:\n                 raise exception.HttpError(msg)\n-            if response.status_code == 429:  # Too Many Requests\n+            if response and response.status_code == 429:  # Too Many Requests\n                 waittime = float(response.headers.get(\"Retry-After\", 10.0))\n             else:\n                 waittime = 1"
+        }
+      ]
+    }
+  ]
+}

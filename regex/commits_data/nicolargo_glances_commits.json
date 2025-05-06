@@ -1,0 +1,135 @@
+{
+  "repo_name": "nicolargo/glances",
+  "commits": [
+    {
+      "sha": "229710d60ec27ebf7586fb93bdd35a32a4c25680",
+      "message": " TypeError on opening (Wifi plugin) #1373",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_wifi.py",
+          "patch": "@@ -139,7 +139,8 @@ def get_alert(self, value):\n                 ret = 'WARNING'\n             elif value <= self.get_limit('careful', stat_name=self.plugin_name):\n                 ret = 'CAREFUL'\n-        except KeyError:\n+        except (TypeError, KeyError) as e:\n+            # Catch TypeError for issue1373\n             ret = 'DEFAULT'\n \n         return ret"
+        }
+      ]
+    },
+    {
+      "sha": "12a5853a8fdb530ce311772d837bb534cf869141",
+      "message": "TypeError: '<' not supported between instances of 'float' and 'str' #1315",
+      "changes": [
+        {
+          "file": "glances/processes.py",
+          "patch": "@@ -407,7 +407,7 @@ def sort_stats(stats, sortedby=None, reverse=True):\n                                       weighted(x[sortedby_secondary])),\n                        reverse=reverse)\n         except (KeyError, TypeError):\n-            stats.sort(key=operator.itemgetter('name'),\n+            stats.sort(key=lambda x: x['name'] if x['name'] is not None else '~',\n                        reverse=False)\n \n     return stats"
+        }
+      ]
+    },
+    {
+      "sha": "aca2d5d5d1c40b7b0e12c2a0d7f3384bf15575b0",
+      "message": "GPU plugin. <class 'TypeError'>:b'GeForce GTX 1070' is not JSON serializable> #1112",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_gpu.py",
+          "patch": "@@ -19,6 +19,7 @@\n \n \"\"\"GPU plugin (limited to NVIDIA chipsets)\"\"\"\n \n+from glances.compat import nativestr\n from glances.logger import logger\n from glances.plugins.glances_plugin import GlancesPlugin\n \n@@ -252,7 +253,7 @@ def get_device_handles():\n def get_device_name(device_handle):\n     \"\"\"Get GPU device name\"\"\"\n     try:\n-        return pynvml.nvmlDeviceGetName(device_handle)\n+        return nativestr(pynvml.nvmlDeviceGetName(device_handle))\n     except pynvml.NVMlError:\n         return \"NVIDIA\"\n "
+        }
+      ]
+    },
+    {
+      "sha": "ce51f3e8d1a7c783630e11bedaae230f451ee16c",
+      "message": "Avoid NameError if requests is not installed. Do not correct isssue#1047",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_cloud.py",
+          "patch": "@@ -154,9 +154,6 @@ def run(self):\n             try:\n                 # Local request, a timeout of 3 seconds is OK\n                 r = requests.get(r_url, timeout=3)\n-            except requests.exceptions.ConnectTimeout:\n-                logger.debug('cloud plugin - Connection to {} timed out'.format(r_url))\n-                break\n             except Exception as e:\n                 logger.debug('cloud plugin - Cannot connect to the AWS EC2 API {}: {}'.format(r_url, e))\n                 break"
+        }
+      ]
+    },
+    {
+      "sha": "943e8a1a805191b3aff2822b3c4df3dd5645c752",
+      "message": "TypeError: string indices must be integers (glances_percpu.py) step 2 #1027",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_percpu.py",
+          "patch": "@@ -100,7 +100,11 @@ def msg_curse(self, args=None):\n             msg = '{:8}'.format(stat + ':')\n             ret.append(self.curse_add_line(msg))\n             for cpu in self.stats:\n-                msg = '{:>6}%'.format(cpu[stat])\n+                try:\n+                    msg = '{:>6}%'.format(cpu[stat])\n+                except TypeError:\n+                    # TypeError: string indices must be integers (issue #1027)\n+                    msg = '{:>6}%'.format('?')\n                 ret.append(self.curse_add_line(msg,\n                                                self.get_alert(cpu[stat], header=stat)))\n "
+        }
+      ]
+    },
+    {
+      "sha": "b38372f39ee093ef2f2d91a920b81dcede3b062c",
+      "message": "TypeError: string indices must be integers (glances_percpu.py) #1027",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_percpu.py",
+          "patch": "@@ -84,7 +84,11 @@ def msg_curse(self, args=None):\n \n         # Total per-CPU usage\n         for cpu in self.stats:\n-            msg = '{:>6}%'.format(cpu['total'])\n+            try:\n+                msg = '{:>6}%'.format(cpu['total'])\n+            except TypeError:\n+                # TypeError: string indices must be integers (issue #1027)\n+                msg = '{:>6}%'.format('?')\n             ret.append(self.curse_add_line(msg))\n \n         # Stats per-CPU"
+        }
+      ]
+    },
+    {
+      "sha": "998f6c1f02356da4e4baa8bd460d9e2e17eb3b48",
+      "message": "Fix cpu_stats TypeError\n\nSigned-off-by: Beau Hastings <beausy@gmail.com>",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_cpu.py",
+          "patch": "@@ -136,7 +136,8 @@ def update_local(self):\n                 self.cpu_stats_old = cpu_stats\n             else:\n                 for stat in cpu_stats._fields:\n-                    self.stats[stat] = getattr(cpu_stats, stat) - getattr(self.cpu_stats_old, stat)\n+                    if getattr(cpu_stats, stat) is not None:\n+                        self.stats[stat] = getattr(cpu_stats, stat) - getattr(self.cpu_stats_old, stat)\n \n                 self.stats['time_since_update'] = time_since_update\n "
+        }
+      ]
+    },
+    {
+      "sha": "5f57b7c76d7c56897ae71ab135b84e754a7dc716",
+      "message": "Correct TypeError on processlist in MacOS (issue #879)",
+      "changes": [
+        {
+          "file": "glances/processes.py",
+          "patch": "@@ -400,15 +400,17 @@ def update(self):\n             s = self.__get_process_stats(proc,\n                                          mandatory_stats=True,\n                                          standard_stats=self.max_processes is None)\n+            # Check if s is note None (issue #879)\n             # ignore the 'idle' process on Windows and *BSD\n             # ignore the 'kernel_task' process on OS X\n             # waiting for upstream patch from psutil\n-            if (BSD and s['name'] == 'idle' or\n+            if (s is None or\n+               BSD and s['name'] == 'idle' or\n                WINDOWS and s['name'] == 'System Idle Process' or\n                OSX and s['name'] == 'kernel_task'):\n                 continue\n             # Continue to the next process if it has to be filtered\n-            if s is None or self._filter.is_filtered(s):\n+            if self._filter.is_filtered(s):\n                 excluded_processes.add(proc)\n                 continue\n "
+        }
+      ]
+    },
+    {
+      "sha": "4e19c61f9bcbcb36366ed31d3894573930871c92",
+      "message": "Fix IndexError in browser mode",
+      "changes": [
+        {
+          "file": "glances/client_browser.py",
+          "patch": "@@ -160,7 +160,7 @@ def __serve_forever(self):\n                     \"Server list dictionnary change inside the loop (wait next update)\")\n \n             # Update the screen (list or Glances client)\n-            if self.screen.active_server is None:\n+            if not self.screen.active_server:\n                 #  Display the Glances browser\n                 self.screen.update(self.get_servers_list())\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "84af87f647b344e7a6d34149a2af4bdbbbe7cf74",
+      "message": "tback: docker.containers() can return None\n\n```\nTraceback (most recent call last):\n  File \"/usr/bin/glances\", line 9, in <module>\n    load_entry_point('Glances==2.3', 'console_scripts', 'glances')()\n  File \"/usr/lib/python2.7/site-packages/glances/__init__.py\", line 119, in main\n    args=core.get_args())\n  File \"/usr/lib/python2.7/site-packages/glances/core/glances_standalone.py\", line 62, in __init__\n    self.stats.update()\n  File \"/usr/lib/python2.7/site-packages/glances/core/glances_stats.py\", line 156, in update\n    self._plugins[p].update()\n  File \"/usr/lib/python2.7/site-packages/glances/plugins/glances_plugin.py\", line 633, in wrapper\n    ret = fct(*args, **kw)\n  File \"/usr/lib/python2.7/site-packages/glances/plugins/glances_docker.py\", line 154, in update\n    for c in self.stats['containers']:\nTypeError: 'NoneType' object is not iterable\n```",
+      "changes": [
+        {
+          "file": "glances/plugins/glances_docker.py",
+          "patch": "@@ -190,7 +190,7 @@ def update(self):\n \n             # Update current containers list\n             try:\n-                self.stats['containers'] = self.docker_client.containers()\n+                self.stats['containers'] = self.docker_client.containers() or []\n             except Exception as e:\n                 logger.error(\"{} plugin - Can not get containers list ({})\".format(self.plugin_name, e))\n                 return self.stats"
+        }
+      ]
+    },
+    {
+      "sha": "76cdd091eb24720d77341473ca86c6ea07f74183",
+      "message": "Fix crash in browser mode with Python 3\n\nThe crash occurs while trying to unlock a password protected Glances\nserver (TypeError: Unicode-objects must be encoded before hashing).",
+      "changes": [
+        {
+          "file": "glances/core/glances_client_browser.py",
+          "patch": "@@ -163,7 +163,7 @@ def serve_forever(self):\n                     # Display a popup to enter password\n                     clear_password = self.screen.display_popup(_(\"Password needed for %s: \" % v['name']), is_input=True)\n                     # Hash with SHA256\n-                    encoded_password = sha256(clear_password).hexdigest()\n+                    encoded_password = sha256(clear_password.encode('utf-8')).hexdigest()\n                     # Store the password for the selected server\n                     self.set_in_selected('password', encoded_password)\n "
+        }
+      ]
+    },
+    {
+      "sha": "73f5b3e8d3518cf42ce17969e3e08da81a99966b",
+      "message": "Missing attributeerror catch on Windows...",
+      "changes": [
+        {
+          "file": "glances/core/glances_processes.py",
+          "patch": "@@ -83,7 +83,7 @@ def __get_process_stats(self, proc):\n             except (KeyError, psutil.AccessDenied):\n                 try:\n                     self.username_cache[procstat['pid']] = proc.uids().real\n-                except (KeyError, psutil.AccessDenied):\n+                except (KeyError, AttributeError, psutil.AccessDenied):\n                     self.username_cache[procstat['pid']] = \"?\"\n         procstat['username'] = self.username_cache[procstat['pid']]\n "
+        }
+      ]
+    },
+    {
+      "sha": "fc1b0098e6d129ea9c1cbaa475027fe6cdc02851",
+      "message": "Fixed UnboundLocalError / Thk to Geoff",
+      "changes": [
+        {
+          "file": "glances/glances.py",
+          "patch": "@@ -1787,10 +1787,10 @@ def displayMem(self, mem, memswap, proclist, offset_x=0):\n                 format(self.__autoUnit(mem['free']), '>5'), 5)\n \n             # Display extended informations if space is available\n+            y = 0\n             if screen_x > self.mem_x + offset_x + memblocksize:\n                 # active and inactive (only available for psutil >= 0.6)\n                 if psutil_mem_vm:\n-                    y = 0\n                     # active\n                     if 'active' in mem:\n                         self.term_window.addnstr(self.mem_y + y,"
+        }
+      ]
+    }
+  ]
+}

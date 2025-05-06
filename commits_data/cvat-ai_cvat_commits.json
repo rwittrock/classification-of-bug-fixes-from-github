@@ -1,0 +1,15 @@
+{
+  "repo_name": "cvat-ai/cvat",
+  "commits": [
+    {
+      "sha": "a2f1824c0d0cde3d7e4a0f10dbe13c71c27f056c",
+      "message": "TypeError Fix (#596)\n\nFixed: TypeError while using XML to YOLO converter #595",
+      "changes": [
+        {
+          "file": "utils/yolo/converter.py",
+          "patch": "@@ -207,8 +207,8 @@ def process_cvat_xml(xml_file, image_dir, output_dir,username,password,ilabels):\n     else:\n         for img_tag in cvat_xml.findall('image'):\n             image_name = img_tag.get('name')\n-            width = img_tag.get('width')\n-            height = img_tag.get('height')\n+            width = int(img_tag.get('width'))\n+            height = int(img_tag.get('height'))\n             image_path = os.path.join(image_dir, image_name)\n             if not os.path.exists(image_path):\n                 log.warn('{} image cannot be found. Is `{}` image directory correct?'."
+        }
+      ]
+    }
+  ]
+}

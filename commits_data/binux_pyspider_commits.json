@@ -1,0 +1,35 @@
+{
+  "repo_name": "binux/pyspider",
+  "commits": [
+    {
+      "sha": "06039ed533e8ee52f6ef834b525585b67436e092",
+      "message": "fix UnboundLocalError: local variable 'response' referenced before assignment #375",
+      "changes": [
+        {
+          "file": "pyspider/fetcher/tornado_fetcher.py",
+          "patch": "@@ -473,6 +473,8 @@ def phantomjs_fetch(self, url, task, callback):\n         except tornado.httpclient.HTTPError as e:\n             if e.response:\n                 response = e.response\n+            else:\n+                raise gen.Return(handle_error(e))\n \n         if not response.body:\n             raise gen.Return(handle_error(Exception('no response from phantomjs')))"
+        }
+      ]
+    },
+    {
+      "sha": "a728262a952abeb1d8fff74614333c54b32a3b0a",
+      "message": "fix TypeError: ObjectId(xxx) is not JSON serializable when using pymongo",
+      "changes": [
+        {
+          "file": "pyspider/database/mongodb/resultdb.py",
+          "patch": "@@ -23,6 +23,7 @@ def __init__(self, url, database='resultdb'):\n         self._list_project()\n \n     def _parse(self, data):\n+        data['_id'] = str(data['_id'])\n         if 'result' in data:\n             data['result'] = json.loads(data['result'])\n         return data"
+        }
+      ]
+    },
+    {
+      "sha": "21b3388ac1a6a8ce26073e5ea7f4b16a4be4e4d5",
+      "message": "fix AttributeError(\"'Get' object has no attribute 'qsize'\",)",
+      "changes": [
+        {
+          "file": "pyspider/run.py",
+          "patch": "@@ -325,7 +325,7 @@ def webui(ctx, host, port, cdn, scheduler_rpc, fetcher_rpc, max_rate, max_burst,\n     # inject queues for webui\n     for name in ('newtask_queue', 'status_queue', 'scheduler2fetcher',\n                  'fetcher2processor', 'processor2result'):\n-        app.config['queues'][name] = g[name]\n+        app.config['queues'][name] = getattr(g, name, None)\n \n     # fetcher rpc\n     if isinstance(fetcher_rpc, six.string_types):\n@@ -546,6 +546,7 @@ def clear_project():\n     logging.getLogger('processor').setLevel(logging.ERROR)\n     logging.getLogger('result').setLevel(logging.ERROR)\n     logging.getLogger('webui').setLevel(logging.ERROR)\n+    logging.getLogger('werkzeug').setLevel(logging.ERROR)\n \n     try:\n         threads = []"
+        }
+      ]
+    }
+  ]
+}

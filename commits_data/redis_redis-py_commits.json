@@ -1,0 +1,35 @@
+{
+  "repo_name": "redis/redis-py",
+  "commits": [
+    {
+      "sha": "375839679e5faf1cf8fda4ce822284dcb664b1b9",
+      "message": "Fix TypeError by passing optional decode_responses keyword argument d\u2026 (#1239)\n\n* Fix TypeError by passing optional decode_responses keyword argument down to parse_slowlog_get()",
+      "changes": [
+        {
+          "file": "redis/client.py",
+          "patch": "@@ -389,11 +389,12 @@ def parse_zscan(response, **options):\n \n \n def parse_slowlog_get(response, **options):\n+    space = ' ' if options.get('decode_responses', False) else b' '\n     return [{\n         'id': item[0],\n         'start_time': int(item[1]),\n         'duration': int(item[2]),\n-        'command': b' '.join(item[3])\n+        'command': space.join(item[3])\n     } for item in response]\n \n \n@@ -1195,7 +1196,9 @@ def slowlog_get(self, num=None):\n         args = ['SLOWLOG GET']\n         if num is not None:\n             args.append(num)\n-        return self.execute_command(*args)\n+        decode_responses = self.connection_pool.connection_kwargs.get(\n+            'decode_responses', False)\n+        return self.execute_command(*args, decode_responses=decode_responses)\n \n     def slowlog_len(self):\n         \"Get the number of items in the slowlog\""
+        }
+      ]
+    },
+    {
+      "sha": "b040bcfb515f6fc87e2acc827e106cda7596c166",
+      "message": "Add missing UnixDomainSocketConnection._buffer_cutoff\n\nWithout this using `unix_socket_path` will fail:\n\n    AttributeError: 'UnixDomainSocketConnection' object has no attribute '_buffer_cutoff'\n\nFixes #1067",
+      "changes": [
+        {
+          "file": "redis/connection.py",
+          "patch": "@@ -759,6 +759,7 @@ def __init__(self, path='', db=0, password=None,\n             'db': self.db,\n         }\n         self._connect_callbacks = []\n+        self._buffer_cutoff = 6000\n \n     def _connect(self):\n         \"Create a Unix domain socket connection\""
+        }
+      ]
+    },
+    {
+      "sha": "86ec8d0458e39c795321348f189457c52ebcceca",
+      "message": "pubsub: improve error reporting if caller forgets to subscribe\n\nThis is an easy mistake to make -- at least, I keep making it. It\nformerly resulted in a confusing crash, \"AttributeError: 'NoneType'\nobject has no attribute 'can_read'\", from parse_response(). I have had\nto dig into the redis-py source code more than once to figure out what\nwent wrong.\n\nWith this patch, it still crashes, but with a clearer error that\nclarifies what the calling code forgot to do.\n\nFixes issue #716.",
+      "changes": [
+        {
+          "file": "redis/client.py",
+          "patch": "@@ -2226,6 +2226,10 @@ def _execute(self, connection, command, *args):\n     def parse_response(self, block=True, timeout=0):\n         \"Parse the response from a publish/subscribe command\"\n         connection = self.connection\n+        if connection is None:\n+            raise RuntimeError(\n+                'pubsub connection not set: '\n+                'did you forget to call subscribe() or psubscribe()?')\n         if not block and not connection.can_read(timeout=timeout):\n             return None\n         return self._execute(connection, connection.read_response)"
+        }
+      ]
+    }
+  ]
+}

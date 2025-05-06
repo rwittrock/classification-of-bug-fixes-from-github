@@ -1,0 +1,15 @@
+{
+  "repo_name": "tflearn/tflearn",
+  "commits": [
+    {
+      "sha": "8797e9292b9a498633656bc2af38a9a6753333d6",
+      "message": "file mode fix (#442)\n\nprevents error found when running 'tflearn/blob/master/examples/images/vgg_network_finetuning.py' in file mode:\r\n  File \"/usr/local/lib/python2.7/dist-packages/tflearn/data_utils.py\", line 511, in <genexpr>\r\n    if not files_extension or any(flag in l(0) for flag in files_extension):\r\nTypeError: 'list' object is not callable",
+      "changes": [
+        {
+          "file": "tflearn/data_utils.py",
+          "patch": "@@ -510,7 +510,7 @@ class containing the images to classify.\n             images, labels = [], []\n             for l in f.readlines():\n                 l = l.strip('\\n').split()\n-                if not files_extension or any(flag in l(0) for flag in files_extension):\n+                if not files_extension or any(flag in l[0] for flag in files_extension):\n                     if filter_channel:\n                         if get_img_channel(l[0]) != 3:\n                             continue"
+        }
+      ]
+    }
+  ]
+}

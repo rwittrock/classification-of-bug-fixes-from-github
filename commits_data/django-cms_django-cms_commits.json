@@ -1,0 +1,85 @@
+{
+  "repo_name": "django-cms/django-cms",
+  "commits": [
+    {
+      "sha": "85991b59f02e9580a4fb9302d90eeb23681b32f2",
+      "message": "Fixed TypeError",
+      "changes": [
+        {
+          "file": "cms/templatetags/cms_tags.py",
+          "patch": "@@ -72,7 +72,7 @@ def _get_page_by_untyped_arg(page_lookup, request, site_id):\n         page_lookup = {'pk': page_lookup}\n     elif not isinstance(page_lookup, dict):\n         raise TypeError('The page_lookup argument can be either a Dictionary, Integer, Page, or String.')\n-    site = Site.objects._get_site_by_id(pk=site_id)\n+    site = Site.objects._get_site_by_id(site_id)\n     try:\n         if 'pk' in page_lookup:\n             page = Page.objects.all().get(**page_lookup)"
+        }
+      ]
+    },
+    {
+      "sha": "995fcf79de151c1f18fbfd190c4dba37300a2798",
+      "message": "Fixed TypeError from forward-port",
+      "changes": [
+        {
+          "file": "cms/plugin_rendering.py",
+          "patch": "@@ -373,7 +373,6 @@ def render_page_placeholder(self, slot, context, inherit=False, nodelist=None):\n             if cache_enabled and not has_prefetched_plugins:\n                 cached_content = self._get_cached_placeholder_content(\n                     placeholder=placeholder,\n-                    site_id=page.site_id,\n                     language=self.request_language,\n                 )\n                 has_cached_content = cached_content is not None"
+        }
+      ]
+    },
+    {
+      "sha": "68021670ad3205e933fbae28b8721796808ed1ea",
+      "message": "Fix UnboundLocalError in cms_tags",
+      "changes": [
+        {
+          "file": "cms/templatetags/cms_tags.py",
+          "patch": "@@ -303,6 +303,7 @@ def render_tag(self, context, name, extra_bits, nodelist=None):\n             if nodelist:\n                 return nodelist.render(context)\n             return ''\n+        content = ''\n         try:\n             content = get_placeholder_content(context, request, page, name, inherit, nodelist)\n         except PlaceholderNotFound:"
+        }
+      ]
+    },
+    {
+      "sha": "30ba860ca7e49aa3487b8ea03bf1d65e398dd878",
+      "message": "Fix fails on not packaged single file modules\n\nOn single file modules (without __init__.py) `./manage.py cms check` fails with AttributeError: 'module' object has no attribute '__path__'\r\n\r\nHow to reproduce:\r\n\r\n1. pip install feedparser\r\n2. Add in settings.py: INSTALLED_APPS = INSTALLED_APPS + ('feedparser', )\r\n3. Run ./manage.py cms check",
+      "changes": [
+        {
+          "file": "cms/utils/django_load.py",
+          "patch": "@@ -25,7 +25,7 @@ def get_module(app, modname, verbose, failfast):\n     # the module *should* exist - raise an error if it doesn't\n     app_mod = import_module(app)\n     try:\n-        imp.find_module(modname, app_mod.__path__)\n+        imp.find_module(modname, app_mod.__path__ if hasattr(app_mod, '__path__') else None)\n     except ImportError:\n         # this ImportError will be due to the module not existing\n         # so here we can silently ignore it.  But an ImportError"
+        }
+      ]
+    },
+    {
+      "sha": "03e1c862b5ed9360209bd28c3e7664a6f4951a75",
+      "message": "Fixes AttributeError: [some plugin] object has no attribute 'cms_plugin_ptr'",
+      "changes": [
+        {
+          "file": "cms/models/pagemodel.py",
+          "patch": "@@ -246,7 +246,7 @@ def _copy_contents(self, target, language):\n         plugin_pool.set_plugin_meta()\n         for plugin in CMSPlugin.objects.filter(placeholder__page=target, language=language).order_by('-level'):\n             inst, cls = plugin.get_plugin_instance()\n-            if inst:\n+            if inst and getattr(inst, 'cms_plugin_ptr', False):\n                 inst.cmsplugin_ptr._no_reorder = True\n                 inst.delete()\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "fbea8960763ae61011a4e28287b1bdae7b292948",
+      "message": "Fixed AttributeError: 'NoneType' object has no attribute 'populate'",
+      "changes": [
+        {
+          "file": "cms/templatetags/cms_tags.py",
+          "patch": "@@ -424,8 +424,8 @@ class PageAttribute(AsTag):\n     page_lookup -- lookup argument for Page, if omitted field-name of current page is returned.\n     See _get_page_by_untyped_arg() for detailed information on the allowed types and their interpretation\n     for the page_lookup argument.\n-    \n-    varname -- context variable name. Output will be added to template context as this variable. \n+\n+    varname -- context variable name. Output will be added to template context as this variable.\n     This argument is required to follow the 'as' keyword.\n     \"\"\"\n     name = 'page_attribute'\n@@ -605,7 +605,8 @@ def render_tag(self, context, name, nodelist):\n         # render JS\n         request = context.get('request', None)\n         toolbar = getattr(request, 'toolbar', None)\n-        toolbar.populate()\n+        if toolbar:\n+            toolbar.populate()\n         context['cms_version'] = __version__\n         if toolbar and toolbar.show_toolbar:\n             language = toolbar.toolbar_language"
+        }
+      ]
+    },
+    {
+      "sha": "c7c1d3c7446a2a9ef45a85d535973027975701e0",
+      "message": "Fixed a TypeError",
+      "changes": [
+        {
+          "file": "cms/admin/placeholderadmin.py",
+          "patch": "@@ -560,4 +560,4 @@ class FrontendEditableAdmin(FrontendEditableAdminMixin):\n     def __init__(self, *args, **kwargs):\n         warnings.warn(\"Class FrontendEditableAdmin is deprecated and will be removed in 3.1. \"\n             \"Instead, use FrontendEditableAdminMixin.\", DeprecationWarning)\n-        super(PlaceholderAdmin, self).__init__(*args, **kwargs)\n\\ No newline at end of file\n+        super(FrontendEditableAdmin, self).__init__(*args, **kwargs)\n\\ No newline at end of file"
+        }
+      ]
+    },
+    {
+      "sha": "2dc8c409fb15e192feb854dfe84b7697ac34d52a",
+      "message": "Fix for error when attempting to save static_placeholder on non-cms pages\n\nBefore this fix user receives:\nAttributeError: 'NoneType' object has no attribute 'get_title'\n\nWhen attempting to \"Publish Changes\" on a non-CMS page with static placeholders.\n\nSigned-off-by: Martin Koistinen <mkoistinen@gmail.com>",
+      "changes": [
+        {
+          "file": "cms/admin/pageadmin.py",
+          "patch": "@@ -938,7 +938,7 @@ def publish_page(self, request, page_id, language):\n                 published = static_placeholder.publish(request)\n                 if not published:\n                     all_published = False\n-        if all_published:\n+        if page and all_published:\n             messages.info(request, _('The content was successfully published.'))\n             LogEntry.objects.log_action(\n                 user_id=request.user.id,"
+        }
+      ]
+    }
+  ]
+}

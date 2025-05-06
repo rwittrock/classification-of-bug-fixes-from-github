@@ -1,0 +1,45 @@
+{
+  "repo_name": "networkx/networkx",
+  "commits": [
+    {
+      "sha": "d3843ab0b541e9e199ceacfc48f4ec85b1317398",
+      "message": "fix frozen function (#3279)\n\nfrozen should have kwargs otherwise when calling a frozen graph method with a keyword you get\r\na TypeError : frozen() got an unexpected keyword argument ..",
+      "changes": [
+        {
+          "file": "networkx/classes/function.py",
+          "patch": "@@ -137,7 +137,7 @@ def is_directed(G):\n     return G.is_directed()\n \n \n-def frozen(*args):\n+def frozen(*args, **kwargs):\n     \"\"\"Dummy method for raising errors when trying to modify frozen graphs\"\"\"\n     raise nx.NetworkXError(\"Frozen graph can't be modified\")\n "
+        }
+      ]
+    },
+    {
+      "sha": "67fcca756fdb9600f53aca609fe501edce282eab",
+      "message": "UnboundLocalError if called with an empty graph\n\ncondensation(DiGraph()) currently crashes on line number_of_components = i + 1 with UnboundLocalError: local variable 'i' referenced before assignment",
+      "changes": [
+        {
+          "file": "networkx/algorithms/components/strongly_connected.py",
+          "patch": "@@ -410,6 +410,7 @@ def condensation(G, scc=None):\n     mapping = {}\n     members = {}\n     C = nx.DiGraph()\n+    i = 0  # required if G is empty\n     for i, component in enumerate(scc):\n         members[i] = component\n         mapping.update((n, i) for n in component)"
+        }
+      ]
+    },
+    {
+      "sha": "85d3e4265fefc18bf77f8e2a58ced81325d17890",
+      "message": "Fix, now raise NetworkXError instead of TypeError\n\nInstead of :\r\n\r\n```\r\n'dict' objects are unhashableTraceback (most recent call last):\r\n  File \"<builtin>/app_main.py\", line 75, in run_toplevel\r\n  File \"mk_graph_file.py\", line 34, in <module>\r\n    if d['weight'] > 3])\r\n  File \"/usr/local/lib/pypy2.7/dist-packages/networkx/classes/graph.py\", line 1488, in subgraph\r\n    for n in bunch:\r\n  File \"/usr/local/lib/pypy2.7/dist-packages/networkx/classes/graph.py\", line 1815, in bunch_iter\r\n    \"Node %s in the sequence nbunch is not a valid node.\"%n)\r\nTypeError: not all arguments converted during string formatting\r\n```\r\n\r\nYou get:\r\n\r\n```\r\n'dict' objects are unhashableTraceback (most recent call last):\r\n  File \"<builtin>/app_main.py\", line 75, in run_toplevel\r\n  File \"mk_graph_file.py\", line 34, in <module>\r\n    if d['weight'] > 3])\r\n  File \"/usr/local/lib/pypy2.7/dist-packages/networkx/classes/graph.py\", line 1488, in subgraph\r\n    for n in bunch:\r\n  File \"/usr/local/lib/pypy2.7/dist-packages/networkx/classes/graph.py\", line 1815, in bunch_iter\r\n    \"Node {} in the sequence nbunch is not a valid node.\".format(n))\r\nNetworkXError: Node ('java', 'performance', {'weight': 5}) in the sequence nbunch is not a valid node.\r\n```",
+      "changes": [
+        {
+          "file": "networkx/classes/graph.py",
+          "patch": "@@ -1768,7 +1768,7 @@ def bunch_iter(nlist, adj):\n                     # capture error for unhashable node.\n                     elif 'hashable' in message:\n                         raise NetworkXError(\n-                            \"Node %s in the sequence nbunch is not a valid node.\"%n)\n+                            \"Node {} in the sequence nbunch is not a valid node.\".format(n))\n                     else:\n                         raise\n             bunch = bunch_iter(nbunch, self.adj)"
+        }
+      ]
+    },
+    {
+      "sha": "6fa13c31a877d3d30b44ee4c0201623f3785ae69",
+      "message": "Remove TypeError except clause since it covers other errors and seems to be not needed.  Addresses #672",
+      "changes": [
+        {
+          "file": "networkx/utils/decorators.py",
+          "patch": "@@ -248,9 +248,6 @@ def _open_file(func, *args, **kwargs):\n         # Finally, we call the original function, making sure to close the fh.\n         try:\n             result = func(*new_args, **kwargs)\n-        except TypeError:\n-            new_args += func.func_defaults\n-            result = func(*new_args,**kwargs)\n         finally:\n             if close_fh:\n                 fh.close()"
+        }
+      ]
+    }
+  ]
+}

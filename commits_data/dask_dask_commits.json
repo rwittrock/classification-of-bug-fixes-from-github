@@ -1,0 +1,95 @@
+{
+  "repo_name": "dask/dask",
+  "commits": [
+    {
+      "sha": "320c2e3b5fcc30987b25fc05740903f65538fc62",
+      "message": "Also ignore AttributeErrors which may occur if snappy (not python-snappy) is installed (#4908)",
+      "changes": [
+        {
+          "file": "dask/bytes/compression.py",
+          "patch": "@@ -26,7 +26,9 @@ def noop_file(file, **kwargs):\n seekable_files = {None: noop_file}\n \n \n-with ignoring(ImportError):\n+with ignoring(ImportError, AttributeError):\n+    # In case snappy is not installed, or another package called snappy that does not implement compress / decompress.\n+    # For example, SnapPy (https://pypi.org/project/snappy/)\n     import snappy\n     compress['snappy'] = snappy.compress\n     decompress['snappy'] = snappy.decompress"
+        }
+      ]
+    },
+    {
+      "sha": "9063212a3a55c729b568d0148c65b7874ac3efa4",
+      "message": "Raise TypeError if dask array is given as shape for da.ones, zeros, empty or full (#4707)",
+      "changes": [
+        {
+          "file": "dask/array/wrap.py",
+          "patch": "@@ -24,6 +24,10 @@ def wrap_func_shape_as_first_arg(func, *args, **kwargs):\n     else:\n         shape = kwargs.pop('shape')\n \n+    if isinstance(shape, Array):\n+        raise TypeError('Dask array input not supported. '\n+                        'Please use tuple, list, or a 1D numpy array instead.')\n+\n     if isinstance(shape, np.ndarray):\n         shape = shape.tolist()\n "
+        }
+      ]
+    },
+    {
+      "sha": "946832ff3ec5b48718cc7aad07a556ff554dea9d",
+      "message": "BUG: do not raise IndexError for identity slice in array.vindex (#3559)",
+      "changes": [
+        {
+          "file": "dask/array/core.py",
+          "patch": "@@ -1343,8 +1343,12 @@ def _vindex(self, key):\n                 \"vindex does not support indexing with None (np.newaxis), \"\n                 \"got {}\".format(key))\n         if all(isinstance(k, slice) for k in key):\n+            if all(k.indices(d) == slice(0, d).indices(d)\n+                   for k, d in zip(key, self.shape)):\n+                return self\n             raise IndexError(\n-                \"vindex requires at least one non-slice to vectorize over. \"\n+                \"vindex requires at least one non-slice to vectorize over \"\n+                \"when the slices are not over the entire array (i.e, x[:]). \"\n                 \"Use normal slicing instead when only using slices. Got: {}\"\n                 .format(key))\n         return _vindex(self, *key)"
+        }
+      ]
+    },
+    {
+      "sha": "6cbcf0813af48597a427a1fe6c71cce2a79086b0",
+      "message": "Add more helpful error when len is called on arrays with empty chunks. Fixes 3058. (#3067)\n\n* Add more helpful error when da's len is called on empty chunks. Fixes #3058\r\n\r\n* Update changelog.\r\n\r\n* Address PR review comments; use TypeError rather than ValueError, update error message.",
+      "changes": [
+        {
+          "file": "dask/array/core.py",
+          "patch": "@@ -1111,6 +1111,8 @@ def _set_chunks(self, chunks):\n     chunks = property(_get_chunks, _set_chunks, \"chunks property\")\n \n     def __len__(self):\n+        if not self.chunks:\n+            raise TypeError(\"len() of unsized object\")\n         return sum(self.chunks[0])\n \n     def __array_ufunc__(self, numpy_ufunc, method, *inputs, **kwargs):"
+        }
+      ]
+    },
+    {
+      "sha": "219e74c05d8f6612a0905c8dffe4c21cab8d262a",
+      "message": "Raise AttributeError in nlargest on Index",
+      "changes": [
+        {
+          "file": "dask/dataframe/core.py",
+          "patch": "@@ -1342,7 +1342,9 @@ def elemwise_property(attr, s):\n \n \n def nlargest(df, n=5, columns=None):\n-    if isinstance(df, Series):\n+    if isinstance(df, Index):\n+        raise AttributeError(\"nlargest is not available for Index objects\")\n+    elif isinstance(df, Series):\n         token = 'series-nlargest-n={0}'.format(n)\n         f = lambda s: s.nlargest(n)\n     elif isinstance(df, DataFrame):"
+        }
+      ]
+    },
+    {
+      "sha": "4e7be4164cdbc551b30ead0c43f3750f5e59bdc7",
+      "message": "Raise informative error on bad keyword arguments\n\nExample\n-------\n\nIn [1]: import dask.array as da\n\nIn [2]: x = da.ones(6, chunks=3)\n\nIn [3]: da.minimum(x, out=None)\nTypeError: minimum does not take the following keyword arguments ['out']\n\nFixes #429",
+      "changes": [
+        {
+          "file": "dask/array/core.py",
+          "patch": "@@ -1566,6 +1566,9 @@ def elemwise(op, *args, **kwargs):\n     --------\n     atop\n     \"\"\"\n+    if not set(['name', 'dtype']).issuperset(kwargs):\n+        raise TypeError(\"%s does not take the following keyword arguments %s\" %\n+            (op.__name__, str(sorted(set(kwargs) - set(['name', 'dtype'])))))\n     name = kwargs.get('name') or next(names)\n     out_ndim = max(len(arg.shape) if isinstance(arg, Array) else 0\n                    for arg in args)"
+        }
+      ]
+    },
+    {
+      "sha": "1944126ebd7f6ab9abc4a27ff5eabe60cb17d957",
+      "message": "except TypeErrors when determining dtypes\n\nwindows throws these on some combinations",
+      "changes": [
+        {
+          "file": "dask/array/core.py",
+          "patch": "@@ -1319,7 +1319,7 @@ def elemwise(op, *args, **kwargs):\n                 for a in args]\n         try:\n             dt = op(*vals).dtype\n-        except AttributeError:\n+        except (TypeError, AttributeError):\n             dt = None\n \n     if other:"
+        }
+      ]
+    },
+    {
+      "sha": "7d411805e8fcfa0936bfd916f2b357662377da0b",
+      "message": "Fix NameError and spelling error",
+      "changes": [
+        {
+          "file": "dask/array/tests/test_ghost.py",
+          "patch": "@@ -198,10 +198,9 @@ def test_0_depth():\n     assert_array_equal(result, expected)\n \n \n-@pytest.mark.xfail\n-def test_0_depth_failes():\n+def test_0_depth_fails():\n     expected = np.arange(100).reshape(10, 10)\n-    darr = da.from_array(a, chunks=(5, 2))\n+    darr = da.from_array(expected, chunks=(5, 2))\n \n     depth = {0: 0, 1: 0}\n "
+        }
+      ]
+    },
+    {
+      "sha": "ca85ad905790b0fa117baf4692da35888fc9f6c0",
+      "message": "ValueError to TypeError",
+      "changes": [
+        {
+          "file": "dask/array/core.py",
+          "patch": "@@ -535,9 +535,9 @@ def blockdims_from_blockshape(shape, blockshape):\n     ((4, 4, 2), (3, 3, 3, 1))\n     \"\"\"\n     if blockshape is None:\n-        raise ValueError(\"Must supply chunks= keyword argument\")\n+        raise TypeError(\"Must supply chunks= keyword argument\")\n     if shape is None:\n-        raise ValueError(\"Must supply shape= keyword argument\")\n+        raise TypeError(\"Must supply shape= keyword argument\")\n     return tuple((bd,) * (d // bd) + ((d % bd,) if d % bd else ())\n                               for d, bd in zip(shape, blockshape))\n \n@@ -1485,7 +1485,7 @@ def insert(arr, obj, values, axis):\n     values_chunks = tuple(values_bd if axis == n else arr_bd\n                           for n, (arr_bd, values_bd)\n                           in enumerate(zip(arr.chunks,\n-                                              values.chunks)))\n+                                           values.chunks)))\n     values = values.reblock(values_chunks)\n \n     counts = np.bincount(obj)[:-1]"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "repo_name": "Supervisor/supervisor",
+  "commits": [
+    {
+      "sha": "534f346f976ed431c9d98752a51b872ba001ab9b",
+      "message": "Fix signal() error handler\nAttributeError: class StringIO has no attribute 'StringIO'",
+      "changes": [
+        {
+          "file": "supervisor/process.py",
+          "patch": "@@ -459,7 +459,7 @@ def signal(self, sig):\n         try:\n             options.kill(self.pid, sig)\n         except:\n-            io = StringIO.StringIO()\n+            io = StringIO()\n             traceback.print_exc(file=io)\n             tb = io.getvalue()\n             msg = 'unknown problem sending sig %s (%s):%s' % ("
+        }
+      ]
+    }
+  ]
+}

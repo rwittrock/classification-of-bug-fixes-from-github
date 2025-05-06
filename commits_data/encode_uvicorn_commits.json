@@ -1,0 +1,15 @@
+{
+  "repo_name": "encode/uvicorn",
+  "commits": [
+    {
+      "sha": "a38701fedd185e23ec7cffa91757057f1e739c69",
+      "message": "fix: NameError in uvicorn.protocols.websockets.wsproto_impl.WSProtocol.shutdown (#370)",
+      "changes": [
+        {
+          "file": "uvicorn/protocols/websockets/wsproto_impl.py",
+          "patch": "@@ -111,7 +111,7 @@ def resume_writing(self):\n \n     def shutdown(self):\n         self.queue.put_nowait({\"type\": \"websocket.disconnect\", \"code\": 1012})\n-        output = self.conn.send(wsproto.events.CloseConnection(code=code))\n+        output = self.conn.send(wsproto.events.CloseConnection(code=1012))\n         self.transport.write(output)\n         self.transport.close()\n "
+        }
+      ]
+    }
+  ]
+}

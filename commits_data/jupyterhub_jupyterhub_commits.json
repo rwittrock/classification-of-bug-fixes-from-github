@@ -1,0 +1,35 @@
+{
+  "repo_name": "jupyterhub/jupyterhub",
+  "commits": [
+    {
+      "sha": "7b1c4aedcf3be4d8445757ee54ab78a5e25ec14a",
+      "message": "Don't catch AttributeError",
+      "changes": [
+        {
+          "file": "jupyterhub/auth.py",
+          "patch": "@@ -1,4 +1,4 @@\n-\"\"\"Base Authenticator class and the default PAM Authenticator\"\"\"\n+ \"\"\"Base Authenticator class and the default PAM Authenticator\"\"\"\n # Copyright (c) IPython Development Team.\n # Distributed under the terms of the Modified BSD License.\n import inspect\n@@ -775,8 +775,6 @@ def add_system_user(self, user):\n         try:\n             uid = self.uids[name]\n             cmd += ['--uid', '%d' % uid]\n-        except AttributeError:\n-            pass\n         except KeyError:\n             self.log.debug(\"No UID for user %s\" % name)\n         cmd += [name]"
+        }
+      ]
+    },
+    {
+      "sha": "b0b13bfcb949d742b798384dc51b8ffc62347fa7",
+      "message": "fix AttributeError when a service ask for a cookie",
+      "changes": [
+        {
+          "file": "jupyterhub/apihandlers/users.py",
+          "patch": "@@ -208,7 +208,10 @@ def post(self, name):\n         if not user.running:\n             raise web.HTTPError(400, \"%s's server is not running\" % name)\n         self.set_server_cookie(user)\n-        current.other_user_cookies.add(name)\n+        # a service can also ask for a user cookie\n+        # this code prevent to raise an error\n+        if getattr(current, 'other_user_cookies', None) is not None:\n+            current.other_user_cookies.add(name)\n \n \n default_handlers = ["
+        }
+      ]
+    },
+    {
+      "sha": "6aae4be54da3038027e4b6aad6e2baf43921933f",
+      "message": "assign hub in token app\n\navoids AttributeError on hub if there are\nusers with running servers.\n\nDon't call init_hub,\nwhich can modify the Hub's entries in the database,\nwhich shouldn't happen in the token command.",
+      "changes": [
+        {
+          "file": "jupyterhub/app.py",
+          "patch": "@@ -126,6 +126,7 @@ def start(self):\n         hub = JupyterHub(parent=self)\n         hub.load_config_file(hub.config_file)\n         hub.init_db()\n+        hub.hub = hub.db.query(orm.Hub).first()\n         hub.init_users()\n         user = orm.User.find(hub.db, self.name)\n         if user is None:"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "repo_name": "satwikkansal/wtfpython",
+  "commits": [
+    {
+      "sha": "ad6898e6f446b9e6ea1136e0b11f6f0bf137d066",
+      "message": "Fix pylint and flake8 warnings.\n\n* Mark TabError as noqa to silence linters on Python 3\r\n* Disable mixed_indentation warning for pylint",
+      "changes": [
+        {
+          "file": "mixed_tabs_and_spaces.py",
+          "patch": "@@ -1,7 +1,7 @@\n def square(x):\n     sum_so_far = 0\n-    for counter in range(x):\n-        sum_so_far = sum_so_far + x\n-\treturn sum_so_far\n+    for _ in range(x):\n+        sum_so_far += x\n+\treturn sum_so_far  # noqa: E999 # pylint: disable=mixed-indentation Python 3 will raise a TabError here\n \n print(square(10))"
+        }
+      ]
+    },
+    {
+      "sha": "a6ce6259faebf039c95191c1fcb9c20e8ed1b2fc",
+      "message": "Mark TabError as noqa to silence linters on Python 3",
+      "changes": [
+        {
+          "file": "mixed_tabs_and_spaces.py",
+          "patch": "@@ -2,6 +2,6 @@ def square(x):\n     sum_so_far = 0\n     for counter in range(x):\n         sum_so_far = sum_so_far + x\n-\treturn sum_so_far\n+\treturn sum_so_far  # noqa Python 3 will raise a TabError here\n \n print(square(10))"
+        }
+      ]
+    }
+  ]
+}

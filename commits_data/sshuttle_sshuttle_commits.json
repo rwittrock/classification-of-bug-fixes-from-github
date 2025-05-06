@@ -1,0 +1,55 @@
+{
+  "repo_name": "sshuttle/sshuttle",
+  "commits": [
+    {
+      "sha": "9f238ebca820415bb36aba4cbefa4c605f080791",
+      "message": "Properly decode seed hosts argument in server.py\n\nWhen I starting sshuttle with option `--seed-hosts example.com`, got the following error:\r\n\r\n```\r\nhostwatch: Starting hostwatch with Python version 3.5.2\r\nhostwatch: Traceback (most recent call last):\r\n--->   File \"sshuttle.server\", line 144, in start_hostwatch\r\n--->   File \"sshuttle.hostwatch\", line 272, in hw_main\r\n--->   File \"sshuttle.hostwatch\", line 234, in check_host\r\n--->   File \"sshuttle.hostwatch\", line 32, in _is_ip\r\n--->   File \"/usr/lib/python3.5/re.py\", line 163, in match\r\n--->     return _compile(pattern, flags).match(string)\r\n---> TypeError: cannot use a string pattern on a bytes-like object\r\nTraceback (most recent call last):\r\n  File \"<string>\", line 1, in <module>\r\n  File \"assembler.py\", line 37, in <module>\r\n  File \"sshuttle.server\", line 393, in main\r\n  File \"sshuttle.ssnet\", line 596, in runonce\r\n  File \"sshuttle.server\", line 324, in hostwatch_ready\r\nsshuttle.helpers.Fatal: hostwatch process died\r\n```\r\n\r\nIt seems like the list of hosts is not properly decoded on the server side. This is an attempt to fix that.",
+      "changes": [
+        {
+          "file": "sshuttle/server.py",
+          "patch": "@@ -326,7 +326,7 @@ def hostwatch_ready(sock):\n     def got_host_req(data):\n         if not hw.pid:\n             (hw.pid, hw.sock) = start_hostwatch(\n-                    data.strip().split(), auto_hosts)\n+                    data.decode(\"ASCII\").strip().split(), auto_hosts)\n             handlers.append(Handler(socks=[hw.sock],\n                                     callback=hostwatch_ready))\n     mux.got_host_req = got_host_req"
+        }
+      ]
+    },
+    {
+      "sha": "4a954c547a5ec7b91d2d9122e284b33822caf634",
+      "message": "fix byte/string bug introduced in 1c46f25e\n\nThis is the error message that this commit fixes:\nTypeError: sequence item 142: expected a bytes-like object, str found\n\nComplete what 1c46f25e started, more or less.",
+      "changes": [
+        {
+          "file": "sshuttle/server.py",
+          "patch": "@@ -257,7 +257,7 @@ def hostwatch_ready(sock):\n             if lines[-1]:\n                 # no terminating newline: entry isn't complete yet!\n                 hw.leftover = lines.pop()\n-                lines.append('')\n+                lines.append(b'')\n             else:\n                 hw.leftover = b''\n             mux.send(0, ssnet.CMD_HOST_LIST, b'\\n'.join(lines))"
+        }
+      ]
+    },
+    {
+      "sha": "7f0b5c698b6336f91c9587f2dc10e2439d0f73bd",
+      "message": "Fix installation from wheel\n\nFix the following error. Looks like we have to have a function to call\nfor the entrypoint.\n\n$ pip install dist/sshuttle-0.76.dev8_ngf59508f-py2-none-any.whl\nProcessing ./dist/sshuttle-0.76.dev8_ngf59508f-py2-none-any.whl\nInstalling collected packages: sshuttle\nException:\nTraceback (most recent call last):\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/basecommand.py\", line 211, in main\n    status = self.run(options, args)\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/commands/install.py\", line 311, in run\n    root=options.root_path,\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/req/req_set.py\", line 646, in install\n    **kwargs\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/req/req_install.py\", line 803, in install\n    self.move_wheel_files(self.source_dir, root=root)\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/req/req_install.py\", line 998, in move_wheel_files\n    isolated=self.isolated,\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/wheel.py\", line 479, in move_wheel_files\n    maker.make_multiple(['%s = %s' % kv for kv in console.items()])\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/_vendor/distlib/scripts.py\", line 364, in make_multiple\n    filenames.extend(self.make(specification, options))\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/_vendor/distlib/scripts.py\", line 353, in make\n    self._make_script(entry, filenames, options=options)\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/_vendor/distlib/scripts.py\", line 244, in _make_script\n    script = self._get_script_text(entry).encode('utf-8')\n  File \"/tmp/ddd/local/lib/python2.7/site-packages/pip/wheel.py\", line 396, in _get_script_text\n    \"import_name\": entry.suffix.split(\".\")[0],\nAttributeError: 'NoneType' object has no attribute 'split'",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -53,7 +53,7 @@ def version_scheme(version):\n     ],\n     entry_points={\n         'console_scripts': [\n-            'sshuttle = sshuttle.__main__',\n+            'sshuttle = sshuttle.cmdline:main',\n         ],\n     },\n     tests_require=['pytest', 'mock'],"
+        }
+      ]
+    },
+    {
+      "sha": "b4b283b2145f937248e90032d6944178278fb1f5",
+      "message": "fixes the sshuttle entry-point in setup.py\n\nThis fixes the following error:\n\n    \"import_name\": entry.suffix.split(\".\")[0],\n    AttributeError: 'NoneType' object has no attribute 'split'\n\nSee\nhttps://pythonhosted.org/setuptools/setuptools.html#automatic-script-creation",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -45,7 +45,7 @@\n     ],\n     entry_points={\n         'console_scripts': [\n-            'sshuttle = sshuttle.__main__',\n+            'sshuttle = sshuttle:__main__',\n         ],\n     },\n     tests_require=['pytest', 'mock'],"
+        }
+      ]
+    },
+    {
+      "sha": "b35cfbd022e3b2f19512d875f592189ad8fd0e96",
+      "message": "hostwatch: add missing errno import\n\nIf the ~/.sshuttle.hosts file does not exist, it triggers the following\nerror:\n\n       Traceback (most recent call last):\n         File \"./sshuttle\", line 80, in <module>\n           sys.exit(hostwatch.hw_main(extra))\n         File \"/home/def/p/sshuttle/hostwatch.py\", line 246, in hw_main\n           read_host_cache()\n         File \"/home/def/p/sshuttle/hostwatch.py\", line 41, in read_host_cache\n           if e.errno == errno.ENOENT:\n       NameError: global name 'errno' is not defined\n\n(This only happened if you run 'sshuttle --hostwatch' from the command line\ndirectly, without passing it through assembler.py.)",
+      "changes": [
+        {
+          "file": "hostwatch.py",
+          "patch": "@@ -1,4 +1,4 @@\n-import subprocess, time, socket, re, select\n+import subprocess, time, socket, re, select, errno\n if not globals().get('skip_imports'):\n     import helpers\n     from helpers import *"
+        }
+      ]
+    }
+  ]
+}

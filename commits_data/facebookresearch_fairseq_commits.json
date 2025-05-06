@@ -1,0 +1,15 @@
+{
+  "repo_name": "facebookresearch/fairseq",
+  "commits": [
+    {
+      "sha": "6a7eb6ce05678d8cab1bea260830f2d1eb766cfe",
+      "message": "bugfix data not in args\n\nSummary:\nD15214049 introduced a bug such that if a tasks args does not contain data, then it will give error\n```\nFile \"/data/users/jaym/fbsource/fbcode/buck-out/dev/gen/deeplearning/projects/fairspeq/train#link-tree/train.py\", line 119, in reload_train\n   if len(args.data.split(\":\")) == 1:\nAttributeError: 'Namespace' object has no attribute 'data'\n```\n\nThis diff checks if data is in args to avoid above error.\n\nReviewed By: myleott, jmp84\n\nDifferential Revision: D15253373\n\nfbshipit-source-id: 14fb9ad878ee50f1b7583349bb17e29c03c40815",
+      "changes": [
+        {
+          "file": "train.py",
+          "patch": "@@ -116,7 +116,7 @@ def main(args, init_distributed=False):\n \n def reload_train(args, epoch_itr, max_positions, task):\n     # nothing needs to be done when the dataset is not sharded.\n-    if len(args.data.split(\":\")) == 1:\n+    if \"data\" not in args or (\"data\" in args and len(args.data.split(\":\")) == 1):\n         return epoch_itr\n     print(\"| Reloading shard of train data at epoch: \", epoch_itr.epoch)\n     task.load_dataset(args.train_subset, combine=True, epoch=epoch_itr.epoch)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "repo_name": "python-poetry/poetry",
+  "commits": [
+    {
+      "sha": "a879e8ac9855beaed718fdb45cb888f87132a410",
+      "message": "Fix an AttributeError in the editable builder",
+      "changes": [
+        {
+          "file": "poetry/masonry/builders/editable.py",
+          "patch": "@@ -22,7 +22,7 @@ def _setup_build(self):\n         has_setup = setup.exists()\n \n         if has_setup:\n-            self._io.write_line(\n+            self._io.writeln(\n                 \"<warning>A setup.py file already exists. Using it.</warning>\"\n             )\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "7f5edda473ba47c12a6e713957d85589ac5e0e68",
+      "message": "Fix a TypeError when requires_dist is null on PyPI",
+      "changes": [
+        {
+          "file": "poetry/repositories/pypi_repository.py",
+          "patch": "@@ -83,7 +83,8 @@ def package(self,\n \n             release_info = self.get_release_info(name, version)\n             package = Package(name, version, version)\n-            for req in release_info['requires_dist']:\n+            requires_dist = release_info['requires_dist'] or []\n+            for req in requires_dist:\n                 try:\n                     req = InstallRequirement.from_line(req)\n                 except Exception:"
+        }
+      ]
+    }
+  ]
+}

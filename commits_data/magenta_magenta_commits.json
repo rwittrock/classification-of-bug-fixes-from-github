@@ -1,0 +1,25 @@
+{
+  "repo_name": "magenta/magenta",
+  "commits": [
+    {
+      "sha": "a94909e38cff9c6d1a98d48aa73d2db1cdd56a91",
+      "message": "Fix UnboundLocalError in nsynth (#788) (#789)",
+      "changes": [
+        {
+          "file": "magenta/models/nsynth/wavenet/nsynth_generate.py",
+          "patch": "@@ -61,7 +61,7 @@ def main(unused_argv=None):\n         if fname.lower().endswith(postfix)\n     ])\n \n-  elif source_path.lower().endswith(postfix):\n+  elif source_path.lower().endswith((\".wav\", \".npy\")):\n     files = [source_path]\n   else:\n     files = []"
+        }
+      ]
+    },
+    {
+      "sha": "ba307245e5a7578ea3a55085deac01d7514bd356",
+      "message": "bugfix: #530 TypeError: __init__() got multiple values for keyword argument dtype (#535)",
+      "changes": [
+        {
+          "file": "magenta/models/image_stylization/ops.py",
+          "patch": "@@ -103,7 +103,7 @@ def _label_conditioned_variable(name, initializer, labels, num_categories):\n     beta, gamma = None, None\n     if center:\n       beta = _label_conditioned_variable(\n-          'beta', tf.zeros_initializer, labels, num_categories)\n+          'beta', tf.zeros_initializer(), labels, num_categories)\n     if scale:\n       gamma = _label_conditioned_variable(\n           'gamma', tf.ones_initializer(), labels, num_categories)"
+        }
+      ]
+    }
+  ]
+}

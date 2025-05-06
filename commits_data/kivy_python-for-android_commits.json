@@ -1,0 +1,35 @@
+{
+  "repo_name": "kivy/python-for-android",
+  "commits": [
+    {
+      "sha": "e058a8341abcecd02049a16accb83b968f68b5bb",
+      "message": "Fixes Python3.6 and enum34\n\nModule `enum34` should only be installed on Python < 3.4\nFixes host Python3 regression from ecd0bf6, the error was:\n```\nAttributeError: module 'enum' has no attribute 'IntFlag'\n```",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -16,7 +16,8 @@\n data_files = []\n \n \n-install_reqs = ['appdirs', 'colorama>=0.3.3', 'jinja2', 'six', 'enum34']\n+install_reqs = ['appdirs', 'colorama>=0.3.3', 'jinja2', 'six',\n+    'enum34;python_version<\"3.4\"']\n if os.name != 'nt':\n     install_reqs.append('sh>=1.10')\n "
+        }
+      ]
+    },
+    {
+      "sha": "2218229d52c55c57230f61a5b835ef7adf852c20",
+      "message": "Bump colorama requirement to 0.3.3\n\nThe EX color variants weren't added until 0.3.3. I found out because\nFedora 23 packages colorama 0.3.2, which satisfies the requirement, but\ncauses the error: `AttributeError: 'AnsiCodes' object has no attribute\n'LIGHTBLUE_EX'`...",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -47,7 +47,7 @@ def recursively_include(results, directory, patterns):\n       author_email='kivy-dev@googlegroups.com',\n       url='https://github.com/kivy/python-for-android', \n       license='MIT', \n-      install_requires=['appdirs', 'colorama>0.3', 'sh>=1.10', 'jinja2', 'argparse',\n+      install_requires=['appdirs', 'colorama>=0.3.3', 'sh>=1.10', 'jinja2', 'argparse',\n                         'six'],\n       entry_points={\n           'console_scripts': ["
+        }
+      ]
+    },
+    {
+      "sha": "4f87df148ef0038066d41125f1e493611afe94b5",
+      "message": "[FIX] AttributeError: 'AnsiCodes' object has no attribute 'LIGHTBLUE_EX'\n\n\"colorama<0.3\" have no LIGHTBLUE_EX. Fixes.",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -46,7 +46,7 @@ def recursively_include(results, directory, patterns):\n       author_email='kivy-dev@googlegroups.com',\n       url='https://github.com/inclement/python-for-android-revamp', \n       license='MIT', \n-      install_requires=['appdirs', 'colorama', 'sh', 'jinja2', 'argparse'],\n+      install_requires=['appdirs', 'colorama>0.3', 'sh', 'jinja2', 'argparse'],\n       entry_points={\n           'console_scripts': [\n               'python-for-android = pythonforandroid.toolchain:ToolchainCL',"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "repo_name": "fossasia/visdom",
+  "commits": [
+    {
+      "sha": "bca2859336196f56f6d4604ec68aa8b54422eeba",
+      "message": "Fix xmin/xmax. (#423)\n\nSummary:\nI was getting this error before:\n\n```python\n> visdom_client.contour(torch.randn(5,5))\n```\n\n```\n~/anaconda3/lib/python3.6/json/__init__.py in dumps(obj, skipkeys, ensure_ascii, check_circular, allow_nan, cls, indent, separators, default, sort_keys, **kw)\n    229         cls is None and indent is None and separators is None and\n    230         default is None and not sort_keys and not kw):\n--> 231         return _default_encoder.encode(obj)\n    232     if cls is None:\n    233         cls = JSONEncoder\n\n~/anaconda3/lib/python3.6/json/encoder.py in encode(self, o)\n    197         # exceptions aren't as detailed.  The list call should be roughly\n    198         # equivalent to the PySequence_Fast that ''.join() would do.\n--> 199         chunks = self.iterencode(o, _one_shot=True)\n    200         if not isinstance(chunks, (list, tuple)):\n    201             chunks = list(chunks)\n\n~/anaconda3/lib/python3.6/json/encoder.py in iterencode(self, o, _one_shot)\n    255                 self.key_separator, self.item_separator, self.sort_keys,\n    256                 self.skipkeys, _one_shot)\n--> 257         return _iterencode(o, 0)\n    258\n    259 def _make_iterencode(markers, _default, _encoder, _indent, _floatstr,\n\n~/anaconda3/lib/python3.6/json/encoder.py in default(self, o)\n    178         \"\"\"\n    179         raise TypeError(\"Object of type '%s' is not JSON serializable\" %\n--> 180                         o.__class__.__name__)\n    181\n    182     def encode(self, o):\n\nTypeError: Object of type 'float32' is not JSON serializable\n```\n\nThe problem is in  https://github.com/facebookresearch/visdom/blob/291a02e885a924c3e3cacc46fb059e9624ff5644/py/visdom/__init__.py#L1358 .\n\n`X.min()` can return a numpy scalar type, like `numpy.float32`, which `json.dumps` doesn't know how to handle with the default serializer.\nPull Request resolved: https://github.com/facebookresearch/visdom/pull/423\n\nDifferential Revision: D8879895\n\nPulled By: JackUrb\n\nfbshipit-source-id: 2eaf4ab74dccf6c8fb33cdc399061ed70d61d72a",
+      "changes": [
+        {
+          "file": "py/visdom/__init__.py",
+          "patch": "@@ -1361,8 +1361,8 @@ def _surface(self, X, stype, win=None, env=None, opts=None):\n         assert X.ndim == 2, 'X should be two-dimensional'\n \n         opts = {} if opts is None else opts\n-        opts['xmin'] = opts.get('xmin', X.min())\n-        opts['xmax'] = opts.get('xmax', X.max())\n+        opts['xmin'] = float(opts.get('xmin', X.min()))\n+        opts['xmax'] = float(opts.get('xmax', X.max()))\n         opts['colormap'] = opts.get('colormap', 'Viridis')\n         _title2str(opts)\n         _assert_opts(opts)"
+        }
+      ]
+    },
+    {
+      "sha": "e3cc9040c82f484bb30f27c36b293af32b8ce54a",
+      "message": "Fix string formating in assert\n\nSummary:\nWas giving the following error when passing bad arguments :\n```\n  File \"/Users/wilmot_p/PROG/PONG/.env/lib/python2.7/site-packages/visdom/__init__.py\", line 130, in _markerColorCheck\n    (X.shape[0], X.shape[1], L, L, 'x'.join(mc.shape))\nTypeError: sequence item 0: expected string or Unicode, int found\n```\nCloses https://github.com/facebookresearch/visdom/pull/243\n\nDifferential Revision: D6672343\n\nPulled By: lvdmaaten\n\nfbshipit-source-id: beb7ac0d0a1b84371ec45b91532c69829d4fb350",
+      "changes": [
+        {
+          "file": "py/__init__.py",
+          "patch": "@@ -125,9 +125,9 @@ def _markerColorCheck(mc, X, Y, L):\n     assert isndarray(mc), 'mc should be a numpy ndarray'\n     assert mc.shape[0] == L or (mc.shape[0] == X.shape[0] and\n             (mc.ndim == 1 or mc.ndim == 2 and mc.shape[1] == 3)), \\\n-            'marker colors have to be of size `%d` or `%d x 3` ' + \\\n-            ' or `%d` or `%d x 3`, but got: %s' % \\\n-            (X.shape[0], X.shape[1], L, L, 'x'.join(mc.shape))\n+            ('marker colors have to be of size `%d` or `%d x 3` ' + \\\n+            ' or `%d` or `%d x 3`, but got: %s') % \\\n+            (X.shape[0], X.shape[1], L, L, 'x'.join(map(str,mc.shape)))\n \n     assert (mc >= 0).all(), 'marker colors have to be >= 0'\n     assert (mc <= 255).all(), 'marker colors have to be <= 255'"
+        }
+      ]
+    },
+    {
+      "sha": "57b917e2d6a2be2034528743a37d89787175a07c",
+      "message": "Fix for CxHxW when image is called with ndim=2\n\nSummary:\nThis commit fixes the following exception, occurring when `image` is called with a 2d array, such as `vis.image(np.ones((10,10)))`. The error is debris from the CxHxW changes.\n\n```\n>>> import visdom\n>>> import numpy as np\n>>> vis = visdom.Visdom()\n>>> vis.image(np.ones((10,10)))\nTraceback (most recent call last):\n  File \"/usr/local/lib/python3.5/site-packages/PIL/Image.py\", line 2195, in fromarray\n    mode, rawmode = _fromarray_typemap[typekey]\nKeyError: ((1, 1, 30), '|u1')\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<stdin>\", line 1, in <module>\n  File \"/usr/local/lib/python3.5/site-packages/visdom/__init__.py\", line 179, in result\n    return fn(*args, **kwargs)\n  File \"/usr/local/lib/python3.5/site-packages/visdom/__init__.py\", line 318, in image\n    im = Image.fromarray(img)\n  File \"/usr/local/lib/python3.5/site-packages/PIL/Image.py\", line 2198, in fromarray\n    raise TypeError(\"Cannot handle this data type\")\nTypeEr\nCloses https://github.com/facebookresearch/visdom/pull/50\n\nDifferential Revision: D4790583\n\nPulled By: ajabri\n\nfbshipit-source-id: 2a0dc883646b97abf6a80fa9a553fbff31db9d61",
+      "changes": [
+        {
+          "file": "py/__init__.py",
+          "patch": "@@ -306,7 +306,7 @@ def image(self, img, win=None, env=None, opts=None):\n \n         nchannels = img.shape[0] if img.ndim == 3 else 1\n         if nchannels == 1:\n-            img = img[:, :, np.newaxis].repeat(3, axis=2)\n+            img = img[np.newaxis, :, :].repeat(3, axis=0)\n \n         if 'float' in str(img.dtype):\n             if img.max() <= 1:"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "repo_name": "benoitc/gunicorn",
+  "commits": [
+    {
+      "sha": "21f0adc34617a651f169968869851e34e787f24b",
+      "message": "Fix AttributeError when --reload was not passed (#1806)\n\nFixes #1805",
+      "changes": [
+        {
+          "file": "gunicorn/workers/base.py",
+          "patch": "@@ -137,7 +137,7 @@ def load_wsgi(self):\n         try:\n             self.wsgi = self.app.wsgi()\n         except SyntaxError as e:\n-            if self.cfg.reload == 'off':\n+            if not self.cfg.reload:\n                 raise\n \n             self.log.exception(e)"
+        }
+      ]
+    },
+    {
+      "sha": "d48b600239962223d3f5670f450fa345b12d238d",
+      "message": "Fix AttributeError when --log-syslog is passed (#1773)\n\nConfig option `disable_access_log_redirection` does not exist.\r\nThis was introduced in 7dc9003dff149e29c0af4d409060d34f9a7775fa.\r\n\r\nFixes #1768",
+      "changes": [
+        {
+          "file": "gunicorn/glogging.py",
+          "patch": "@@ -340,7 +340,7 @@ def access(self, resp, req, environ, request_time):\n \n         if not (self.cfg.accesslog or self.cfg.logconfig or\n            self.cfg.logconfig_dict or\n-           (self.cfg.syslog and not self.cfg.disable_access_log_redirection)):\n+           (self.cfg.syslog and not self.cfg.disable_redirect_access_to_syslog)):\n             return\n \n         # wrap atoms:"
+        }
+      ]
+    },
+    {
+      "sha": "68260c68831fe3c1020a291cd28d7a1fee58f169",
+      "message": "Fix \"TypeError: 'OSError' object is not subscriptable\" in py3",
+      "changes": [
+        {
+          "file": "gunicorn/sock.py",
+          "patch": "@@ -43,7 +43,7 @@ def set_options(self, sock, bound=False):\n             try:\n                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)\n             except socket.error as err:\n-                if err[0] not in (errno.ENOPROTOOPT, errno.EINVAL):\n+                if err.errno not in (errno.ENOPROTOOPT, errno.EINVAL):\n                     raise\n         if not bound:\n             self.bind(sock)"
+        }
+      ]
+    },
+    {
+      "sha": "6086e31d07e6c74280be3c2a92d353bafdb69aa9",
+      "message": "Fix NameError in gunicorn/workers/gthread.py.",
+      "changes": [
+        {
+          "file": "gunicorn/workers/gthread.py",
+          "patch": "@@ -61,7 +61,7 @@ def init(self):\n         if self.parser is None:\n             # wrap the socket if needed\n             if self.cfg.is_ssl:\n-                self.sock = ssl.wrap_socket(client, server_side=True,\n+                self.sock = ssl.wrap_socket(self.sock, server_side=True,\n                         **self.cfg.ssl_options)\n \n             # initialize the parser"
+        }
+      ]
+    }
+  ]
+}

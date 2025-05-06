@@ -1,0 +1,15 @@
+{
+  "repo_name": "microsoft/nni",
+  "commits": [
+    {
+      "sha": "44f548667f13a11cde7270a11cd2cdf64af4e00f",
+      "message": "Fix IndexError bug (#978)\n\nCatch IndexError",
+      "changes": [
+        {
+          "file": "src/sdk/pynni/nni/hyperopt_tuner/hyperopt_tuner.py",
+          "patch": "@@ -347,7 +347,7 @@ def get_suggestion(self, random_search=False):\n         for key in vals:\n             try:\n                 parameter[key] = vals[key][0].item()\n-            except KeyError:\n+            except (KeyError, IndexError):\n                 parameter[key] = None\n \n         # remove '_index' from json2parameter and save params-id"
+        }
+      ]
+    }
+  ]
+}

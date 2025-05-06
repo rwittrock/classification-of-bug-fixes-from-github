@@ -1,0 +1,65 @@
+{
+  "repo_name": "cupy/cupy",
+  "commits": [
+    {
+      "sha": "504fae8cdaa4abc36b3d035673786113a5a8ccda",
+      "message": "Fix AttributeError of stride_tricks",
+      "changes": [
+        {
+          "file": "cupy/lib/__init__.py",
+          "patch": "@@ -0,0 +1 @@\n+from cupy.lib import stride_tricks  # NOQA"
+        }
+      ]
+    },
+    {
+      "sha": "b76c173fbd18788ae8c46bc5ba0614195e904b78",
+      "message": "Raise TypeError for bool input",
+      "changes": [
+        {
+          "file": "tests/cupy_tests/test_type_routines.py",
+          "patch": "@@ -64,6 +64,13 @@ def test_common_type_two_arguments(self, xp, dtype1, dtype2):\n         assert type(ret) == type\n         return ret\n \n+    @testing.for_all_dtypes()\n+    @testing.numpy_cupy_raises(accept_error=TypeError)\n+    def test_common_type_bool(self, xp, dtype):\n+        array1 = _generate_type_routines_input(xp, dtype, 'array')\n+        array2 = _generate_type_routines_input(xp, 'bool_', 'array')\n+        xp.common_type(array1, array2)\n+\n \n @testing.parameterize(\n     *testing.product({"
+        }
+      ]
+    },
+    {
+      "sha": "0731203d83aa64070b903d81a47d469606c2778e",
+      "message": "fix numpy(), raise TypeError",
+      "changes": [
+        {
+          "file": "cupy/fallback_mode/fallback.py",
+          "patch": "@@ -62,6 +62,9 @@ def __call__(self, *args, **kwargs):\n             (module, res, ndarray): Returns of call_cupy() or call_numpy\n             Raise AttributeError: If cupy_func and numpy_func is not found.\n         \"\"\"\n+        if self.name == 'numpy':\n+            raise TypeError(\"'module' object is not callable\")\n+\n         attributes = super().get_attr_list_copy()\n         sub_module, func_name = get_last_and_rest(attributes)\n "
+        }
+      ]
+    },
+    {
+      "sha": "dd73bea878db585fcf6a27ca90ff5d70c8516d43",
+      "message": "ValueError->TypeError in _new_like_order_and_strides",
+      "changes": [
+        {
+          "file": "cupy/creation/basic.py",
+          "patch": "@@ -58,15 +58,15 @@ def _new_like_order_and_strides(a, dtype, order):\n         order = 'C'\n         stride = numpy.dtype(dtype).itemsize\n         strides = numpy.zeros(a.ndim, dtype=numpy.intp)\n-        for idim in range(a.ndim-1, -1, -1):\n+        for idim in range(a.ndim - 1, -1, -1):\n             i_perm = perm[idim]\n             strides[i_perm] = stride\n             stride *= a.shape[i_perm]\n \n         memptr = cupy.empty(a.size, dtype=dtype).data\n         return order, strides, memptr\n     else:\n-        raise ValueError(\"unknown order, {}\".format(order))\n+        raise TypeError('order not understood: {}'.format(order))\n \n \n def empty_like(a, dtype=None, order='K'):"
+        }
+      ]
+    },
+    {
+      "sha": "2ba0a6d684f7cf115d0c90348d675aa148ac09b0",
+      "message": "Fix ndarray.__iter__\n\nTypeError should be raised as soon as __iter__ is called",
+      "changes": [
+        {
+          "file": "tests/cupy_tests/core_tests/test_iter.py",
+          "patch": "@@ -27,9 +27,9 @@ class TestIterInvalid(unittest.TestCase):\n \n     @testing.for_all_dtypes()\n     @testing.numpy_cupy_raises()\n-    def test_list(self, xp, dtype):\n+    def test_iter(self, xp, dtype):\n         x = testing.shaped_arange((), xp, dtype)\n-        list(x)\n+        iter(x)\n \n     @testing.for_all_dtypes()\n     @testing.numpy_cupy_raises()"
+        }
+      ]
+    },
+    {
+      "sha": "57991cd5a0a3197098776d6faa03173fcec43ed2",
+      "message": "Check raises of TypeError in gradient_check.check_backward",
+      "changes": [
+        {
+          "file": "tests/chainer_tests/test_gradient_check.py",
+          "patch": "@@ -359,6 +359,8 @@ def f(x, y):\n             s = Ident()(x)\n             return s,\n \n+        self.assertRaises(TypeError, gradient_check.check_backward,\n+                          f, (x1, x2), g1, no_grads=[False, False])\n         gradient_check.check_backward(f, (x1, x2), g1, no_grads=[False, True])\n \n "
+        }
+      ]
+    }
+  ]
+}

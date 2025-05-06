@@ -1,0 +1,25 @@
+{
+  "repo_name": "pennersr/django-allauth",
+  "commits": [
+    {
+      "sha": "0abcd4150c9b5b17cd2b0efa4e41a49585f1d828",
+      "message": "ORCID provider: fix extract_from_dict\n\nextract_from_dict fails when one of the intermediate values is None, raising a TypeError that was not caught properly. This happens when the some of the information is not present in the profile (e.g. the email address that can be hidden).",
+      "changes": [
+        {
+          "file": "allauth/socialaccount/providers/orcid/provider.py",
+          "patch": "@@ -58,5 +58,5 @@ def extract_from_dict(data, path):\n         for key in path:\n             value = value[key]\n         return value\n-    except (KeyError, IndexError):\n+    except (KeyError, IndexError, TypeError):\n         return ''"
+        }
+      ]
+    },
+    {
+      "sha": "625a418f48ced2b87d72e6a440a4ebea9d4c0c53",
+      "message": "TypeError when going directly to /accounts/social/signup/ (closes #488)",
+      "changes": [
+        {
+          "file": "allauth/socialaccount/views.py",
+          "patch": "@@ -21,8 +21,10 @@ class SignupView(RedirectAuthenticatedUserMixin, CloseableSignupMixin,\n     template_name = 'socialaccount/signup.html'\n \n     def dispatch(self, request, *args, **kwargs):\n-        self.sociallogin = SocialLogin \\\n-            .deserialize(request.session.get('socialaccount_sociallogin'))\n+        self.sociallogin = None\n+        data = request.session.get('socialaccount_sociallogin')\n+        if data:\n+            self.sociallogin = SocialLogin.deserialize(data)\n         if not self.sociallogin:\n             return HttpResponseRedirect(reverse('account_login'))\n         return super(SignupView, self).dispatch(request, *args, **kwargs)"
+        }
+      ]
+    }
+  ]
+}

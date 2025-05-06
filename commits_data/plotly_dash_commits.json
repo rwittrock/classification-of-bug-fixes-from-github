@@ -1,0 +1,15 @@
+{
+  "repo_name": "plotly/dash",
+  "commits": [
+    {
+      "sha": "01b6d9d26731901593ffa1b20ccc6fab6fa6e02b",
+      "message": "prop_keys as list to handle TypeError for odict_keys in :three:",
+      "changes": [
+        {
+          "file": "dash/development/_r_components_generation.py",
+          "patch": "@@ -131,7 +131,7 @@ def generate_class_string(name, props, project_shortname, prefix):\n     # Ensure props are ordered with children first\n     props = reorder_props(props=props)\n \n-    prop_keys = props.keys()\n+    prop_keys = list(props.keys())\n \n     default_paramtext = ''\n     default_argtext = ''\n@@ -270,14 +270,15 @@ def write_help_file(name, props, description, prefix):\n \n     \"\"\"\n     file_name = '{}{}.Rd'.format(prefix, name)\n-    prop_keys = props.keys()\n \n     default_argtext = ''\n     item_text = ''\n \n     # Ensure props are ordered with children first\n     props = reorder_props(props=props)\n \n+    prop_keys = list(props.keys())\n+\n     # Filter props to remove those we don't want to expose\n     for item in prop_keys[:]:\n         if item.endswith('-*') \\"
+        }
+      ]
+    }
+  ]
+}

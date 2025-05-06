@@ -1,0 +1,745 @@
+{
+  "repo_name": "odoo/odoo",
+  "commits": [
+    {
+      "sha": "bf250a33f0aca36f1c354d163219680fc504931a",
+      "message": "[FIX] payment: Keep session serializable\n\nFix error like \"TypeError: {4} is not JSON serializable\" when\nserializing the session object (e.g. for external storage)\n\ncloses odoo/odoo#41360\n\nX-original-commit: e91e38fa4bd12ba9d2027e7778a10252e08b9a86\nSigned-off-by: Damien Bouvy (dbo) <dbo@odoo.com>",
+      "changes": [
+        {
+          "file": "addons/payment/controllers/portal.py",
+          "patch": "@@ -35,7 +35,7 @@ def add_payment_transaction(transactions):\n         if not transactions:\n             return False\n         tx_ids_list = set(request.session.get(\"__payment_tx_ids__\", [])) | set(transactions.ids)\n-        request.session[\"__payment_tx_ids__\"] = tx_ids_list\n+        request.session[\"__payment_tx_ids__\"] = list(tx_ids_list)\n         return True\n \n     @staticmethod"
+        }
+      ]
+    },
+    {
+      "sha": "47d2cc94009c6cfd7f1528b45602d56b7c17ed2e",
+      "message": "[FIX] hr_recruitment: Initialize company_id correctly\n\nFix \"UnboundLocalError: local variable 'company_id' referenced before assignment\"\n\ncloses odoo/odoo#38135\n\nSigned-off-by: Romain Libert (rli) <rli@odoo.com>",
+      "changes": [
+        {
+          "file": "addons/hr_recruitment/models/hr_recruitment.py",
+          "patch": "@@ -229,6 +229,7 @@ def onchange_job_id(self):\n     def _onchange_job_id_internal(self, job_id):\n         department_id = False\n         user_id = False\n+        company_id = False\n         stage_id = self.stage_id.id or self._context.get('default_stage_id')\n         if job_id:\n             job = self.env['hr.job'].browse(job_id)"
+        }
+      ]
+    },
+    {
+      "sha": "5e13e13a207910aadfa98a1186ba3632303db213",
+      "message": "[FIX] payment_authorize: create a customer profile for ACH transactions\n\nThe response profile of an ACH transaction won't contain a credit card\nnumber since ACH transactions use bank accounts instead. It looks like\nthis:\n\n<getCustomerPaymentProfileResponse\n  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n  xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"\n  xmlns=\"AnetApi/xml/v1/schema/AnetApiSchema.xsd\">\n  <messages>\n    ...\n  </messages>\n  <paymentProfile>\n    <billTo>\n      <firstName>XXX</firstName>\n      <lastName>XXXX</lastName>\n      <address>XXX XXX XXX</address>\n      <city>XXX</city>\n      <state>XX</state>\n      <zip>XXXXX</zip>\n      <country>XXX</country>\n      <phoneNumber>XXXXXXXXX</phoneNumber>\n    </billTo>\n    <customerProfileId>XXXXXXXXX</customerProfileId>\n    <customerPaymentProfileId>XXXXXXXXX</customerPaymentProfileId>\n    <payment>\n      <bankAccount>\n        <accountType>checking</accountType>\n        <routingNumber>XXXXXXXX</routingNumber>\n        <accountNumber>XXXXXXXX</accountNumber>\n        <nameOnAccount>XXX</nameOnAccount>\n        <echeckType>WEB</echeckType>\n      </bankAccount>\n    </payment>\n  </paymentProfile>\n</getCustomerPaymentProfileResponse>\n\nThis causes the transaction not to get confirmed in Odoo:\n\n...\nFile \".../authorize_request.py\", line 241, in create_customer_profile_from_tx\n  res['name'] = response_profile.find('paymentProfile/payment/creditCard/cardNumber').text\nAttributeError: 'NoneType' object has no attribute 'text' - - -\n\nTo solve it fall back on the accountNumber if there's no cardNumber.\n\nopw-2062784\n\ncloses odoo/odoo#36298\n\nSigned-off-by: Nicolas Martinelli (nim) <nim@odoo.com>",
+      "changes": [
+        {
+          "file": "addons/payment_authorize/models/authorize_request.py",
+          "patch": "@@ -238,7 +238,12 @@ def create_customer_profile_from_tx(self, partner, transaction_id):\n         etree.SubElement(root_profile, \"customerProfileId\").text = res['profile_id']\n         etree.SubElement(root_profile, \"customerPaymentProfileId\").text = res['payment_profile_id']\n         response_profile = self._authorize_request(root_profile)\n-        res['name'] = response_profile.find('paymentProfile/payment/creditCard/cardNumber').text\n+        card_number = response_profile.find('paymentProfile/payment/creditCard/cardNumber')\n+        if card_number:\n+            res['name'] = card_number.text\n+        else:\n+            res['name'] = response_profile.find('paymentProfile/payment/bankAccount/accountNumber').text\n+\n         return res\n \n     def credit(self, token, amount, transaction_id):"
+        }
+      ]
+    },
+    {
+      "sha": "ef94a64754da9ecaf02fed4270d964a81503acd7",
+      "message": "[FIX] mail: bad indentation\nThe indentation leaded to\nUnboundLocalError: local variable 'attachement_values_list' referenced before assignment",
+      "changes": [
+        {
+          "file": "addons/mail/models/mail_thread.py",
+          "patch": "@@ -1691,7 +1691,7 @@ def _message_post_process_attachments(self, attachments, attachment_ids, message\n                         cids_in_body.add(node.get('src').split('cid:')[1])\n                     elif node.get('data-filename'):\n                         names_in_body.add(node.get('data-filename'))\n-                attachement_values_list = []\n+            attachement_values_list = []\n \n             # generate values\n             for attachment in attachments:"
+        }
+      ]
+    },
+    {
+      "sha": "4ba77c52f5d3287e7233eca604f2a086e3f29f7d",
+      "message": "[FIX] phone_validation: fix MRO issue with phone.validation.mixin\n\nIssue is that when a model inherits from phone.Validation.mixin, then from\nmail.thread.phone (which inherits from phone.validation.mixin) we have\nan issue :\n\nTypeError: Cannot create a consistent method resolution\norder (MRO) for bases BaseModel, base, mail.thread, phone.validation.mixin,\nmail.thread.phone\n\nAs fixing it could be complicated we have a way to avoid it: move conflicting\ncode as it is used only in mail.thread.phone .\n\nIn this commit we also import a file forgotten at d2809cbd941b20928cd1e48c50c1339888853d98 which triggers\nthe issue itself.\n\nTask 2063049 (bug spotted)\nTask 2061765 (triggering the issue)\n\ncloses odoo/odoo#36580\n\nSigned-off-by: Thibault Delavallee (tde) <tde@openerp.com>",
+      "changes": [
+        {
+          "file": "addons/phone_validation/models/__init__.py",
+          "patch": "@@ -4,3 +4,4 @@\n from . import phone_blacklist\n from . import phone_validation_mixin\n from . import mail_thread_phone\n+from . import res_partner"
+        }
+      ]
+    },
+    {
+      "sha": "9022f2154c19e182202ef622b613a12a173d3d3f",
+      "message": "[FIX] partner_autocomplete: UserError instead of traceback when no credits\n\nWhen creating a res_partner company, with \"Auto-populate company data\",\nif there is 'Insufficient Credit', AccessError, ConnectionError are caught,\nbut not UserError.\nThe user can therefore gets a vague js error\n\"Uncaught TypeError: Cannot read property 'type' of undefined\"\nWe thus add exceptions.UserError among the caught exceptions.\n\nopw 2040646\n\ncloses odoo/odoo#35366\n\nSigned-off-by: Nans Lefebvre (len) <len@odoo.com>",
+      "changes": [
+        {
+          "file": "addons/partner_autocomplete/models/res_partner.py",
+          "patch": "@@ -95,7 +95,7 @@ def _rpc_remote_api(self, action, params, timeout=15):\n         })\n         try:\n             return jsonrpc(url=url, params=params, timeout=timeout), False\n-        except (ConnectionError, HTTPError, exceptions.AccessError) as exception:\n+        except (ConnectionError, HTTPError, exceptions.AccessError, exceptions.UserError) as exception:\n             _logger.error('Autocomplete API error: %s' % str(exception))\n             return False, str(exception)\n         except InsufficientCreditError as exception:"
+        }
+      ]
+    },
+    {
+      "sha": "5fd75da0e944952b2f8c9c4de19d84b3b78f6187",
+      "message": "[FIX] base: ir_rule don't not cache _compute_domain\n\nFollowing the revamp / contextualisation of multi company, the list of\nallowed companies from the context is now used as part of the ir_rule\ncaching key.\n\nSadly that list is a list, and thus not hashable, meaning\n_compute_domain was not cached anymore. Sadlier, type errors would be\nsilently ignored (just increasing the error counter of the cache stats).\n\nFix both issues:\n\n* Store lists from the context as tuple. Technically could be a\nfrozenset but that might not always be the case so it doesn't feel\nfuture-proof, a tuple might lead to slightly less hits but seems safer\n* Log a proper warning in case of an ormcache TypeError (non-hashable\ntype used as cache key). It should never routinely happen.\n\ncloses odoo/odoo#34330\n\nSigned-off-by: Xavier Morel (xmo) <xmo@odoo.com>",
+      "changes": [
+        {
+          "file": "odoo/tools/cache.py",
+          "patch": "@@ -91,6 +91,7 @@ def lookup(self, method, *args, **kwargs):\n             value = d[key] = self.method(*args, **kwargs)\n             return value\n         except TypeError:\n+            _logger.warn(\"cache lookup error on %r\", key, exc_info=True)\n             counter.err += 1\n             return self.method(*args, **kwargs)\n "
+        }
+      ]
+    },
+    {
+      "sha": "521f7d36c1ff929ea52e9ed6fd4170bd3b968b19",
+      "message": "[IMP] odoo: ignore unsupported args from controller\n\nBefore this commit, call a controller defined as:\n\n```\n@http.route('/route', type='http', auth='public')\ndef controller_func(self, foo):\ndo_it()\n```\n\nand called with url like /route?foo=1&bar=2\n\nwill crash with an exception:\n`TypeError: controller_func() got an unexpected keyword argument 'bar'`\n\nNow, we remove the extra parameters if the controller doesn't support it.\nThis case is not uncommon, you can easily arrive in this case with utm or\ndebug as extra parameter.\n\ncloses odoo/odoo#33962\n\nSigned-off-by: Christophe Simonis <chs@odoo.com>",
+      "changes": [
+        {
+          "file": "addons/test_website/tests/__init__.py",
+          "patch": "@@ -1,5 +1,6 @@\n # -*- coding: utf-8 -*-\n # Part of Odoo. See LICENSE file for full copyright and licensing details.\n \n+from . import test_controller_args\n from . import test_reset_views\n from . import test_views_during_module_operation"
+        }
+      ]
+    },
+    {
+      "sha": "b3d4c2d178bb3dbb9875271082bc36a80076e649",
+      "message": "[FIX] account: IndentationError\n\nOversight of previous forward-port.",
+      "changes": [
+        {
+          "file": "addons/account/models/account_bank_statement.py",
+          "patch": "@@ -241,7 +241,6 @@ def button_confirm_bank(self):\n                 #upon bank statement confirmation, look if some lines have the account_id set. It would trigger a journal entry\n                 #creation towards that account, with the wanted side-effect to skip that line in the bank reconciliation widget.\n                 journal_entries = line_journal_entries[st_line]\n-                if st_line.account_id and not journal_entries.ids:\n                 st_line.fast_counterpart_creation()\n                 if not st_line.account_id and not journal_entries.ids and not st_line.statement_id.currency_id.is_zero(st_line.amount):\n                     raise UserError(_('All the account entries lines must be processed in order to close the statement.'))"
+        }
+      ]
+    },
+    {
+      "sha": "eb62cd2c2b8eba2fceee4f0491a7f9a045de73d5",
+      "message": "[FIX] gamification: badge auth for badge no error\n\nTo avoid exception:\n  TypeError: Mixing apples and oranges: gamification.badge() - gamification.badge.user(1,)\n\nwhen rule_auth of a badge is set to `having`.\n\nopw-1945440\ncloses #31436\ncloses #31595\n\nSigned-off-by: Nicolas Lempereur (nle) <nle@odoo.com>",
+      "changes": [
+        {
+          "file": "addons/gamification/models/badge.py",
+          "patch": "@@ -236,7 +236,7 @@ def _can_grant_badge(self):\n         elif self.rule_auth == 'users' and self.env.user not in self.rule_auth_user_ids:\n             return self.USER_NOT_VIP\n         elif self.rule_auth == 'having':\n-            all_user_badges = self.env['gamification.badge.user'].search([('user_id', '=', self.env.uid)])\n+            all_user_badges = self.env['gamification.badge.user'].search([('user_id', '=', self.env.uid)]).mapped('badge_id')\n             if self.rule_auth_badge_ids - all_user_badges:\n                 return self.BADGE_REQUIRED\n "
+        }
+      ]
+    },
+    {
+      "sha": "ba7454eb088a10b98e0a51422aabffb31bc3da5d",
+      "message": "[FIX] website_event_track: track.date is not required\n\nDont compare bool to datetime if not filled\n\nTypeError: '<' not supported between instances of 'bool' and 'datetime.datetime'",
+      "changes": [
+        {
+          "file": "addons/website_event_track/controllers/main.py",
+          "patch": "@@ -77,7 +77,7 @@ def event_agenda(self, event, tag=None, **post):\n         event = event.with_context(tz=event.date_tz or 'UTC')\n         local_tz = pytz.timezone(event.date_tz or 'UTC')\n         days_tracks = collections.defaultdict(lambda: [])\n-        for track in event.track_ids.sorted(lambda track: (track.date or '', bool(track.location_id))):\n+        for track in event.track_ids.sorted(lambda track: (bool(track.date), track.date, bool(track.location_id))):\n             if not track.date:\n                 continue\n             date = fields.Datetime.from_string(track.date).replace(tzinfo=pytz.utc).astimezone(local_tz)"
+        }
+      ]
+    },
+    {
+      "sha": "51982f9199d2e2e2066507c5d1f12f72ee01facc",
+      "message": "[FIX] website: Impossible to link an analytic account\n\nSteps to reproduce the bug:\n\n- Go to Website > Dashboard > Analytics and click on \"Link my analytics account\"\n- Enter some data and save\n\nBug:\n\nA traceback was raised: TypeError: website_set_ga_data() missing 1 required\npositional argument: 'website_id'\n\nopw:1905874\n\ncloses odoo/odoo#28636",
+      "changes": [
+        {
+          "file": "addons/website/controllers/backend.py",
+          "patch": "@@ -61,6 +61,6 @@ def website_set_ga_data(self, website_id, ga_client_id, ga_analytics_key):\n         request.env['res.config.settings'].create({\n             'google_management_client_id': ga_client_id,\n             'google_analytics_key': ga_analytics_key,\n-            'website_id': current_website,\n+            'website_id': current_website.id,\n         }).execute()\n         return True"
+        }
+      ]
+    },
+    {
+      "sha": "764bd645fc1e6628fa743b498ae4c5cda25c9b3c",
+      "message": "[FIX] hw_scale: added field 'disable' to namedtuple 'ScaleProtocol'\n\nIntroduced at bb015818eaf\nGetting error\nTypeError: __new__() got an unexpected keyword argument 'disable'\n\ncloses odoo/odoo#28202",
+      "changes": [
+        {
+          "file": "addons/hw_scale/controllers/main.py",
+          "patch": "@@ -51,7 +51,7 @@ def _toledo8217StatusParse(status):\n ScaleProtocol = namedtuple(\n     'ScaleProtocol',\n     \"name baudrate bytesize stopbits parity timeout writeTimeout weightRegexp statusRegexp \"\n-    \"statusParse commandTerminator commandDelay weightDelay newWeightDelay \"\n+    \"statusParse commandTerminator commandDelay weightDelay newWeightDelay disable \"\n     \"weightCommand zeroCommand tareCommand clearCommand emptyAnswerValid autoResetWeight\")\n \n # 8217 Mettler-Toledo (Weight-only) Protocol, as described in the scale's Service Manual."
+        }
+      ]
+    },
+    {
+      "sha": "95cda104e61d9ec6cb39163e6e6ccb0c3e890aca",
+      "message": "[FIX] digest: resolve unmet dependency on resource module\n\nThis commit fixes the following bug:\n* On a new DB, install account\n* Settings > Technical > Email > Digest emails\n* Open Weekly Digest, set Next Send Date to current day\n* Settings > Technical > Scheduled Actions > Digest Emails\n* Run manually\n\nAttributeError: 'res.company' object has no attribute\n'resource_calendar_id'\n\nThe field resource_calendar_id is provided by the module resource\n\ncloses odoo/odoo#28239",
+      "changes": [
+        {
+          "file": "addons/digest/__manifest__.py",
+          "patch": "@@ -10,7 +10,8 @@\n     'version': '1.0',\n     'depends': [\n         'mail',\n-        'portal'\n+        'portal',\n+        'resource',\n     ],\n     'data': [\n         'security/ir.model.access.csv',"
+        }
+      ]
+    },
+    {
+      "sha": "8cecb88c27ab1888d50b4bd2dc6d5875c7e99d6f",
+      "message": "[FIX] digest: check field existance\n\nThis commit fixes the following bug:\n* On a new DB, install account\n* Settings > Technical > Email > Digest emails\n* Open Weekly Digest, set Next Send Date to current day\n* Settings > Technical > Scheduled Actions > Digest Emails\n* Run manually\n\nAttributeError: 'res.company' object has no attribute\n'resource_calendar_id'\n\nThe field resource_calendar_id is added in the module resource.\nThe module digest does not have resource in its dependency.\nIn stable version, have a silent fallback on UTC if the field is not present.\nThe right dependency should be added in master.\n\ncloses odoo/odoo#28244",
+      "changes": [
+        {
+          "file": "addons/digest/models/digest.py",
+          "patch": "@@ -158,7 +158,8 @@ def _get_next_run_date(self):\n \n     def _compute_timeframes(self, company):\n         now = datetime.utcnow()\n-        tz_name = company.resource_calendar_id.tz\n+        # TODO remove hasattr in >=saas-12.1\n+        tz_name = hasattr(company, \"resource_calendar_id\") and company.resource_calendar_id.tz\n         if tz_name:\n             now = pytz.timezone(tz_name).localize(now)\n         start_date = now.date()"
+        }
+      ]
+    },
+    {
+      "sha": "30ede6a16afbb9f46033ef58c81ed7a7229959d4",
+      "message": "[FIX] pos_sale, sales_team: Timezone problem in dashboard graph\n\nThe function _get_graph computing the dashboard graph must take the timezone of the user\ninto account to compute the right start_date S and the right end_date E.\n\nThe query  made on model 'report.pos.order' by read_group in _graph_data must take the\ntimezone of the user into account to substract the right offset to compute the start_date S\nand end_date E in UTC because the result returned by read_group is formated in the timezone\nof the user afterwards.\n\nExample:\n\nIn function _get_graph:\n\nStart_date in 'Asia/Ulaanbaatar' timezone = 2018-06-05\nEnd_date in 'Asia/Ulaanbaatar' timezone = 2018-07-04\n\nSo End_date - Start_date + 1 = 30\n\nIn function _graph_data:\n\nStart_date in 'Asia/Ulaanbaatar' timezone = 2018-06-05 00:00:00\nEnd_date in 'Asia/Ulaanbaatar' timezone = 2018-07-04 23:59:59\n\nSo in UTC -9 hours:\n\nStart_date in UTC = 2018-06-04 15:00:00\nEnd_date in UTC = 2018-07-04 14:59:59\n\nSELECT min(\"report_pos_order\".id) AS id,\n       count(\"report_pos_order\".id) AS \"date_count\" ,\n       sum(\"report_pos_order\".\"price_total\") AS \"price_total\" ,\n       date_trunc('day', timezone('Asia/Ulaanbaatar',\n       timezone('UTC',\"report_pos_order\".\"date\"))) as \"date:day\"\nFROM \"report_pos_order\"\nWHERE ((((\"report_pos_order\".\"date\" >= Start_date)  AND\n      (\"report_pos_order\".\"date\" <= End_date))  AND\n      (\"report_pos_order\".\"config_id\" in (1,2,3)))  AND\n      (\"report_pos_order\".\"state\" in ('paid','done','invoiced')))\nGROUP BY date_trunc('day', timezone('Asia/Ulaanbaatar', timezone('UTC',\"report_pos_order\".\"date\")))\nORDER BY \"date:day\"\n\nAnd the result of this request will be between 2018-06-05 00:00:00 and 2018-07-04 23:59:59 but\nbefore the fix the result was between 2018-06-05 00:09:00 and 2018-07-05 08:59:59 and then\nEnd_date - Start_date + 1 was equal to 31. That's why a \"IndexError: list index out of range\"\ncan be raised in _get_graph.\n\nIn this way, no mismatch is possible between the datas computed by _graph_data and the dict\n\"values\" allocated by _get_graph.\n\nopw:1862996",
+      "changes": [
+        {
+          "file": "addons/sales_team/models/crm_team.py",
+          "patch": "@@ -177,7 +177,7 @@ def get_week_name(start_date, locale):\n \n         self.ensure_one()\n         values = []\n-        today = date.today()\n+        today = fields.Date.from_string(fields.Date.context_today(self))\n         start_date, end_date = self._graph_get_dates(today)\n         graph_data = self._graph_data(start_date, end_date)\n "
+        }
+      ]
+    },
+    {
+      "sha": "65a589eb54a1421baa71074701bea2873a83c75f",
+      "message": "[FIX] website_quote: make 'Pay & Confirm' work without website_sale\n\nWhen creating a db with only website_quote and payment_paypal you end\nup with:\n\nAttributeError: 'payment.transaction' object has no attribute '_check_or_create_sale_tx'\n\nwhen clicking on 'Pay & Confirm' in an online quote.\n\nThis is because various controller methods in website_quote use this\nmethod and it is defined by the sale_payment module.\n\nopw-1847977",
+      "changes": [
+        {
+          "file": "addons/website_quote/__manifest__.py",
+          "patch": "@@ -7,7 +7,7 @@\n     'website': 'https://www.odoo.com/page/quote-builder',\n     'version': '1.0',\n     'description': \"\",\n-    'depends': ['website', 'sale_management', 'mail', 'payment', 'website_mail'],\n+    'depends': ['website', 'sale_management', 'mail', 'payment', 'website_mail', 'sale_payment'],\n     'data': [\n         'data/website_quote_data.xml',\n         'report/sale_order_reports.xml',"
+        }
+      ]
+    },
+    {
+      "sha": "c17170b9c12277d32ef759ad5dc0783da8a6f516",
+      "message": "[FIX] web: all routes should have **kw to support utm/extra params\n\nWithout this commit, a valid route /web/content with an extra\nparams eg utm or adwords will return a 500 with:\nTypeError: content_common() got an unexpected keyword argument 'extra_param_name'\n\nThis commit closes #21221\n\nTask-32836 should fix for all routes in a future version",
+      "changes": [
+        {
+          "file": "addons/web/controllers/main.py",
+          "patch": "@@ -962,7 +962,7 @@ def force_contenttype(self, headers, contenttype='image/png'):\n         '/web/content/<int:id>-<string:unique>/<string:filename>',\n         '/web/content/<string:model>/<int:id>/<string:field>',\n         '/web/content/<string:model>/<int:id>/<string:field>/<string:filename>'], type='http', auth=\"public\")\n-    def content_common(self, xmlid=None, model='ir.attachment', id=None, field='datas', filename=None, filename_field='datas_fname', unique=None, mimetype=None, download=None, data=None, token=None):\n+    def content_common(self, xmlid=None, model='ir.attachment', id=None, field='datas', filename=None, filename_field='datas_fname', unique=None, mimetype=None, download=None, data=None, token=None, **kw):\n         status, headers, content = binary_content(xmlid=xmlid, model=model, id=id, field=field, unique=unique, filename=filename, filename_field=filename_field, download=download, mimetype=mimetype)\n         if status == 304:\n             response = werkzeug.wrappers.Response(status=status, headers=headers)"
+        }
+      ]
+    },
+    {
+      "sha": "dee3b87ae4b7c67f21a445ed8caecdd6fa36277f",
+      "message": "[FIX] website_customer: fix sitemap when customer had no country\n\nBefore this commit, the sitemap will crash if you have some res.partner\nwithout country that are publish and with an assigned_partner_id.\n\nNow, we only search for customer with country that are set and avoid to have\na traceback:\n  File \"/home/odoo/src/odoo/11.0/addons/website_customer/controllers/main.py\", line 31, in sitemap_industry\n    loc = '/customers/country/%s' % slug(country['country_id'])\n  File \"/home/odoo/src/odoo/11.0/addons/http_routing/models/ir_http.py\", line 91, in slug\n    identifier, name = value\n  TypeError: 'bool' object is not iterable",
+      "changes": [
+        {
+          "file": "addons/website_customer/controllers/main.py",
+          "patch": "@@ -24,7 +24,7 @@ def sitemap_industry(env, rule, qs):\n             if not qs or qs.lower() in loc:\n                 yield {'loc': loc}\n \n-        dom = [('website_published', '=', True), ('assigned_partner_id', '!=', False)]\n+        dom = [('website_published', '=', True), ('assigned_partner_id', '!=', False), ('country_id', '!=', False)]\n         dom += sitemap_qs2dom(qs, '/customers/country')\n         countries = env['res.partner'].sudo().read_group(dom, ['id', 'country_id'], groupby='country_id')\n         for country in countries:"
+        }
+      ]
+    },
+    {
+      "sha": "16a2f918328b32d5ca2f7beb5d6d8cd7084b997f",
+      "message": "[IMP] stock: Log if a method doesn't exist when running scheduler\n\nPurpose\n=======\n\nIf a method doesn't exist when running scheduler, log an error instead of raising an AttributeError\n\nThe goal of a cron method is to go ad far as possible.",
+      "changes": [
+        {
+          "file": "addons/stock/models/procurement.py",
+          "patch": "@@ -184,7 +184,10 @@ def run(self, product_id, product_qty, product_uom, location_id, name, origin, v\n         if not rule:\n             raise UserError(_('No procurement rule found. Please verify the configuration of your routes'))\n \n-        getattr(rule, '_run_%s' % rule.action)(product_id, product_qty, product_uom, location_id, name, origin, values)\n+        if hasattr(rule, '_run_%s' % rule.action):\n+            getattr(rule, '_run_%s' % rule.action)(product_id, product_qty, product_uom, location_id, name, origin, values)\n+        else:\n+            _logger.error(\"The method _run_%s doesn't exist on the procument rules\" % rule.action)\n         return True\n \n     @api.model"
+        }
+      ]
+    },
+    {
+      "sha": "c7a6409fac80a2d33006ab56fe40d27f2acd2cfd",
+      "message": "[FIX] base: Changing password with false as new value\n\nBefore clicking on 'Change Password' button, a new password must be\nwritten. Otherwise an error was raised: TypeError: secret must be\nunicode or bytes, not bool.\n\nopw:777921",
+      "changes": [
+        {
+          "file": "odoo/addons/base/res/res_users.py",
+          "patch": "@@ -950,6 +950,8 @@ class ChangePasswordUser(models.TransientModel):\n     @api.multi\n     def change_password_button(self):\n         for line in self:\n+            if not line.new_passwd:\n+                raise UserError(_(\"Before clicking on 'Change Password', you have to write a new password.\"))\n             line.user_id.write({'password': line.new_passwd})\n         # don't keep temporary passwords in the database longer than necessary\n         self.write({'new_passwd': False})"
+        }
+      ]
+    },
+    {
+      "sha": "446971925e250218a7a0dcd999355af9d4fe878b",
+      "message": "[FIX] pad: pad content encoding\n\nAvoid error during pad creation\n\nTypeError: cannot use a string pattern on a bytes-like object",
+      "changes": [
+        {
+          "file": "addons/pad/models/pad.py",
+          "patch": "@@ -85,7 +85,7 @@ def pad_get_content(self, url):\n             except:\n                 _logger.warning(\"No url found '%s'.\", url)\n             else:\n-                mo = re.search('<body>(.*)</body>', r.content, re.DOTALL)\n+                mo = re.search('<body>(.*)</body>', r.content.decode(), re.DOTALL)\n                 if mo:\n                     content = mo.group(1)\n "
+        }
+      ]
+    },
+    {
+      "sha": "289b6046d63bb8d0c43fcd86f80945a5066357cf",
+      "message": "[FIX] tools: py3k export translations\n\nPrevious code was converting the text to bytes which fails below\n\nAttributeError: 'int' object has no attribute 'isalpha'",
+      "changes": [
+        {
+          "file": "odoo/tools/translate.py",
+          "patch": "@@ -730,7 +730,7 @@ def trans_parse_rml(de):\n \n def _push(callback, term, source_line):\n     \"\"\" Sanity check before pushing translation terms \"\"\"\n-    term = (term or \"\").strip().encode('utf8')\n+    term = (term or \"\").strip()\n     # Avoid non-char tokens like ':' '...' '.00' etc.\n     if len(term) > 8 or any(x.isalpha() for x in term):\n         callback(term, source_line)"
+        }
+      ]
+    },
+    {
+      "sha": "27ca297e6490d8e93ce6f48f8bd17652babb3ba3",
+      "message": "[FIX] tools: python3 compatibility for export terms\n\nAvoid error in babel getting the wrong source file\nTypeError: startswith first arg must be str or a tuple of str, not bytes",
+      "changes": [
+        {
+          "file": "odoo/tools/translate.py",
+          "patch": "@@ -953,7 +953,7 @@ def babel_extract_terms(fname, path, root, extract_method=\"python\", trans_type='\n         module, fabsolutepath, _, display_path = verified_module_filepaths(fname, path, root)\n         extra_comments = extra_comments or []\n         if not module: return\n-        src_file = open(fabsolutepath, 'r')\n+        src_file = open(fabsolutepath, 'rb')\n         try:\n             for extracted in extract.extract(extract_method, src_file, keywords=extract_keywords):\n                 # Babel 0.9.6 yields lineno, message, comments"
+        }
+      ]
+    },
+    {
+      "sha": "326ff3699a07933666564a4a5e8ad7cdd290f203",
+      "message": "[FIX] point_of_sale: use local variable in labmda\n\nNameError: free variable 'order' referenced before assignment in enclosing scope\n\nopw-751576",
+      "changes": [
+        {
+          "file": "addons/point_of_sale/models/pos_order.py",
+          "patch": "@@ -209,7 +209,7 @@ def _create_account_move_line(self, session=None, move=None):\n         have_to_group_by = session and session.config_id.group_by or False\n         rounding_method = session and session.config_id.company_id.tax_calculation_rounding_method\n \n-        for order in self.filtered(lambda o: not o.account_move or order.state == 'paid'):\n+        for order in self.filtered(lambda o: not o.account_move or o.state == 'paid'):\n             current_company = order.sale_journal.company_id\n             account_def = IrProperty.get(\n                 'property_account_receivable_id', 'res.partner')"
+        }
+      ]
+    },
+    {
+      "sha": "653e30d8f8ac0025a7eb17e2d25e1a4e691399a9",
+      "message": "[FIX] website_sale, website_crm : add missing import and remove useless\n\nFix: NameError: global name '_' is not defined\n\nRelated to odoo/odoo@4c66eae308",
+      "changes": [
+        {
+          "file": "addons/website_crm/controllers/main.py",
+          "patch": "@@ -4,7 +4,7 @@\n import babel\n from datetime import datetime, timedelta\n \n-from odoo import http\n+from odoo import http, _\n from odoo.http import request\n \n from odoo.addons.website.controllers.backend import WebsiteBackend"
+        }
+      ]
+    },
+    {
+      "sha": "4f8ae9f993b3423d4a6aead35be980895646a7cd",
+      "message": "[FIX] base: Traceback when creating a submenu\n\nWhen self.name is False, the following expression:\n\"self.parent_id._get_full_name(level - 1) + MENU_ITEM_SEPARATOR + self.name\"\nraised:\n\"TypeError: coercing to Unicode: need string or buffer, bool found\"\n\nopw:706202",
+      "changes": [
+        {
+          "file": "odoo/addons/base/ir/ir_ui_menu.py",
+          "patch": "@@ -55,7 +55,7 @@ def _get_full_name(self, level=6):\n         if level <= 0:\n             return '...'\n         if self.parent_id:\n-            return self.parent_id._get_full_name(level - 1) + MENU_ITEM_SEPARATOR + self.name\n+            return self.parent_id._get_full_name(level - 1) + MENU_ITEM_SEPARATOR + (self.name or \"\")\n         else:\n             return self.name\n "
+        }
+      ]
+    },
+    {
+      "sha": "3f232a6022ad3792065f8048c492a57659b735a8",
+      "message": "[FIX] base_vat: check 1 char VAT code\n\nIf a VAT with only 1 character is set, it will crash with an IndexError\r\n\r\nCloses #14995",
+      "changes": [
+        {
+          "file": "addons/base_vat/models/res_partner.py",
+          "patch": "@@ -120,7 +120,7 @@ def default_vat_check(cn, vn):\n             # by default, a VAT number is valid if:\n             #  it starts with 2 letters\n             #  has more than 3 characters\n-            return cn[0] in string.ascii_lowercase and cn[1] in string.ascii_lowercase\n+            return len(cn) == 2 and cn[0] in string.ascii_lowercase and cn[1] in string.ascii_lowercase\n \n         vat_country, vat_number = self._split_vat(self.vat)\n         vat_no = \"'CC##' (CC=Country Code, ##=VAT Number)\""
+        }
+      ]
+    },
+    {
+      "sha": "8b41933a9e87eb276ff4df56b9e7375cefd7f35c",
+      "message": "[FIX] web_graph: force row title to be string\n\nIf the title was 'true' or 'false', the export failed, because we are tying to\nconcat bool and str. TypeError: cannot concatenate 'str' and 'bool' objects\n\nHow to reproduce, install sale, be sure to have one order with delivered = True\nIn Reporting / Sale analysis, add a group by 'shipped' filed to have 'true' as\ntitle.\n\nThis commit closes issue odoo/odoo#13425",
+      "changes": [
+        {
+          "file": "addons/web_graph/controllers/main.py",
+          "patch": "@@ -1,5 +1,6 @@\n from openerp import http\n import simplejson\n+from openerp.tools import ustr\n from openerp.http import request, serialize_exception as _serialize_exception\n from cStringIO import StringIO\n from collections import deque\n@@ -70,7 +71,7 @@ def export_xls(self, data, token):\n         # Step 3: writing data\n         x = 0\n         for row in jdata['rows']:\n-            worksheet.write(y, x, row['indent'] * '     ' + row['title'], header_plain)\n+            worksheet.write(y, x, row['indent'] * '     ' + ustr(row['title']), header_plain)\n             for cell in row['cells']:\n                 x = x + 1\n                 if cell.get('is_bold', False):"
+        }
+      ]
+    },
+    {
+      "sha": "e147aac74aa4527d4dfa5fa3411ed7168aff55d0",
+      "message": "[FIX] warning: fix override of product_id_change\n\nWithout the @api.multi property,\nthe method is considered as taking only one parameter (self?),\nwhile it takes multiple parameters.\n\nThis prevented to change the quote template on a sale order,\nif the quote template had some order lines, due to the below error\n\n`TypeError: product_id_change() takes exactly 1 argument (19 given)`\n\nopw-687797",
+      "changes": [
+        {
+          "file": "addons/warning/warning.py",
+          "patch": "@@ -232,6 +232,7 @@ def product_id_change_with_wh(self, cr, uid, ids, pricelist, product, qty=0,\n             result['warning'] = warning\n         return result\n \n+    @api.multi\n     @api.onchange('product_id')\n     def product_id_change(self):\n         warning = self.onchange_product_id_warning()"
+        }
+      ]
+    },
+    {
+      "sha": "925b480aa960a54de6ef8a2cce1b338e063fe5da",
+      "message": "[FIX] website_blog: link send by mail crash\n\n/mail/view?model=blog.post&res_id=1\n\ncrash in 'res_id': self.id\n\nAttributeError: 'blog.post' object has no attribute '_ids'",
+      "changes": [
+        {
+          "file": "addons/website_blog/models/website_blog.py",
+          "patch": "@@ -269,7 +269,7 @@ def get_access_action(self, cr, uid, ids, context=None):\n             'type': 'ir.actions.act_url',\n             'url': '/blog/%s/post/%s' % (post.blog_id.id, post.id),\n             'target': 'self',\n-            'res_id': self.id,\n+            'res_id': post.id,\n         }\n \n     def _notification_get_recipient_groups(self, cr, uid, ids, message, recipients, context=None):"
+        }
+      ]
+    },
+    {
+      "sha": "54e4f3f96b0a93bbdee5cdffd6f671b812644a67",
+      "message": "[FIX] web: allow to use content_disposable without registry\n\nWhen a user connect to /web/database/manager directly without the\nlogin page before, the request don't have registry.\nWhen the user click to backup a db, a traceback was raised:\n    return request.registry['ir.http'].content_disposition(filename)\n    TypeError: 'NoneType' object has no attribute 'getitem'\nBecause it was impossible to call content_diposable from ir_http\nwithout registry.\n\nNow content disposable has been moved in http.py and is callable from\nanywhere.\n\nThis commit closes #13192\nThis commit closes #11583",
+      "changes": [
+        {
+          "file": "addons/web/controllers/main.py",
+          "patch": "@@ -34,7 +34,7 @@\n from openerp.tools import ustr\n from openerp.tools.misc import str2bool, xlwt\n from openerp import http\n-from openerp.http import request, serialize_exception as _serialize_exception\n+from openerp.http import request, serialize_exception as _serialize_exception, content_disposition\n from openerp.exceptions import AccessError\n \n _logger = logging.getLogger(__name__)\n@@ -415,10 +415,6 @@ def xml2json_from_elementtree(el, preserve_whitespaces=False):\n     res[\"children\"] = kids\n     return res\n \n-def content_disposition(filename):\n-    return request.registry['ir.http'].content_disposition(filename)\n-\n-\n def binary_content(xmlid=None, model='ir.attachment', id=None, field='datas', unique=False, filename=None, filename_field='datas_fname', download=False, mimetype=None, default_mimetype='application/octet-stream', env=None):\n     return request.registry['ir.http'].binary_content(\n         xmlid=xmlid, model=model, id=id, field=field, unique=unique, filename=filename, filename_field=filename_field,"
+        }
+      ]
+    },
+    {
+      "sha": "6ffc8b62615c6f62850547d48c0ec81d0be13073",
+      "message": "[FIX] mail: controller avatar\n\nFIX 1\n-----\nIf the partner_id is not allowed, we return the placeholder.\n\nBefore this commit, the status as undefined and raise traceback.\nUnboundLocalError: local variable 'status' referenced before assignment\n\nFIX 2\n-----\nFix the defaultheader to avoid to have:\n   [[('Content-Type', 'image/png')], ('Content-Length', 43)]\nAnd so, during parsing by werkzeug:\n   ValueError: need more than 1 value to unpack",
+      "changes": [
+        {
+          "file": "addons/mail/controllers/main.py",
+          "patch": "@@ -215,7 +215,8 @@ def mail_action_workflow(self, model, res_id, signal, **kwargs):\n \n     @http.route('/mail/<string:res_model>/<int:res_id>/avatar/<int:partner_id>', type='http', auth='public')\n     def avatar(self, res_model, res_id, partner_id):\n-        headers = [[('Content-Type', 'image/png')]]\n+        headers = [('Content-Type', 'image/png')]\n+        status = 200\n         content = 'R0lGODlhAQABAIABAP///wAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw=='  # default image is one white pixel\n         if res_model in request.env:\n             try:"
+        }
+      ]
+    },
+    {
+      "sha": "944db71f21874d76c22aeb9c247fa4ecf079ca52",
+      "message": "[FIX] website_event: fix get_formated_date to avoid traceback\n\nAvoid AttributeError: 'WebsiteEventController (extended by WebsiteEventSa' object has no attribute 'env'\nSelf is the controller and not the event.",
+      "changes": [
+        {
+          "file": "addons/website_event/controllers/main.py",
+          "patch": "@@ -194,8 +194,8 @@ def _add_event(self, event_name=None, context=None, **kwargs):\n     def get_formated_date(self, event):\n         start_date = fields.Datetime.from_string(event.date_begin).date()\n         end_date = fields.Datetime.from_string(event.date_end).date()\n-        month = babel.dates.get_month_names('abbreviated', locale=self.env.context.get('lang', 'en_US'))[start_date.month]\n-        return ('%s %s%s') % (month, start_date.strftime(\"%e\"), (end_date != start_date and (\"-\"+end_date.strftime(\"%e\")) or \"\"))\n+        month = babel.dates.get_month_names('abbreviated', locale=event.env.context.get('lang', 'en_US'))[start_date.month]\n+        return ('%s %s%s') % (month, start_date.strftime(\"%e\"), (end_date != start_date and (\"-\" + end_date.strftime(\"%e\")) or \"\"))\n \n     @http.route('/event/get_country_event_list', type='http', auth='public', website=True)\n     def get_country_events(self, **post):"
+        }
+      ]
+    },
+    {
+      "sha": "bcff661bc659514b5a689eec7ab812aa9fb81b12",
+      "message": "[FIX] crm : avoid UnboundLocalError in crm log activity wizard",
+      "changes": [
+        {
+          "file": "addons/crm/wizard/crm_activity_log.py",
+          "patch": "@@ -43,6 +43,7 @@ def onchange_lead_id(self):\n     def onchange_next_activity_id(self):\n         if not self.title_action:\n             self.title_action = self.next_activity_id.description\n+        date_action = False\n         if self.next_activity_id and self.next_activity_id.days:\n             date_action = (datetime.now() + timedelta(days=self.next_activity_id.days)).strftime(tools.DEFAULT_SERVER_DATETIME_FORMAT)\n         self.date_action = date_action"
+        }
+      ]
+    },
+    {
+      "sha": "f8e971e1ccc51088f8ea8f7baf88130787676a74",
+      "message": "[FIX] name_get of the hr.department\n\nRecursive call currently fails with an IndexError as `name_get()` in new\r\nAPI context returns a list of a single pair.\r\n\r\nCloses #12496",
+      "changes": [
+        {
+          "file": "addons/hr/models/hr.py",
+          "patch": "@@ -269,7 +269,7 @@ def name_get(self):\n         for record in self:\n             name = record.name\n             if record.parent_id:\n-                name = \"%s / %s\" % (record.parent_id.name_get()[1], name)\n+                name = \"%s / %s\" % (record.parent_id.name_get()[0][1], name)\n             result.append((record.id, name))\n         return result\n "
+        }
+      ]
+    },
+    {
+      "sha": "4a76713490e2660da446586965e181211f711b47",
+      "message": "[FIX] website_quote : avoid UnboundLocalError\n\nIntroduced in 0ce6e1543af477505ff267019d71fe8271cc748d, if we don't use a token to see the quotation, it crashes.",
+      "changes": [
+        {
+          "file": "addons/website_quote/controllers/main.py",
+          "patch": "@@ -20,10 +20,10 @@ class sale_quote(http.Controller):\n     def view(self, order_id, pdf=None, token=None, message=False, **post):\n         # use SUPERUSER_ID allow to access/view order for public user\n         # only if he knows the private token\n+        now = time.strftime('%Y-%m-%d')\n         if token:\n             order = request.env['sale.order'].sudo().search([('id', '=', order_id), ('access_token', '=', token)])\n             # Log only once a day\n-            now = time.strftime('%Y-%m-%d')\n             if order and request.session.get('view_quote', False) != now:\n                 request.session['view_quote'] = now\n                 body = _('Quotation viewed by customer')"
+        }
+      ]
+    },
+    {
+      "sha": "c538d451a6ae03c41098c07d8587ae7e8946126a",
+      "message": "[FIX] crm: correct kanban state color computation\n\nAvoid TypeError: can't compare datetime.datetime to datetime.date",
+      "changes": [
+        {
+          "file": "addons/crm/crm_lead.py",
+          "patch": "@@ -121,7 +121,7 @@ def _compute_kanban_state(self, cr, uid, ids, fields, args, context=None):\n         for lead in self.browse(cr, uid, ids, context=context):\n             result[lead.id] = 'grey'\n             if lead.date_action:\n-                lead_date = datetime.strptime(lead.date_action, tools.DEFAULT_SERVER_DATE_FORMAT)\n+                lead_date = datetime.strptime(lead.date_action, tools.DEFAULT_SERVER_DATE_FORMAT).date()\n                 if lead_date > today:\n                     result[lead.id] = 'green'\n                 elif lead_date < today:"
+        }
+      ]
+    },
+    {
+      "sha": "8a7394a5505145bb8a578bf033a2a55fca132b47",
+      "message": "[FIX] auth_ldap: filter format\n\nThe LDAP method filter_format(filter_template,assertion_values) requires\nthat the length of assertion_values matches the count of %s in\nfilter_template. If not, a TypeError exception is thrown.\n\nThis fix catches the exception and displays an understandable error\nmessage instead.\n\nopw-608126\nopw-657370",
+      "changes": [
+        {
+          "file": "addons/auth_ldap/users_ldap.py",
+          "patch": "@@ -96,7 +96,11 @@ def authenticate(self, conf, login, password):\n             return False\n \n         entry = False\n-        filter = filter_format(conf['ldap_filter'], (login,))\n+        try:\n+            filter = filter_format(conf['ldap_filter'], (login,))\n+        except TypeError:\n+            _logger.warning('Could not format LDAP filter. Your filter should contain one \\'%s\\'.')\n+            return False\n         try:\n             results = self.query(conf, filter)\n "
+        }
+      ]
+    },
+    {
+      "sha": "49a0eae8052e32ee371dbbf9eaa9c03b34148f39",
+      "message": "[FIX] mail: mails fetch\n\n`node.get('class', '')` returns a `Nonetype`\nin some cases, and, therefore,\n`'o_mail_notification' in node.get('class', '')`\nthrows a\n`TypeError: argument of type 'NoneType' is not iterable`.\n\nReplacing by `(node.get('class') or '')` keep the behavior\nthat was expected, but will prevent to have a `Nonetype`\n\nopw-656508\nopw-656753\nopw-653965",
+      "changes": [
+        {
+          "file": "addons/mail/models/mail_thread.py",
+          "patch": "@@ -1239,7 +1239,7 @@ def _message_extract_payload_postprocess(self, message, body, attachments):\n         root = lxml.html.fromstring(body)\n         postprocessed = False\n         for node in root.iter():\n-            if 'o_mail_notification' in node.get('class', '') or 'o_mail_notification' in node.get('summary', ''):\n+            if 'o_mail_notification' in (node.get('class') or '') or 'o_mail_notification' in (node.get('summary') or ''):\n                 postprocessed = True\n                 node.getparent().remove(node)\n         if postprocessed:"
+        }
+      ]
+    },
+    {
+      "sha": "1cf5723835235c71df140938282420360116f0c5",
+      "message": "Revert \"Revert \"[FIX] fields: `digits()` computation\"\"\n\nThamks to parent commit, `request.env` doesn't raise `AttributeError`\nanymore for requests without session bound to a database.\n\nThis exception was bubbling up to `digits` property (and `__getattr__`)\n\nThis reverts commit 49cb46fb78de4e7e88b054f2b5df21612778fd40.\nThis reinstate commit eeedd2d9f52d46d8193059854e7430ca0c1fd6c0.",
+      "changes": [
+        {
+          "file": "openerp/fields.py",
+          "patch": "@@ -1054,7 +1054,8 @@ def __init__(self, string=None, digits=None, **kwargs):\n     @property\n     def digits(self):\n         if callable(self._digits):\n-            return self._digits(fields.get_cursor())\n+            with fields._get_cursor() as cr:\n+                return self._digits(cr)\n         else:\n             return self._digits\n "
+        }
+      ]
+    },
+    {
+      "sha": "291119c802af576a09cc1ac0eb479ea7f592b8f8",
+      "message": "[FIX] http: `request.env` and request.cr` now raise `RuntimeError`.\n\nThese method used to raise an `AttributeError` when `self.registry`\nreturns `None`. Now raises a more appropriated exception.",
+      "changes": [
+        {
+          "file": "openerp/http.py",
+          "patch": "@@ -201,7 +201,11 @@ def __init__(self, httprequest):\n     def env(self):\n         \"\"\"\n         The :class:`~openerp.api.Environment` bound to current request.\n+        Raises a :class:`RuntimeError` if the current requests is not bound\n+        to a database.\n         \"\"\"\n+        if not self.db:\n+            return RuntimeError('request not bound to a database')\n         return openerp.api.Environment(self.cr, self.uid, self.context)\n \n     @lazy_property\n@@ -236,6 +240,8 @@ def cr(self):\n         \"\"\"\n         # can not be a lazy_property because manual rollback in _call_function\n         # if already set (?)\n+        if not self.db:\n+            return RuntimeError('request not bound to a database')\n         if not self._cr:\n             self._cr = self.registry.cursor()\n         return self._cr"
+        }
+      ]
+    },
+    {
+      "sha": "49cb46fb78de4e7e88b054f2b5df21612778fd40",
+      "message": "Revert \"[FIX] fields: `digits()` computation\"\n\nThis reverts commit eeedd2d9f52d46d8193059854e7430ca0c1fd6c0.\n\nThis revision introduces an issue more serious than the ones\nit fixes. This is no longer possible to receive an email\naimed a sale.order thread with catchall.\n\nTo reproduce the issue:\n - Create a new sale order\n - Send a message in the thread to the customer\n - Reply to the mail received in the customer mailbox\n - Traceback, AttributeError: digits\n\n opw-640370",
+      "changes": [
+        {
+          "file": "openerp/fields.py",
+          "patch": "@@ -1054,8 +1054,7 @@ def __init__(self, string=None, digits=None, **kwargs):\n     @property\n     def digits(self):\n         if callable(self._digits):\n-            with fields._get_cursor() as cr:\n-                return self._digits(cr)\n+            return self._digits(fields.get_cursor())\n         else:\n             return self._digits\n "
+        }
+      ]
+    },
+    {
+      "sha": "55a569e97072f601196bd2a9db8bf7e22253e85a",
+      "message": "[FIX] prevent exception to be raised during exception handling\n\nPrevent this kind of exception to happen:\n\n  File \"/odoo_src/saas-6/openerp/service/wsgi_server.py\", line 123, in xmlrpc_handle_exception_string\n    fault = xmlrpclib.Fault('warning -- ' + e.name + '\\n\\n' + e.value, '')\nTypeError: cannot concatenate 'str' and 'NoneType' objects",
+      "changes": [
+        {
+          "file": "openerp/service/wsgi_server.py",
+          "patch": "@@ -120,7 +120,7 @@ def xmlrpc_handle_exception_int(e):\n \n def xmlrpc_handle_exception_string(e):\n     if isinstance(e, openerp.exceptions.UserError):\n-        fault = xmlrpclib.Fault('warning -- ' + e.name + '\\n\\n' + e.value, '')\n+        fault = xmlrpclib.Fault('warning -- %s\\n\\n%s' % (e.name, e.value), '')\n         response = xmlrpclib.dumps(fault, allow_none=False, encoding=None)\n     elif isinstance(e, openerp.exceptions.RedirectWarning):\n         fault = xmlrpclib.Fault('warning -- Warning\\n\\n' + str(e), '')"
+        }
+      ]
+    },
+    {
+      "sha": "467968b79a713d10f53b387d911dcdd6ef10ce11",
+      "message": "[FIX] tools: find_in_path: config is not ready at import time\n\ncommit f76d4525a was not actually working: extra keys from\nconfig files are not yet into the config options dict at\nimport time. The fix is to move the logic inside the method,\nlike in `find_pg_tool` just below.\n\nAlso fix the use of `find_in_path` in report.py: the subprocess\nmay also raise AttributeError exception, so instead of listing\nall the possible ones just re-raise the IOError shallowed by\n`find_in_path` when the result is None.\n\nFixes #3809 #3811",
+      "changes": [
+        {
+          "file": "addons/report/models/report.py",
+          "patch": "@@ -49,7 +49,10 @@\n _logger = logging.getLogger(__name__)\n \n def _get_wkhtmltopdf_bin():\n-    return find_in_path('wkhtmltopdf')\n+    wkhtmltopdf_bin = find_in_path('wkhtmltopdf')\n+    if wkhtmltopdf_bin is None:\n+        raise IOError\n+    return wkhtmltopdf_bin\n \n \n #--------------------------------------------------------------------------\n@@ -60,7 +63,7 @@ def _get_wkhtmltopdf_bin():\n     process = subprocess.Popen(\n         [_get_wkhtmltopdf_bin(), '--version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE\n     )\n-except (OSError, IOError, ValueError):\n+except (OSError, IOError):\n     _logger.info('You need Wkhtmltopdf to print a pdf version of the reports.')\n else:\n     _logger.info('Will use the Wkhtmltopdf binary at %s' % _get_wkhtmltopdf_bin())"
+        }
+      ]
+    },
+    {
+      "sha": "c98e5b2d2c6036076cc3952c49e452e38d5ccc93",
+      "message": "[FIX] mail: _fields['type'].selection is a callable\n\nThis revert partially the rev. f2e4a10e1a58c932f9a989e642771f5ae75d756a\n\n  File \"/home/odoo/src/odoo/8.0/addons/mail/mail_mail.py\", line 76, in default_get\n      if context and context.get('default_type') and context.get('default_type') not in self._fields['type'].selection:\n      TypeError: argument of type 'function' is not iterable",
+      "changes": [
+        {
+          "file": "addons/mail/mail_mail.py",
+          "patch": "@@ -73,7 +73,7 @@ class mail_mail(osv.Model):\n     def default_get(self, cr, uid, fields, context=None):\n         # protection for `default_type` values leaking from menu action context (e.g. for invoices)\n         # To remove when automatic context propagation is removed in web client\n-        if context and context.get('default_type') and context.get('default_type') not in self._fields['type'].selection:\n+        if context and context.get('default_type') and context.get('default_type') not in self._all_columns['type'].column.selection:\n             context = dict(context, default_type=None)\n         return super(mail_mail, self).default_get(cr, uid, fields, context=context)\n "
+        }
+      ]
+    },
+    {
+      "sha": "1661cf53e9b30dabaa5658906b68b3a1d25599b7",
+      "message": "[FIX] base_action_rule: Make sure model exists before trying to wrap hooks\n\nIn certain cases, before running an update unregistered models will try to\nregister hooks. Trying to wrap create and write on these will cause\nAttributeError on model_obj which would be None\n\nSigned-off-by: Sandy Carter <sandy.carter@savoirfairelinux.com>",
+      "changes": [
+        {
+          "file": "addons/base_action_rule/base_action_rule.py",
+          "patch": "@@ -199,7 +199,7 @@ def _register_hook(self, cr, ids=None):\n         for action_rule in self.browse(cr, SUPERUSER_ID, ids):\n             model = action_rule.model_id.model\n             model_obj = self.pool.get(model)\n-            if not hasattr(model_obj, 'base_action_ruled'):\n+            if model_obj and not hasattr(model_obj, 'base_action_ruled'):\n                 model_obj.create = self._wrap_create(model_obj.create, model)\n                 model_obj.write = self._wrap_write(model_obj.write, model)\n                 model_obj.base_action_ruled = True"
+        }
+      ]
+    },
+    {
+      "sha": "e15bd7eec120ca6527f1f72323919c8c95a68408",
+      "message": "Fixing a problem where the exact match returns a single item.\nThe function get_data_for_reconciliations expects a list at line 473 to loop over.\nWithout this fix you get TypeError: string indices must be integers, not str",
+      "changes": [
+        {
+          "file": "addons/account/account_bank_statement.py",
+          "patch": "@@ -551,7 +551,7 @@ def get_reconciliation_proposition(self, cr, uid, id, excluded_ids=[], context=N\n         # look for exact match\n         exact_match_id = self.get_move_lines_counterparts(cr, uid, st_line, excluded_ids=excluded_ids, additional_domain=[(amount_field, '=', (sign * st_line.amount))])\n         if exact_match_id:\n-            return exact_match_id[0]\n+            return exact_match_id\n \n         # select oldest move lines\n         if sign == -1:"
+        }
+      ]
+    },
+    {
+      "sha": "4769ff5e5de8cfe530ffac9e4c4c9e170f31f2e7",
+      "message": "[FIX] mail: fix IndentationError introduced in last commit\n\nbzr revid: chs@openerp.com-20140220172926-4fy9x1i1q4wknfqx",
+      "changes": [
+        {
+          "file": "addons/mail/mail_thread.py",
+          "patch": "@@ -1583,7 +1583,7 @@ def message_subscribe(self, cr, uid, ids, partner_ids, subtype_ids=None, context\n                 if context.get('operation', '') == 'create':\n                     self.check_access_rule(cr, uid, ids, 'create')\n                 else:\n-                self.check_access_rule(cr, uid, ids, 'read')\n+                    self.check_access_rule(cr, uid, ids, 'read')\n             except (osv.except_osv, orm.except_orm):\n                 return False\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "87ca8ad41b69293b59ae45298409cd545e4ad085",
+      "message": "[FIX] account_analytic_analysis: fix the traceback, AttributeError: 'long' object has no attribute 'account_ids' when automatic recurring invoice is enabled.(Maintenance Case : 597966)\n\nbzr revid: rgo@tinyerp.com-20130924105728-gtmc1862gcazs7lb",
+      "changes": [
+        {
+          "file": "addons/account_analytic_analysis/account_analytic_analysis.py",
+          "patch": "@@ -655,7 +655,7 @@ def _prepare_invoice(self, cr, uid, contract, context=None):\n         if not contract.partner_id:\n             raise osv.except_osv(_('No Customer Defined !'),_(\"You must first select a Customer for Contract %s!\") % contract.name )\n \n-        fpos = contract.partner_id.property_account_position.id or False\n+        fpos = contract.partner_id.property_account_position or False\n         journal_ids = journal_obj.search(cr, uid, [('type', '=','sale'),('company_id', '=', contract.company_id.id or False)], limit=1)\n         if not journal_ids:\n             raise osv.except_osv(_('Error!'),\n@@ -673,7 +673,7 @@ def _prepare_invoice(self, cr, uid, contract, context=None):\n            'journal_id': len(journal_ids) and journal_ids[0] or False,\n            'date_invoice': contract.recurring_next_date,\n            'origin': contract.name,\n-           'fiscal_position': fpos,\n+           'fiscal_position': fpos and fpos.id,\n            'payment_term': partner_payment_term,\n            'company_id': contract.company_id.id or False,\n         }\n@@ -687,7 +687,7 @@ def _prepare_invoice(self, cr, uid, contract, context=None):\n                 account_id = res.categ_id.property_account_income_categ.id\n             account_id = fpos_obj.map_account(cr, uid, fpos, account_id)\n \n-            taxes = res.taxes_id and res.taxes_id or False\n+            taxes = res.taxes_id or False\n             tax_id = fpos_obj.map_tax(cr, uid, fpos, taxes)\n \n             invoice_line_vals = {"
+        }
+      ]
+    },
+    {
+      "sha": "46e89d6dd1427ac5c7fa144f3b36e6ea1779771d",
+      "message": "[FIX]Fixed the issue of recurrent rule, there is no need of passing 'Z' after end_date as end_date converted to UNTIL parameter in rrule, and date given in UNTIL is not converted to any other timezone until you specifically passed timezone difference or timezone name like 20130620T121012+3:30 or 20130620T121012TZOFFSET, currently Z creates issue when recurrent rule is created with end_date, TypeError: can't compare offset-naive and offset-aware datetimes.\n\nbzr revid: msh@openerp.com-20130620104606-g3dyr1mafzo8fpgg",
+      "changes": [
+        {
+          "file": "addons/base_calendar/base_calendar.py",
+          "patch": "@@ -1269,7 +1269,7 @@ def get_month_string(freq, data):\n \n         def get_end_date(data):\n             if data.get('end_date'):\n-                data['end_date_new'] = ''.join((re.compile('\\d')).findall(data.get('end_date'))) + 'T235959Z'\n+                data['end_date_new'] = ''.join((re.compile('\\d')).findall(data.get('end_date'))) + 'T235959'\n \n             return (data.get('end_type') == 'count' and (';COUNT=' + str(data.get('count'))) or '') +\\\n                              ((data.get('end_date_new') and data.get('end_type') == 'end_date' and (';UNTIL=' + data.get('end_date_new'))) or '')"
+        }
+      ]
+    },
+    {
+      "sha": "9494f21ea857e2682778df9de47e1123e53b872b",
+      "message": "[FIX] __getattr__ implementation on BaseModel\n\nobject has no __getattr__, in the usual case super(BaseModel,\nself).__getattr__ will blow up with an AttributeError (but the wrong\none).\n\nOn the other hand, if a BaseModel descendant class is used in MI\nalongside a non-BM descendant (e.g. res_partner inheriting from Model\nand format_address) and the non-BM descendant also implements\n__getattr__, we want to forward the failed attr search to the other\n__getattr__ implementation.\n\nSo check if super() has a __getattr__, call it if it does otherwise\nAttributeError right there.\n\nbzr revid: xmo@openerp.com-20130315115302-z7jla334gb9a5e43",
+      "changes": [
+        {
+          "file": "openerp/osv/orm.py",
+          "patch": "@@ -5278,7 +5278,10 @@ def __getattr__(self, name):\n             assert signal_name\n             return (lambda *args, **kwargs:\n                     self.signal_workflow(*args, signal=signal_name, **kwargs))\n-        return super(BaseModel, self).__getattr__(name)\n+        get = getattr(super(BaseModel, self), '__getattr__', None)\n+        if get is not None: return get(name)\n+        raise AttributeError(\n+            \"'%s' object has no attribute '%s'\" % (type(self).__name__, name))\n \n # keep this import here, at top it will cause dependency cycle errors\n import expression"
+        }
+      ]
+    },
+    {
+      "sha": "fb20b769e4438b3a96c350260e6565f7cf5232cd",
+      "message": "[FIX] analytic: solve typeerror on clicking button 'Costs and Revenue'\n\nbzr revid: cha@tinyerp.com-20121108072938-xhyqmykvik6tgucc",
+      "changes": [
+        {
+          "file": "addons/analytic/analytic.py",
+          "patch": "@@ -98,6 +98,10 @@ def _debit_credit_bal_qtty(self, cr, uid, ids, fields, arg, context=None):\n \n     def name_get(self, cr, uid, ids, context=None):\n         res = []\n+        if not ids:\n+            return []\n+        if isinstance(ids, (int, long)):\n+            ids = [ids]\n         for id in ids:\n             elmt = self.browse(cr, uid, id, context=context)\n             res.append((id, self._get_one_full_name(elmt)))"
+        }
+      ]
+    },
+    {
+      "sha": "b408081195d7925e8a4e272673c7edde5485abce",
+      "message": "[FIX] Uncaught TypeError: Cannot read property 'attrs' of undefined\n\nbzr revid: fka@tinyerp.com-20121107090944-wvkq0e22v1jxyn2s",
+      "changes": [
+        {
+          "file": "addons/account/account_move_line.py",
+          "patch": "@@ -1029,7 +1029,7 @@ def fields_view_get(self, cr, uid, view_id=None, view_type='form', context=None,\n             'move_id': 40,\n         }\n \n-        document = etree.Element('tree', string=title, editable=\"top\",\n+        document = etree.Element('tree', string=title, \n                                  on_write=\"on_create_write\",\n                                  colors=\"red:state=='draft';black:state=='valid'\")\n         fields_get = self.fields_get(cr, uid, flds, context)"
+        }
+      ]
+    },
+    {
+      "sha": "976a3eb276a70c3a945429d450468626e9adf22f",
+      "message": "[FIX] account_analytic_default : TypeError: The model 'stock.picking' specifies an unexisting parent class 'stock.picking'. You may need to add a dependency on the parent class' module.\n\nbzr revid: mdi@tinyerp.com-20121016072428-srbvx9037iz40e5c",
+      "changes": [
+        {
+          "file": "addons/account_analytic_default/__openerp__.py",
+          "patch": "@@ -38,7 +38,7 @@\n     'author': 'OpenERP SA',\n     'website': 'http://www.openerp.com',\n     'images': ['images/analytic_defaults.jpeg'],\n-    'depends': ['sale'],\n+    'depends': ['sale_stock'],\n     'data': [\n         'security/ir.model.access.csv', \n         'security/account_analytic_default_security.xml', "
+        }
+      ]
+    },
+    {
+      "sha": "d9c5368a2cbe3f19aed1e4be08adcad826207dd0",
+      "message": "[IMP] product : TypeError: The model 'product.product' specifies an unexisting parent class 'mail.thread'.\n\nbzr revid: mdi@tinyerp.com-20120720102751-g100uuhvxl0lcr91",
+      "changes": [
+        {
+          "file": "addons/product/__openerp__.py",
+          "patch": "@@ -25,7 +25,7 @@\n     \"version\" : \"1.1\",\n     \"author\" : \"OpenERP SA\",\n     'category': 'Sales Management',\n-    \"depends\" : [\"base\", \"process\", \"decimal_precision\"],\n+    \"depends\" : [\"base\", \"process\", \"decimal_precision\", \"mail\"],\n     \"init_xml\" : [],\n     \"demo_xml\" : [\"product_demo.xml\"],\n     \"description\": \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "7e9a1f13b0d7c3b5e78b18ab0cbf78fa442624ed",
+      "message": "[FIX] base_calendar : TypeError: strptime() argument 1 must be string, not bool.\n\nbzr revid: mdi@tinyerp.com-20120718054259-cve7ms8krk19uw8o",
+      "changes": [
+        {
+          "file": "addons/base_calendar/base_calendar.py",
+          "patch": "@@ -1028,8 +1028,8 @@ def _rrule_write(self, obj, cr, uid, ids, field_name, field_value, args, context\n         'id': fields.integer('ID', readonly=True),\n         'sequence': fields.integer('Sequence'),\n         'name': fields.char('Description', size=64, required=False, states={'done': [('readonly', True)]}),\n-        'date': fields.datetime('Date', states={'done': [('readonly', True)]}),\n-        'date_deadline': fields.datetime('Deadline', states={'done': [('readonly', True)]}),\n+        'date': fields.datetime('Date', required=True, states={'done': [('readonly', True)]}),\n+        'date_deadline': fields.datetime('Deadline', required=True, states={'done': [('readonly', True)]}),\n         'create_date': fields.datetime('Created', readonly=True),\n         'duration': fields.float('Duration', states={'done': [('readonly', True)]}),\n         'description': fields.text('Description', states={'done': [('readonly', True)]}),"
+        }
+      ]
+    },
+    {
+      "sha": "45cb6f89d83156737b546acdf4d26cbfebb9f883",
+      "message": "[FIX]account: fix the issue of Centralised Counterpart [TypeError:]\n\nlp bug: https://launchpad.net/bugs/997316 fixed\n\nbzr revid: mma@tinyerp.com-20120510125123-wefcgpxe2gitw0bo",
+      "changes": [
+        {
+          "file": "addons/account/account_move_line.py",
+          "patch": "@@ -556,6 +556,7 @@ def _get_currency(self, cr, uid, context=None):\n         'journal_id': lambda self, cr, uid, c: c.get('journal_id', False),\n         'credit': 0.0,\n         'debit': 0.0,\n+        'amount_currency': 0.0,\n         'account_id': lambda self, cr, uid, c: c.get('account_id', False),\n         'period_id': lambda self, cr, uid, c: c.get('period_id', False),\n         'company_id': lambda self, cr, uid, c: self.pool.get('res.company')._company_default_get(cr, uid, 'account.move.line', context=c)"
+        }
+      ]
+    },
+    {
+      "sha": "cd2cda1a37d6e299a3b19806fb63748a063528b6",
+      "message": "[FIX] Fetchmail: UnboundLocalError: local variable imap_server referenced before assignment\n\nbzr revid: ado@tinyerp.com-20120321085752-pwsqfifik0cep9vr",
+      "changes": [
+        {
+          "file": "addons/fetchmail/fetchmail.py",
+          "patch": "@@ -180,6 +180,8 @@ def fetch_mail(self, cr, uid, ids, context=None):\n             logger.info('start checking for new emails on %s server %s', server.type, server.name)\n             context.update({'fetchmail_server_id': server.id, 'server_type': server.type})\n             count = 0\n+            imap_server = False\n+            pop_server = False\n             if server.type == 'imap':\n                 try:\n                     imap_server = server.connect()"
+        }
+      ]
+    },
+    {
+      "sha": "fd9bb5a1363233da1dbf6a0de051f8d4abb173a2",
+      "message": "[FIX] tools.misc: NameError during exception handling.\n\nbzr revid: florent.xicluna@gmail.com-20120119220041-w0o5q6cusz9zfnt2",
+      "changes": [
+        {
+          "file": "openerp/tools/misc.py",
+          "patch": "@@ -386,7 +386,7 @@ def email_send(email_from, email_to, subject, body, email_cc=None, email_bcc=Non\n                        smtp_server=smtp_server, smtp_port=smtp_port, smtp_user=smtp_user, smtp_password=smtp_password,\n                        smtp_encryption=('ssl' if ssl else None), debug=debug)\n     except Exception:\n-        _log.exception(\"tools.email_send failed to deliver email\")\n+        _logger.exception(\"tools.email_send failed to deliver email\")\n         return False\n     finally:\n         cr.close()"
+        }
+      ]
+    },
+    {
+      "sha": "f65509f1ce492b760b10433ce8d383f970755c79",
+      "message": "[FIX] AttributeError, 'module' has no attribute 'ext_eval'\n\nbzr revid: florent.xicluna@gmail.com-20120119215553-qlb4992c37vi6cuh",
+      "changes": [
+        {
+          "file": "openerp/tools/safe_eval.py",
+          "patch": "@@ -36,7 +36,7 @@\n import logging\n import os\n \n-__all__ = ['test_expr', 'safe_eval', 'const_eval', 'ext_eval' ]\n+__all__ = ['test_expr', 'safe_eval', 'const_eval']\n \n # The time module is usually already provided in the safe_eval environment\n # but some code, e.g. datetime.datetime.now() (Windows/Python 2.5.2, bug"
+        }
+      ]
+    },
+    {
+      "sha": "4910de7f3c6a6f8fd8c53906b367168223de733b",
+      "message": "[FIX] NameError in jsonp POST.\n\nbzr revid: florent.xicluna@gmail.com-20120116145524-razqfr39bf4b4t9v",
+      "changes": [
+        {
+          "file": "addons/web/common/http.py",
+          "patch": "@@ -146,7 +146,8 @@ def dispatch(self, controller, method):\n         if jsonp and self.httprequest.method == 'POST':\n             # jsonp 2 steps step1 POST: save call\n             self.init(args)\n-            req.session.jsonp_requests[args.get('id')] = self.httprequest.form['r']\n+            request_id = args.get('id')\n+            self.session.jsonp_requests[request_id] = self.httprequest.form['r']\n             headers=[('Content-Type', 'text/plain; charset=utf-8')]\n             r = werkzeug.wrappers.Response(request_id, headers=headers)\n             return r"
+        }
+      ]
+    },
+    {
+      "sha": "84a6f91180dd9a6f021f6b7e4948db48a16f295f",
+      "message": "[FIX]:UnboundLocalError\n\nlp bug: https://launchpad.net/bugs/891500 fixed\n\nbzr revid: nch@tinyerp.com-20111118085439-wgei8ockgn84jnep",
+      "changes": [
+        {
+          "file": "openerp/addons/base/ir/ir_sequence.py",
+          "patch": "@@ -150,9 +150,9 @@ def write(self, cr, uid, ids, values, context=None):\n \n         for row in rows:\n             # 4 cases: we test the previous impl. against the new one.\n+            i = values.get('number_increment', row['number_increment'])\n+            n = values.get('number_next', row['number_next'])\n             if row['implementation'] == 'standard':\n-                i = values.get('number_increment', row['number_increment'])\n-                n = values.get('number_next', row['number_next'])\n                 if new_implementation in ('standard', None):\n                     self._alter_sequence(cr, row['id'], i, n)\n                 else:"
+        }
+      ]
+    },
+    {
+      "sha": "a2557925b64e93161a7006572f970e7f208c3dd5",
+      "message": "yaml_import: fix ambiguous syntax at end of report\n\nWhen finishing a YAML import, the syntax [\"str %d\" % int + int] turns\nout to be ambiguous and is resolved as [ (\"str %d\" % int) + int],\nleading to a:\n  TypeError: cannot concatenate 'str' and 'int' objects\n\nThis had been first fixed in commit f46966e044d18a644 (2010-06-30)\n(cherry picked from commit cc0c584e5dfbf672d51f61e7207047f357e31471)\n\nbzr revid: xrg@linux.gr-20110605135116-ie2h7gnvnx2kpdoy",
+      "changes": [
+        {
+          "file": "openerp/tools/yaml_import.py",
+          "patch": "@@ -105,7 +105,7 @@ def __str__(self):\n             success += self._report[severity][True]\n             failure += self._report[severity][False]\n         res.append(\"total\\t%s\\t%s\" % (success, failure))\n-        res.append(\"end of report (%s assertion(s) checked)\" % success + failure)\n+        res.append(\"end of report (%s assertion(s) checked)\" % (success + failure))\n         return \"\\n\".join(res)\n \n class RecordDictWrapper(dict):"
+        }
+      ]
+    },
+    {
+      "sha": "5344e317aea784f0ae50d84141fc55a787765f8d",
+      "message": "yaml_import: fix ambiguous syntax at end of report\n\nWhen finishing a YAML import, the syntax [\"str %d\" % int + int] turns\nout to be ambiguous and is resolved as [ (\"str %d\" % int) + int],\nleading to a:\n  TypeError: cannot concatenate 'str' and 'int' objects\n\nThis had been first fixed in commit f46966e044d18a644 (2010-06-30)\n(cherry picked from commit cc0c584e5dfbf672d51f61e7207047f357e31471)\n\nbzr revid: xrg@linux.gr-20110605113520-4jvooqvs2wbm1qs0",
+      "changes": [
+        {
+          "file": "bin/tools/yaml_import.py",
+          "patch": "@@ -106,7 +106,7 @@ def __str__(self):\n             success += self._report[severity][True]\n             failure += self._report[severity][False]\n         res.append(\"total\\t%s\\t%s\" % (success, failure))\n-        res.append(\"end of report (%s assertion(s) checked)\" % success + failure)\n+        res.append(\"end of report (%s assertion(s) checked)\" % (success + failure))\n         return \"\\n\".join(res)\n \n class RecordDictWrapper(dict):"
+        }
+      ]
+    },
+    {
+      "sha": "89af288c3b1747d59bb3ccd65a6bb85fcd542961",
+      "message": "[FIX]:AttributeError\n\nlp bug: https://launchpad.net/bugs/675826 fixed\n\nbzr revid: nch@tinyerp.com-20110505102600-0zch200zndsdf383",
+      "changes": [
+        {
+          "file": "openerp/tools/misc.py",
+          "patch": "@@ -159,7 +159,7 @@ def exec_pg_command(name, *args):\n     if not prog:\n         raise Exception('Couldn\\'t find %s' % name)\n     args2 = (prog,) + args\n-    \n+\n     return subprocess.call(args2)\n \n def exec_pg_command_pipe(name, *args):\n@@ -1283,6 +1283,9 @@ def detect_server_timezone():\n \n def get_server_timezone():\n     # timezone detection is safe in multithread, so lazy init is ok here\n+    if config['timezone'] and  \\\n+        not isinstance(config['timezone'], basestring):\n+      return 'UTC'\n     if (not config['timezone']):\n         config['timezone'] = detect_server_timezone()\n     return config['timezone']"
+        }
+      ]
+    },
+    {
+      "sha": "289ebadbb4f57979ae0928443ae653d8d3a6b615",
+      "message": "orm: at csv import, properly report lines with less columns\n\nThe \"if not line[i]\" check would cause an IndexError earlier than the\nexception. Also, report the line number where that happened.\n(the +2 op. is needed because we skip 1 for header and count at 0)\n(cherry picked from commit 7f7e84e32405d4552b8f1b156d359d629bbca353)\n\nbzr revid: p_christ@hol.gr-20110420152413-knedwepb0tmersw4",
+      "changes": [
+        {
+          "file": "bin/osv/orm.py",
+          "patch": "@@ -762,10 +762,12 @@ def process_liness(self, datas, prefix, current_module, model_name, fields_def,\n             done = {}\n             for i in range(len(fields)):\n                 res = False\n+                if i >= len(line):\n+                    raise Exception(_('Please check that all your lines have %d columns.'\n+                        'Stopped around line %d having %d columns.') % \\\n+                            (len(fields), position+2, len(line)))\n                 if not line[i]:\n                     continue\n-                if i >= len(line):\n-                    raise Exception(_('Please check that all your lines have %d columns.') % (len(fields),))\n \n                 field = fields[i]\n                 if field[:len(prefix)] <> prefix:"
+        }
+      ]
+    },
+    {
+      "sha": "3f84e8778c4189c1b352a6443e447b12e9bf2fbb",
+      "message": "[FIX] base_vat: TypeError: _construct_constraint_msg() got an unexpected keyword argument 'context'\n\nbzr revid: mra@mra-laptop-20101207071800-130g8mx7m3wz43mf",
+      "changes": [
+        {
+          "file": "addons/base_vat/base_vat.py",
+          "patch": "@@ -75,7 +75,7 @@ def vat_change(self, cr, uid, ids, value, context=None):\n         'vat_subjected': fields.boolean('VAT Legal Statement', help=\"Check this box if the partner is subjected to the VAT. It will be used for the VAT legal statement.\")\n     }\n \n-    def _construct_constraint_msg(self, cr, uid, ids):\n+    def _construct_constraint_msg(self, cr, uid, ids, context=None):\n         def default_vat_check(cn, vn):\n             # by default, a VAT number is valid if:\n             #  it starts with 2 letters"
+        }
+      ]
+    },
+    {
+      "sha": "057c282cfbd5be50401c9f74b0a4a88315a3c0cf",
+      "message": "[FIX] Account: Analytic onchange amount unit => TypeError: int argument required\n\nbzr revid: mra@mra-laptop-20101101094259-6h3izyiknl86jmnd",
+      "changes": [
+        {
+          "file": "addons/account/account_analytic_line.py",
+          "patch": "@@ -113,7 +113,7 @@ def on_change_unit_amount(self, cr, uid, id, prod_id, quantity, company_id,\n         if True:\n             flag = False\n             # Compute based on pricetype\n-            product_price_type_ids = product_price_type_obj.search(cr, uid, [('field','=','standard_price')], context)\n+            product_price_type_ids = product_price_type_obj.search(cr, uid, [('field','=','standard_price')], context=context)\n             pricetype = product_price_type_obj.browse(cr, uid, product_price_type_ids, context)[0]\n             if journal_id:\n                 journal = analytic_journal_obj.browse(cr, uid, journal_id)"
+        }
+      ]
+    },
+    {
+      "sha": "8cd367f9ed6e49bc46c5dcccd2d52c5b9a6c4329",
+      "message": "Document FTP: fix open_data after 1e1118a2bd7ae\n\nAfter the revert, the node exception is TypeError (so that it is clearly\ndistinguishable from any others).\n\nbzr revid: p_christ@hol.gr-20100713103035-usb1dbnma2l9c4ju",
+      "changes": [
+        {
+          "file": "addons/document_ftp/ftpserver/abstracted_fs.py",
+          "patch": "@@ -169,7 +169,10 @@ def open(self, datacr, mode):\n             raise OSError(1, 'Operation not permited.')\n         # Reading operation\n         cr, node, rem = datacr\n-        res = node.open_data(cr, mode)\n+        try:\n+            res = node.open_data(cr, mode)\n+        except TypeError, e:\n+            raise IOError(errno.EINVAL, \"No data\")\n         return res\n \n     # ok, but need test more"
+        }
+      ]
+    },
+    {
+      "sha": "e55d772ed1e2de9ae7d93449993a6b2e78a13e04",
+      "message": "Document API: meaningful error, when asking for directory data content.\n\nInstead of the TypeError, which would be ignored by the FTP implementation,\nraise an IOError.\n\nConflicts:\n\n\tdocument/nodes.py\n\nbzr revid: p_christ@hol.gr-20100708225141-opsfz22wx6c762nh",
+      "changes": [
+        {
+          "file": "addons/document/nodes.py",
+          "patch": "@@ -27,6 +27,7 @@\n import pooler\n from tools.safe_eval import safe_eval\n \n+import errno\n import os\n import time\n \n@@ -215,7 +216,7 @@ def path_get(self):\n         return False\n \n     def get_data(self,cr):\n-        raise TypeError('no data for %s'% self.type)\n+        raise IOError(errno.EINVAL, 'no data for %s' % self.type)\n \n     def open_data(self, cr, mode):\n         \"\"\" Open a node_descriptor object for this node.\n@@ -229,7 +230,7 @@ def open_data(self, cr, mode):\n         For this class, there is no data, so no implementation. Each\n         child class that has data should override this.\n         \"\"\"\n-        raise TypeError('no data for %s' % self.type)\n+        raise IOError(errno.EINVAL, 'no data for %s' % self.type)\n \n     def _get_storage(self,cr):\n         raise RuntimeError(\"no storage for base class\")"
+        }
+      ]
+    },
+    {
+      "sha": "506cd4a2af422ba5f5498f41e765612732ffb8c9",
+      "message": "[FIX]:<type 'exceptions.TypeError'>:cannot marshal None unless allow_none is enabled\n\nbzr revid: nch@tinyerp.com-20100629060033-5sqy9a2bximjofdz",
+      "changes": [
+        {
+          "file": "bin/osv/orm.py",
+          "patch": "@@ -1866,7 +1866,7 @@ def default_get(self, cr, uid, fields_list, context=None):\n         if not context:\n             context = {}\n         # we define default value for each field existing in the object\n-        value = dict.fromkeys(fields_list)\n+        value = dict.fromkeys(fields_list, False)\n         # get the default values for the inherited fields\n         for f in fields_list:\n             if f in self._defaults:"
+        }
+      ]
+    },
+    {
+      "sha": "ae604012d753d011c54a40a379b02c51c5bc8393",
+      "message": "[FIX] resource: TypeError: not all arguments converted during string formatting => due to comapny id defaults\n\nbzr revid: mra@tinyerp.com-20100527103924-2zvx8aa7yxbsbcrs",
+      "changes": [
+        {
+          "file": "addons/resource/resource.py",
+          "patch": "@@ -35,7 +35,7 @@ class resource_calendar(osv.osv):\n         'manager' : fields.many2one('res.users', 'Workgroup manager'),\n     }\n     _defaults = {\n-        'company_id': lambda self, cr, uid, c: self.pool.get('res.company')._company_default_get(cr, uid, 'resource.calendar', c)\n+        'company_id': lambda self, cr, uid, c: self.pool.get('res.company')._company_default_get(cr, uid, 'resource.calendar', context=c)\n     }\n \n     def interval_min_get(self, cr, uid, id, dt_from, hours, resource=False):"
+        }
+      ]
+    },
+    {
+      "sha": "269acb4ad6091640126b1c707066a97b330c08b4",
+      "message": "[FIX] Fixed NameError.\n\nbzr revid: jth@openerp.com-20100408134404-aopxy9z033d6kcrx",
+      "changes": [
+        {
+          "file": "bin/tools/yaml_import.py",
+          "patch": "@@ -399,10 +399,10 @@ def _eval_params(self, model, params):\n                 param_model = self.get_model(param.get('model', model))\n                 if 'search' in param:\n                     q = eval(param['search'], self.eval_context)\n-                    ids = param_model.search(cr, uid, q)\n+                    ids = param_model.search(self.cr, self.uid, q)\n                     value = self._get_first_result(ids)\n                 elif 'eval' in param:\n-                    local_context = {'obj': lambda x: param_model.browse(self.cr, self.uid, x, context)}\n+                    local_context = {'obj': lambda x: param_model.browse(self.cr, self.uid, x, self.context)}\n                     local_context.update(self.id_map)\n                     value = eval(param['eval'], self.eval_context, local_context)\n                 else:"
+        }
+      ]
+    }
+  ]
+}

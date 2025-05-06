@@ -1,0 +1,15 @@
+{
+  "repo_name": "optuna/optuna",
+  "commits": [
+    {
+      "sha": "80a6de31ceb0c97043942f9a4b25a4b3b769c970",
+      "message": "Use NotImplemented instead of TypeError.",
+      "changes": [
+        {
+          "file": "optuna/structs.py",
+          "patch": "@@ -296,9 +296,8 @@ def __ne__(self, other):\n     def __lt__(self, other):\n         # type: (Any) -> bool\n \n-        if not isinstance(other, type(self)):\n-            raise TypeError('\\'<\\' not supported between instances of {} and {}'.format(\n-                type(self.__class__.__name__), type(other)))\n+        if not isinstance(other, StudySummary):\n+            return NotImplemented\n \n         return self._study_id < other._study_id\n "
+        }
+      ]
+    }
+  ]
+}

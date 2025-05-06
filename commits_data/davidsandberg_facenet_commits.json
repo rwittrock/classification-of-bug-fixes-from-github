@@ -1,0 +1,15 @@
+{
+  "repo_name": "davidsandberg/facenet",
+  "commits": [
+    {
+      "sha": "d35b2fc8ff49a4949bfb3c22d4cc8adfbecc213b",
+      "message": "Handled uncaught IndexError in imread",
+      "changes": [
+        {
+          "file": "facenet/src/download_vgg_face_dataset.py",
+          "patch": "@@ -31,7 +31,7 @@ def main():\n         if not os.path.exists(imagePath) and not os.path.exists(errorPath):\n           try:\n             img = io.imread(url, mode='RGB')\n-          except (HTTPException, HTTPError, URLError, IOError, ValueError) as e:\n+          except (HTTPException, HTTPError, URLError, IOError, ValueError, IndexError) as e:\n             errorMessage = '{}: {}'.format(url, e)\n             saveErrorMessageFile(errorPath, errorMessage)\n           else:"
+        }
+      ]
+    }
+  ]
+}

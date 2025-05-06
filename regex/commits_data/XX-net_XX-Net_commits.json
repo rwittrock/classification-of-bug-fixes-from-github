@@ -1,0 +1,15 @@
+{
+  "repo_name": "XX-net/XX-Net",
+  "commits": [
+    {
+      "sha": "15985d05f504c933e88fe7e5ced23fe4c47975af",
+      "message": "fix content_range error\n\nExcept stack:Traceback (most recent call last): File \"/data/user/0/net.xndroid/files/xndroid_files/xxnet/code/3.9.6/smart_router/local/smart_route.py\", line 297, in try_loop do_gae(sock, host, port, client_address, left_buf) File \"/data/user/0/net.xndroid/files/xndroid_files/xxnet/code/3.9.6/smart_router/local/smart_route.py\", line 266, in do_gae req.do_METHOD() File \"/data/user/0/net.xndroid/files/xndroid_files/xxnet/code/3.9.6/gae_proxy/local/proxy_handler.py\", line 223, in do_METHOD return self.do_AGENT() File \"/data/user/0/net.xndroid/files/xndroid_files/xxnet/code/3.9.6/gae_proxy/local/proxy_handler.py\", line 271, in do_AGENT gae_handler.handler(self.command, self.path, request_headers, payload, self.wfile) File \"/data/user/0/net.xndroid/files/xndroid_files/xxnet/code/3.9.6/gae_proxy/local/gae_handler.py\", line 525, in handler r'bytes (\\d+)-(\\d+)/(\\d+)', content_range).group(1, 2, 3)) AttributeError: 'NoneType' object has no attribute 'group'\r\n\r\n\r\ncontent_range :\r\nbytes */439979",
+      "changes": [
+        {
+          "file": "code/default/gae_proxy/local/gae_handler.py",
+          "patch": "@@ -520,7 +520,7 @@ def handler(method, url, headers, body, wfile):\n     content_length = int(response.headers.get('Content-Length', 0))\n     content_range = response.headers.get('Content-Range', '')\n     # content_range \u5206\u7247\u65f6\u5408\u5e76\u7528\u5230\n-    if content_range:\n+    if content_range and 'bytes */' not in content_range:\n         start, end, length = tuple(int(x) for x in re.search(\n             r'bytes (\\d+)-(\\d+)/(\\d+)', content_range).group(1, 2, 3))\n     else:"
+        }
+      ]
+    }
+  ]
+}

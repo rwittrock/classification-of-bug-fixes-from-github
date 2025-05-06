@@ -1,0 +1,25 @@
+{
+  "repo_name": "open-mmlab/mmdetection",
+  "commits": [
+    {
+      "sha": "8d010d7de9c2643e715aaf6033ff7fd5c60ebdc2",
+      "message": "Fix bug when using coco_eval evaluate (#1367)\n\n* fix bug when using coco_eval evaluate\r\n\r\n* raise TypeError",
+      "changes": [
+        {
+          "file": "mmdet/core/evaluation/coco_utils.py",
+          "patch": "@@ -23,7 +23,12 @@ def coco_eval(result_files, result_types, coco, max_dets=(100, 300, 1000)):\n         return\n \n     for res_type in result_types:\n-        result_file = result_files[res_type]\n+        if isinstance(result_files, str):\n+            result_file = result_files\n+        elif isinstance(result_files, dict):\n+            result_file = result_files[res_type]\n+        else:\n+            assert TypeError('result_files must be a str or dict')\n         assert result_file.endswith('.json')\n \n         coco_dets = coco.loadRes(result_file)"
+        }
+      ]
+    },
+    {
+      "sha": "0e1f3b0d42ee7e1623322d76538aac8510abf6c2",
+      "message": "Fixed error at `DeformConvPack` (#545)\n\nFixed error `TypeError: super(type, obj): obj must be an instance or subtype of type` .",
+      "changes": [
+        {
+          "file": "mmdet/ops/dcn/modules/deform_conv.py",
+          "patch": "@@ -59,7 +59,7 @@ def forward(self, x, offset):\n class DeformConvPack(DeformConv):\n \n     def __init__(self, *args, **kwargs):\n-        super(ModulatedDeformConvPack, self).__init__(*args, **kwargs)\n+        super(DeformConvPack, self).__init__(*args, **kwargs)\n \n         self.conv_offset = nn.Conv2d(\n             self.in_channels,"
+        }
+      ]
+    }
+  ]
+}

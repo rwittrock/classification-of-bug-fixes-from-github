@@ -1,0 +1,25 @@
+{
+  "repo_name": "scrapy/scrapy",
+  "commits": [
+    {
+      "sha": "1cb841bfb3c51ed0f6d5408b79af2086c771da86",
+      "message": "PY3: Fix TypeError when outputting to stdout\n\nThis will fix #1768.",
+      "changes": [
+        {
+          "file": "scrapy/extensions/feedexport.py",
+          "patch": "@@ -10,6 +10,7 @@\n import posixpath\n from tempfile import TemporaryFile\n from datetime import datetime\n+import six\n from six.moves.urllib.parse import urlparse\n from ftplib import FTP\n \n@@ -57,7 +58,9 @@ def _store_in_thread(self, file):\n @implementer(IFeedStorage)\n class StdoutFeedStorage(object):\n \n-    def __init__(self, uri, _stdout=sys.stdout):\n+    def __init__(self, uri, _stdout=None):\n+        if not _stdout:\n+            _stdout = sys.stdout if six.PY2 else sys.stdout.buffer\n         self._stdout = _stdout\n \n     def open(self, spider):"
+        }
+      ]
+    },
+    {
+      "sha": "22da89b7488f613f0aee779a2813266365a54206",
+      "message": "callLater must happens before timeout callback is added to avoid AttributeError",
+      "changes": [
+        {
+          "file": "scrapy/core/downloader/handlers/http11.py",
+          "patch": "@@ -78,8 +78,8 @@ def download_request(self, request):\n         d.addCallback(self._cb_bodyready, request)\n         d.addCallback(self._cb_bodydone, request, url)\n         # check download timeout\n-        d.addBoth(self._cb_timeout, request, url, timeout)\n         self._timeout_cl = reactor.callLater(timeout, d.cancel)\n+        d.addBoth(self._cb_timeout, request, url, timeout)\n         return d\n \n     def _cb_timeout(self, result, request, url, timeout):"
+        }
+      ]
+    }
+  ]
+}

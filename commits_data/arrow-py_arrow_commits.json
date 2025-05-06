@@ -1,0 +1,25 @@
+{
+  "repo_name": "arrow-py/arrow",
+  "commits": [
+    {
+      "sha": "945258bd398dedf237ae51b09ccde8c7eb5ea27b",
+      "message": "included error message\n\nAdded error description at AttributeError on invalid `Arrow.replace` key",
+      "changes": [
+        {
+          "file": "arrow/arrow.py",
+          "patch": "@@ -413,7 +413,7 @@ def replace(self, **kwargs):\n             elif key in ['week', 'quarter']:\n                 raise AttributeError('setting absolute {0} is not supported'.format(key))\n             elif key !='tzinfo':\n-                raise AttributeError()\n+                raise AttributeError('unknown attribute: \"{0}\"'.format(key))\n \n         # core datetime does not support quarters, translate to months.\n         if 'quarters' in relative_kwargs.keys():"
+        }
+      ]
+    },
+    {
+      "sha": "130ff6813253cfaf2bb114f934db49ff2815d176",
+      "message": "Throw TypeError when passing booleans to arrow.get\n\nBefore:\n\n>>> arrow.get(False)\n<Arrow [1970-01-01T00:00:00+00:00]>\n\n>>> arrow.get(True)\n<Arrow [1970-01-01T00:00:01+00:00]>\n\nAfter:\n\n>>> arrow.get(False)\nTypeError: Can't parse single argument type of '<type 'bool'>'\n\n>>> arrow.get(True)\nTypeError: Can't parse single argument type of '<type 'bool'>'",
+      "changes": [
+        {
+          "file": "arrow/util.py",
+          "patch": "@@ -23,6 +23,8 @@ def _total_seconds_26(td):\n     total_seconds = _total_seconds_27\n \n def is_timestamp(value):\n+    if type(value) == bool:\n+        return False\n     try:\n         float(value)\n         return True"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "repo_name": "xonsh/xonsh",
+  "commits": [
+    {
+      "sha": "87f311e23deb310b31c829444eda87f847788d3c",
+      "message": "fix nameerror",
+      "changes": [
+        {
+          "file": "xonsh/pyghooks.py",
+          "patch": "@@ -196,15 +196,15 @@ def partial_color_tokenize(template):\n         styles = None\n     color = Color.NO_COLOR\n     try:\n-        toks, color = _partial_color_tokenize_main(template)\n+        toks, color = _partial_color_tokenize_main(template, styles)\n     except:\n         toks = [(Color.NO_COLOR, template)]\n     if styles is not None:\n         styles[color]  # ensure color is available\n     return toks\n \n \n-def _partial_color_tokenize_main(template):\n+def _partial_color_tokenize_main(template, styles):\n     formatter = string.Formatter()\n     bopen = '{'\n     bclose = '}'"
+        }
+      ]
+    },
+    {
+      "sha": "eeca87ed1a6aa7ab2c8dbaadb196a5a9f9f53f34",
+      "message": "Return empty set instead of None when no python completions match.\n\nThis avoids this error when (for example) completing \"rm\":\nTraceback (most recent call last):\n  File \"/usr/lib/python3.5/threading.py\", line 914, in _bootstrap_inner\n    self.run()\n  File \"/usr/lib/python3.5/threading.py\", line 862, in run\n    self._target(*self._args, **self._kwargs)\n  File \"/usr/lib/python3.5/site-packages/prompt_toolkit/interface.py\", line 759, in run\n    completions = list(buffer.completer.get_completions(document,complete_event))\n  File \"/usr/lib/python3.5/site-packages/xonsh/ptk/completer.py\", line 36, in get_completions\n    self.ctx)\n  File \"/usr/lib/python3.5/site-packages/xonsh/completer.py\", line 41, in complete\n    out = func(prefix, line, begidx, endidx, ctx)\n  File \"/usr/lib/python3.5/site-packages/xonsh/completers/base.py\", line 21, in complete_base\n    complete_command(prefix, line, start, end, ctx))\nTypeError: unsupported operand type(s) for |: 'NoneType' and 'set'",
+      "changes": [
+        {
+          "file": "xonsh/completers/python.py",
+          "patch": "@@ -31,7 +31,7 @@ def complete_python(prefix, line, start, end, ctx):\n     \"\"\"\n     first = line.split()[0]\n     if first in builtins.__xonsh_commands_cache__ and first not in ctx:\n-        return None\n+        return set()\n     filt = get_filter_function()\n     rtn = {s for s in XONSH_TOKENS if filt(s, prefix)}\n     if ctx is not None:"
+        }
+      ]
+    },
+    {
+      "sha": "0b6ea767aa653a9ecb8ad7f9fc13b84fbed3951a",
+      "message": "IndentationError from tokenizer shouldn't kill everything",
+      "changes": [
+        {
+          "file": "xonsh/execer.py",
+          "patch": "@@ -117,6 +117,8 @@ def _parse_ctx_free(self, input, mode='exec'):\n                 tree = self.parser.parse(input, filename=self.filename,\n                             mode=mode, debug_level=self.debug_level)\n                 parsed = True\n+            except IndentationError as e:\n+                raise\n             except SyntaxError as e:\n                 if (e.loc is None) or (last_error_line == e.loc.lineno and\n                                        last_error_col in (e.loc.column + 1, e.loc.column)):"
+        }
+      ]
+    }
+  ]
+}

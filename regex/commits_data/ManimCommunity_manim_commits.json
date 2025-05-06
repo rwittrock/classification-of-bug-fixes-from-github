@@ -1,0 +1,15 @@
+{
+  "repo_name": "ManimCommunity/manim",
+  "commits": [
+    {
+      "sha": "2d552e0aa4878b24cbe2e1c4d23ee7caa32e7e33",
+      "message": "Fix Ellipse constructor: 'width' is not defined\n\nConstructing an ellipse before gave the error \"name 'width' is not defined\"\r\n\r\nI got this error when running the tutorial at https://github.com/zimmermant/manim_tutorial/blob/master/manim_tutorial_P37.py.\r\n\r\npython3 -m manim manim_tutorial_P37.py MoreShapes -pl\r\n\r\nTraceback (most recent call last):\r\n  File \"/Users/jeanwhitmore/Code/python3/manim/manimlib/extract_scene.py\", line 153, in main\r\n    scene = SceneClass(**scene_kwargs)\r\n  File \"/Users/jeanwhitmore/Code/python3/manim/manimlib/scene/scene.py\", line 52, in __init__\r\n    self.construct()\r\n  File \"manim_tutorial_P37.py\", line 33, in construct\r\n    ellipse=Ellipse(width=3, height=1, color=RED)\r\n  File \"/Users/jeanwhitmore/Code/python3/manim/manimlib/mobject/geometry.py\", line 319, in __init__\r\n    self.set_width(width, stretch=True)\r\nNameError: name 'width' is not defined\r\n\r\nAfter this fix, the Ellipse can be constructed and the animation is generated.\r\n\r\n(Another shape is still broken, and I will try to fix that, too.)",
+      "changes": [
+        {
+          "file": "manimlib/mobject/geometry.py",
+          "patch": "@@ -316,8 +316,8 @@ class Ellipse(Circle):\n \n     def __init__(self, **kwargs):\n         Circle.__init__(self, **kwargs)\n-        self.set_width(width, stretch=True)\n-        self.set_height(width, stretch=True)\n+        self.set_width(self.width, stretch=True)\n+        self.set_height(self.width, stretch=True)\n \n \n class AnnularSector(Arc):"
+        }
+      ]
+    }
+  ]
+}

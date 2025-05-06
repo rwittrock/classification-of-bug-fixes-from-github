@@ -1,0 +1,75 @@
+{
+  "repo_name": "quantopian/zipline",
+  "commits": [
+    {
+      "sha": "3ed396b08c6875dd78b8ae436e925de4a9362163",
+      "message": "MAINT: s/NotImplementedError/TypeError.",
+      "changes": [
+        {
+          "file": "zipline/pipeline/classifiers/classifier.py",
+          "patch": "@@ -437,7 +437,7 @@ def _compute(self, arrays, dates, assets, mask):\n             result = data.map(relabeler)\n             result[~mask] = data.missing_value\n         else:\n-            raise TypeError(\n+            raise NotImplementedError(\n                 \"Relabeling is not currently supported for \"\n                 \"int-dtype classifiers.\"\n             )"
+        }
+      ]
+    },
+    {
+      "sha": "64f991b400e44fa0085cf0edb37ea3a086b878c5",
+      "message": "Fix bug in TradingCalendar initialization\n\nA TypeError exception was raised with message \"Cannot join tz-naive with\ntz-aware DatetimeIndex\". Removing old unnecessary workaround in\n`holidays_at_time` function (Pandas already fixed that before 0.18)\nfixes this issue.",
+      "changes": [
+        {
+          "file": "zipline/utils/calendars/trading_calendar.py",
+          "patch": "@@ -889,11 +889,7 @@ def days_at_time(days, t, tz, day_offset=0):\n \n def holidays_at_time(calendar, start, end, time, tz):\n     return days_at_time(\n-        calendar.holidays(\n-            # Workaround for https://github.com/pydata/pandas/issues/9825.\n-            start.tz_localize(None),\n-            end.tz_localize(None),\n-        ),\n+        calendar.holidays(start, end),\n         time,\n         tz=tz,\n     )"
+        }
+      ]
+    },
+    {
+      "sha": "bd7f3ad1008ee65375fe657c5aee3dbf04a8e0a0",
+      "message": "MAINT: Raise LookupError instead of KeyError.\n\nKeyError calls __repr__ on its input, which makes it really unpleasant\nto read multi-line strings.",
+      "changes": [
+        {
+          "file": "zipline/utils/pandas_utils.py",
+          "patch": "@@ -118,9 +118,7 @@ def find_in_sorted_index(dts, dt):\n     \"\"\"\n     ix = dts.searchsorted(dt)\n     if dts[ix] != dt:\n-        raise KeyError(\n-            \"{0} is not in calendar [{1} ... {2}]\".format(dt, dts[0], dts[-1])\n-        )\n+        raise LookupError(\"{dt} is not in {dts}\".format(dt=dt, dts=dts))\n     return ix\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "1499051df734dc242eeef5f9e239fcbefa1ef9b4",
+      "message": "BUG: TypeError message had only str of numpy.dtype class\n\nWe want to use the dtype of the data that was passed in.",
+      "changes": [
+        {
+          "file": "zipline/lib/adjusted_array.py",
+          "patch": "@@ -86,7 +86,7 @@ def _normalize_array(data):\n     else:\n         raise TypeError(\n             \"Don't know how to construct AdjustedArray \"\n-            \"on data of type %s.\" % dtype\n+            \"on data of type %s.\" % data_dtype\n         )\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "0e4f3f957ad95d43e4890cc4b2ea3a10f9b3d4da",
+      "message": "BUG: ValueError for 'bars' masked by UnboundLocalError\n\nfor 'freq'",
+      "changes": [
+        {
+          "file": "zipline/utils/factory.py",
+          "patch": "@@ -272,7 +272,7 @@ def create_test_df_source(sim_params=None, bars='daily'):\n     elif bars == 'minute':\n         freq = pd.datetools.Minute()\n     else:\n-        raise ValueError('%s bars not understood.' % freq)\n+        raise ValueError('%s bars not understood.' % bars)\n \n     if sim_params:\n         index = sim_params.trading_days"
+        }
+      ]
+    },
+    {
+      "sha": "e7ec62951000825589d717e9e7005029250e5941",
+      "message": "MAINT: Cleaned up sid checks and exception types\n\nRemoved unnecessary parens\n\nKeeping NameError reserved for when locals or globals are not found.\nException is what we use for the other sid checks, so now they are consistent.",
+      "changes": [
+        {
+          "file": "zipline/finance/performance/position.py",
+          "patch": "@@ -88,8 +88,8 @@ def add_dividend(self, dividend):\n \n     # Returns the unused cash.\n     def handle_split(self, split):\n-        if (self.sid != split.sid):\n-            raise NameError(\"updating split with the wrong sid!\")\n+        if self.sid != split.sid:\n+            raise Exception(\"updating split with the wrong sid!\")\n \n         ratio = split.ratio\n \n@@ -132,7 +132,7 @@ def handle_split(self, split):\n         return return_cash\n \n     def update(self, txn):\n-        if(self.sid != txn.sid):\n+        if self.sid != txn.sid:\n             raise Exception('updating position with txn for a '\n                             'different sid')\n "
+        }
+      ]
+    },
+    {
+      "sha": "97cbea25140a62989341f018ca16078988a334e7",
+      "message": "Fixes crashes when using numpy log on a batch transform data panel.\n\nThe recent change to the creation of the data panel ended up with\na panel with the dtype of 'object', which was causing numpy ufuncs\nlike `log` to crash out on an `AttributeError`.\n\nThis forces all frames in the panel to use a dtype of 'float',\nwe may want to look at seeting a dtype on a frame by frame basis,\ne.g. 'volume' may more accurately be 'int'.",
+      "changes": [
+        {
+          "file": "zipline/transforms/utils.py",
+          "patch": "@@ -472,7 +472,8 @@ def get_data(self):\n         # user-overloaded get_value() method.\n         data_dict = {tick['dt']: tick['data'] for tick in self.ticks}\n         data = pd.Panel(data_dict, major_axis=self.field_names,\n-                        minor_axis=self.sids)\n+                        minor_axis=self.sids,\n+                        dtype='float')\n \n         if self.supplemental_data:\n             # item will be a date stamp"
+        }
+      ]
+    }
+  ]
+}

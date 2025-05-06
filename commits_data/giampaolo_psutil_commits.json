@@ -1,0 +1,145 @@
+{
+  "repo_name": "giampaolo/psutil",
+  "commits": [
+    {
+      "sha": "56e82a63a5fa4b7ab77d13b08179f3d035523849",
+      "message": "fix #1125: [BSD] net_connections() raises TypeError.",
+      "changes": [
+        {
+          "file": "psutil/_psbsd.py",
+          "patch": "@@ -394,9 +394,12 @@ def net_connections(kind):\n                 # have a very short lifetime so maybe the kernel\n                 # can't initialize their status?\n                 status = TCP_STATUSES[cext.PSUTIL_CONN_NONE]\n+            if fam in (AF_INET, AF_INET6):\n+                if laddr:\n+                    laddr = _common.addr(*laddr)\n+                if raddr:\n+                    raddr = _common.addr(*raddr)\n             fam = sockfam_to_enum(fam)\n-            laddr = _common.addr(*laddr)\n-            raddr = _common.addr(*raddr)\n             type = socktype_to_enum(type)\n             nt = _common.sconn(fd, fam, type, laddr, raddr, status, pid)\n             ret.add(nt)"
+        }
+      ]
+    },
+    {
+      "sha": "5ba055a8e514698058589d3b615d408767a6e330",
+      "message": "#928: fix possible TypeError",
+      "changes": [
+        {
+          "file": "psutil/_pssunos.py",
+          "patch": "@@ -266,8 +266,10 @@ def net_connections(kind, _pid=-1):\n         if type_ not in types:\n             continue\n         if fam in (AF_INET, AF_INET6):\n-            laddr = _common.addr(*laddr)\n-            raddr = _common.addr(*raddr)\n+            if laddr:\n+                laddr = _common.addr(*laddr)\n+            if raddr:\n+                raddr = _common.addr(*raddr)\n         status = TCP_STATUSES[status]\n         fam = sockfam_to_enum(fam)\n         type_ = socktype_to_enum(type_)"
+        }
+      ]
+    },
+    {
+      "sha": "46723905330c4c37001e8c3a5cec22132eeded61",
+      "message": "fix TypeError",
+      "changes": [
+        {
+          "file": "psutil/_pswindows.py",
+          "patch": "@@ -327,8 +327,10 @@ def net_connections(kind, _pid=-1):\n     ret = set()\n     for item in rawlist:\n         fd, fam, type, laddr, raddr, status, pid = item\n-        laddr = _common.addr(*laddr)\n-        raddr = _common.addr(*raddr)\n+        if laddr:\n+            laddr = _common.addr(*laddr)\n+        if raddr:\n+            raddr = _common.addr(*raddr)\n         status = TCP_STATUSES[status]\n         fam = sockfam_to_enum(fam)\n         type = socktype_to_enum(type)"
+        }
+      ]
+    },
+    {
+      "sha": "65cc00e0998cc0e645f0df386045365380be79ad",
+      "message": "fix TypeError",
+      "changes": [
+        {
+          "file": "psutil/__init__.py",
+          "patch": "@@ -1646,7 +1646,9 @@ def cpu_count(logical=True):\n         ret = _psplatform.cpu_count_logical()\n     else:\n         ret = _psplatform.cpu_count_physical()\n-    return ret if ret >= 1 else None\n+    if ret is not None and ret < 1:\n+        ret = None\n+    return ret\n \n \n def cpu_times(percpu=False):"
+        }
+      ]
+    },
+    {
+      "sha": "2d32a26a257c7ce17806f0ec150bcbba5f39f914",
+      "message": "fix 1062: avoid TypeError on disk|net_io_counters() if no disks or NICs are installed on the system",
+      "changes": [
+        {
+          "file": "psutil/__init__.py",
+          "patch": "@@ -2083,6 +2083,8 @@ def disk_io_counters(perdisk=False, nowrap=True):\n     executed first otherwise this function won't find any disk.\n     \"\"\"\n     rawdict = _psplatform.disk_io_counters()\n+    if not rawdict:\n+        return {} if perdisk else None\n     if nowrap:\n         rawdict = _wrap_numbers(rawdict, 'psutil.disk_io_counters')\n     nt = getattr(_psplatform, \"sdiskio\", _common.sdiskio)\n@@ -2131,6 +2133,8 @@ def net_io_counters(pernic=False, nowrap=True):\n     cache.\n     \"\"\"\n     rawdict = _psplatform.net_io_counters()\n+    if not rawdict:\n+        return {} if pernic else None\n     if nowrap:\n         rawdict = _wrap_numbers(rawdict, 'psutil.net_io_counters')\n     if pernic:"
+        }
+      ]
+    },
+    {
+      "sha": "ae5c4378b7a441cd2ed8cb5ab795669206b5c7c4",
+      "message": "fix AttributeError",
+      "changes": [
+        {
+          "file": "psutil/tests/__init__.py",
+          "patch": "@@ -991,7 +991,7 @@ def copyload_shared_lib(dst_prefix=TESTFILE_PREFIX):\n         dst = tempfile.mktemp(prefix=dst_prefix, suffix=ext)\n         libs = [x.path for x in psutil.Process().memory_maps()\n                 if os.path.splitext(x.path)[1].lower() == ext and\n-                'python' in os.path.basebaname(x.path).lower() and\n+                'python' in os.path.basename(x.path).lower() and\n                 'wow64' not in x.path.lower()]\n         src = random.choice(libs)\n         shutil.copyfile(src, dst)"
+        }
+      ]
+    },
+    {
+      "sha": "86b408d94681c190491b52e57cca1296ccd790c4",
+      "message": "fix AttributeError",
+      "changes": [
+        {
+          "file": "psutil/tests/__init__.py",
+          "patch": "@@ -990,7 +990,7 @@ def copyload_shared_lib(dst_prefix=TESTFILE_PREFIX):\n         dst = tempfile.mktemp(prefix=dst_prefix, suffix=ext)\n         libs = [x.path for x in psutil.Process().memory_maps()\n                 if os.path.splitext(x.path)[1].lower() == ext and\n-                'python' in x.lower() and 'wow64' not in x.lower()]\n+                'python' in x.path.lower() and 'wow64' not in x.path.lower()]\n         src = random.choice(libs)\n         shutil.copyfile(src, dst)\n         cfile = None"
+        }
+      ]
+    },
+    {
+      "sha": "eb3be3d3ab2e55e79121ba8e0f183b60343f73da",
+      "message": "fix TypeError",
+      "changes": [
+        {
+          "file": "psutil/_pswindows.py",
+          "patch": "@@ -77,8 +77,8 @@\n WAIT_TIMEOUT = 0x00000102  # 258 in decimal\n ACCESS_DENIED_ERRSET = frozenset([errno.EPERM, errno.EACCES,\n                                   cext.ERROR_ACCESS_DENIED])\n-NO_SUCH_SERVICE_ERRSET = frozenset(cext.ERROR_INVALID_NAME,\n-                                   cext.ERROR_SERVICE_DOES_NOT_EXIST)\n+NO_SUCH_SERVICE_ERRSET = frozenset([cext.ERROR_INVALID_NAME,\n+                                    cext.ERROR_SERVICE_DOES_NOT_EXIST])\n \n \n if enum is None:"
+        }
+      ]
+    },
+    {
+      "sha": "8e81948e711e693536d98c229158cbda2c080bca",
+      "message": "fix TypeError",
+      "changes": [
+        {
+          "file": "psutil/tests/test_system.py",
+          "patch": "@@ -705,6 +705,7 @@ def check_ls(ls):\n                 self.assertLessEqual(nt.current, nt.max)\n                 for name in nt._fields:\n                     value = getattr(nt, name)\n+                    self.assertIsInstance(value, (int, long, float))\n                     self.assertGreaterEqual(value, 0)\n \n         ls = psutil.cpu_freq(percpu=True)"
+        }
+      ]
+    },
+    {
+      "sha": "e5dd8b6817e344bf04b7b3e2333bbeb562fc7ac6",
+      "message": "fix AttributeError",
+      "changes": [
+        {
+          "file": "psutil/_pssunos.py",
+          "patch": "@@ -61,6 +61,7 @@\n scputimes = namedtuple('scputimes', ['user', 'system', 'idle', 'iowait'])\n svmem = namedtuple('svmem', ['total', 'available', 'percent', 'used', 'free'])\n pmem = namedtuple('pmem', ['rss', 'vms'])\n+pfullmem = pmem\n pmmap_grouped = namedtuple('pmmap_grouped',\n                            ['path', 'rss', 'anonymous', 'locked'])\n pmmap_ext = namedtuple("
+        }
+      ]
+    },
+    {
+      "sha": "f145a3aad77bdfa49018f3f74e5fd794079e5561",
+      "message": "fix AttributeError",
+      "changes": [
+        {
+          "file": "psutil/_psosx.py",
+          "patch": "@@ -223,7 +223,7 @@ def wrapper(self, *args, **kwargs):\n class Process(object):\n     \"\"\"Wrapper class around underlying C implementation.\"\"\"\n \n-    __slots__ = [\"pid\", \"_name\", \"_ppid\"]\n+    __slots__ = [\"pid\", \"_name\", \"_ppid\", \"_encoding_errors_handler\"]\n \n     def __init__(self, pid):\n         self.pid = pid"
+        }
+      ]
+    },
+    {
+      "sha": "45ceea9669439f3e25bd96ddff6e0c0c16454b70",
+      "message": "fix #533: Process.memory_maps() may raise TypeError on old Linux distros",
+      "changes": [
+        {
+          "file": "psutil/_pslinux.py",
+          "patch": "@@ -960,7 +960,7 @@ def get_blocks():\n             f.close()\n \n     else:\n-        def memory_maps(self, ext):\n+        def memory_maps(self):\n             msg = \"couldn't find /proc/%s/smaps; kernel < 2.6.14 or \"  \\\n                   \"CONFIG_MMU kernel configuration option is not enabled\" \\\n                   % self.pid"
+        }
+      ]
+    },
+    {
+      "sha": "17de764249d663828775eef5034fd648cb5e5361",
+      "message": "Issue 324: NameError: global name 'pid' is not defined\n\nIncorrect use of 'pid' instead of 'self._pid' in exception string format.",
+      "changes": [
+        {
+          "file": "psutil/__init__.py",
+          "patch": "@@ -764,7 +764,7 @@ def __init__(self, *args, **kwargs):\n             pass\n         except NoSuchProcess:\n             raise NoSuchProcess(self._pid, None,\n-                                \"no process found with pid %s\" % pid)\n+                                \"no process found with pid %s\" % self._pid)\n \n     def __dir__(self):\n         return list(set(dir(Popen) + dir(subprocess.Popen)))"
+        }
+      ]
+    },
+    {
+      "sha": "317cfc2d380ac7c9945822df0cd548678303348a",
+      "message": "Fix NameError on Windows",
+      "changes": [
+        {
+          "file": "psutil/_psmswindows.py",
+          "patch": "@@ -81,9 +81,8 @@ def get_system_per_cpu_times():\n         ret.append(item)\n     return ret\n \n-get_pid_list = _psutil_mswindows.get_pid_list()\n-pid_exists = _psutil_mswindows.pid_exists(pid)\n-\n+get_pid_list = _psutil_mswindows.get_pid_list\n+pid_exists = _psutil_mswindows.pid_exists\n \n # --- decorator\n "
+        }
+      ]
+    }
+  ]
+}

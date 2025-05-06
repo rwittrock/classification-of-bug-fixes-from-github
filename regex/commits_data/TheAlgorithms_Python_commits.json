@@ -1,0 +1,203 @@
+{
+  "repo_name": "TheAlgorithms/Python",
+  "commits": [
+    {
+      "sha": "13e4d3e76cfaa74d8b14314d319fb6c089aa051e",
+      "message": "Fix error in avl_tree del_node function (#11510)\n\n* fixed error in del_node function\r\n\r\n* Update avl_tree.py\r\n\r\n---------\r\n\r\nCo-authored-by: Maxim Smolskiy <mithridatus@mail.ru>",
+      "changes": [
+        {
+          "file": "data_structures/binary_tree/avl_tree.py",
+          "additions": 4,
+          "deletions": 0,
+          "patch": "@@ -221,6 +221,10 @@ def del_node(root: MyNode, data: Any) -> MyNode | None:\n     else:\n         root.set_right(del_node(right_child, data))\n \n+    # Re-fetch left_child and right_child references\n+    left_child = root.get_left()\n+    right_child = root.get_right()\n+\n     if get_height(right_child) - get_height(left_child) == 2:\n         assert right_child is not None\n         if get_height(right_child.get_right()) > get_height(right_child.get_left()):"
+        }
+      ]
+    },
+    {
+      "sha": "c666db3729b6d9f73e2f7756a3974f53279caa50",
+      "message": "Add Doc test bubble sort (#12070)\n\n* The string manipulation - replace()\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Update replace.py\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* updating DIRECTORY.md\r\n\r\n* Add doc test to bubble_sort\r\n\r\n* Update DIRECTORY.md\r\n\r\n* Delete strings/replace.py\r\n\r\n* Update bubble_sort.py\r\n\r\n---------\r\n\r\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\r\nCo-authored-by: vijayalaxmi777 <vijayalaxmi777@users.noreply.github.com>\r\nCo-authored-by: Maxim Smolskiy <mithridatus@mail.ru>",
+      "changes": [
+        {
+          "file": "sorts/bubble_sort.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -85,6 +85,8 @@ def bubble_sort_recursive(collection: list[Any]) -> list[Any]:\n     [1.1, 2.2, 3.3, 4.4, 5.5, 6.6, 7.7]\n     >>> bubble_sort_recursive([1, 3.3, 5, 7.7, 2, 4.4, 6])\n     [1, 2, 3.3, 4.4, 5, 6, 7.7]\n+    >>> bubble_sort_recursive(['a', 'Z', 'B', 'C', 'A', 'c'])\n+    ['A', 'B', 'C', 'Z', 'a', 'c']\n     >>> import random\n     >>> collection_arg = random.sample(range(-50, 50), 100)\n     >>> bubble_sort_recursive(collection_arg) == sorted(collection_arg)"
+        }
+      ]
+    },
+    {
+      "sha": "533767ff46bbcf5c594ff8196894ae2e8130bc3e",
+      "message": "Doomsday Algorithm: Fix leap year check (#12396)\n\n* Fix leap year check\n\nReplace `!=` in `(year % 400) != 0` (line 49) with `==`\r\n\r\nJustification: Years that are divisible by 100 (centurian == 100) but not by 400 (year % 400 != 0) are skipped and NOT leap year.\n\n* Update parentheses\n\nCorrect the parentheses to make clear the precedence of the conditional check\n\n* Update other/doomsday.py\n\nCo-authored-by: Tianyi Zheng <tianyizheng02@gmail.com>\n\n---------\n\nCo-authored-by: Tianyi Zheng <tianyizheng02@gmail.com>",
+      "changes": [
+        {
+          "file": "other/doomsday.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -46,7 +46,7 @@ def get_week_day(year: int, month: int, day: int) -> str:\n     ) % 7\n     day_anchor = (\n         DOOMSDAY_NOT_LEAP[month - 1]\n-        if (year % 4 != 0) or (centurian == 0 and (year % 400) == 0)\n+        if year % 4 != 0 or (centurian == 0 and year % 400 != 0)\n         else DOOMSDAY_LEAP[month - 1]\n     )\n     week_day = (dooms_day + day - day_anchor) % 7"
+        }
+      ]
+    },
+    {
+      "sha": "4fe50bc1fcf82fceb61839bae314720c092c0692",
+      "message": "[pre-commit.ci] pre-commit autoupdate -- ruff 2025 stable format (#12521)\n\n* [pre-commit.ci] pre-commit autoupdate\r\n\r\nupdates:\r\n- [github.com/astral-sh/ruff-pre-commit: v0.8.6 \u2192 v0.9.1](https://github.com/astral-sh/ruff-pre-commit/compare/v0.8.6...v0.9.1)\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Update maths/dual_number_automatic_differentiation.py\r\n\r\n* Update maths/dual_number_automatic_differentiation.py\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Update dual_number_automatic_differentiation.py\r\n\r\n* Update dual_number_automatic_differentiation.py\r\n\r\n* No <fin-streamer> tag with the specified data-test attribute found.\r\n\r\n---------\r\n\r\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\r\nCo-authored-by: Christian Clauss <cclauss@me.com>",
+      "changes": [
+        {
+          "file": "ciphers/caesar_cipher.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -225,7 +225,7 @@ def brute_force(input_string: str, alphabet: str | None = None) -> dict[int, str\n \n if __name__ == \"__main__\":\n     while True:\n-        print(f'\\n{\"-\" * 10}\\n Menu\\n{\"-\" * 10}')\n+        print(f\"\\n{'-' * 10}\\n Menu\\n{'-' * 10}\")\n         print(*[\"1.Encrypt\", \"2.Decrypt\", \"3.BruteForce\", \"4.Quit\"], sep=\"\\n\")\n \n         # get user input"
+        },
+        {
+          "file": "computer_vision/flip_augmentation.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -33,7 +33,7 @@ def main() -> None:\n         file_name = paths[index].split(os.sep)[-1].rsplit(\".\", 1)[0]\n         file_root = f\"{OUTPUT_DIR}/{file_name}_FLIP_{letter_code}\"\n         cv2.imwrite(f\"{file_root}.jpg\", image, [cv2.IMWRITE_JPEG_QUALITY, 85])\n-        print(f\"Success {index+1}/{len(new_images)} with {file_name}\")\n+        print(f\"Success {index + 1}/{len(new_images)} with {file_name}\")\n         annos_list = []\n         for anno in new_annos[index]:\n             obj = f\"{anno[0]} {anno[1]} {anno[2]} {anno[3]} {anno[4]}\""
+        },
+        {
+          "file": "computer_vision/mosaic_augmentation.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -41,7 +41,7 @@ def main() -> None:\n         file_name = path.split(os.sep)[-1].rsplit(\".\", 1)[0]\n         file_root = f\"{OUTPUT_DIR}/{file_name}_MOSAIC_{letter_code}\"\n         cv2.imwrite(f\"{file_root}.jpg\", new_image, [cv2.IMWRITE_JPEG_QUALITY, 85])\n-        print(f\"Succeeded {index+1}/{NUMBER_IMAGES} with {file_name}\")\n+        print(f\"Succeeded {index + 1}/{NUMBER_IMAGES} with {file_name}\")\n         annos_list = []\n         for anno in new_annos:\n             width = anno[3] - anno[1]"
+        },
+        {
+          "file": "data_structures/hashing/number_theory/prime_numbers.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -32,9 +32,9 @@ def is_prime(number: int) -> bool:\n     \"\"\"\n \n     # precondition\n-    assert isinstance(number, int) and (\n-        number >= 0\n-    ), \"'number' must been an int and positive\"\n+    assert isinstance(number, int) and (number >= 0), (\n+        \"'number' must been an int and positive\"\n+    )\n \n     if 1 < number < 4:\n         # 2 and 3 are primes"
+        },
+        {
+          "file": "data_structures/heap/min_heap.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -124,9 +124,9 @@ def is_empty(self):\n         return len(self.heap) == 0\n \n     def decrease_key(self, node, new_value):\n-        assert (\n-            self.heap[self.idx_of_element[node]].val > new_value\n-        ), \"newValue must be less that current value\"\n+        assert self.heap[self.idx_of_element[node]].val > new_value, (\n+            \"newValue must be less that current value\"\n+        )\n         node.val = new_value\n         self.heap_dict[node.name] = new_value\n         self.sift_up(self.idx_of_element[node])"
+        },
+        {
+          "file": "dynamic_programming/climbing_stairs.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -25,9 +25,9 @@ def climb_stairs(number_of_steps: int) -> int:\n         ...\n     AssertionError: number_of_steps needs to be positive integer, your input -7\n     \"\"\"\n-    assert (\n-        isinstance(number_of_steps, int) and number_of_steps > 0\n-    ), f\"number_of_steps needs to be positive integer, your input {number_of_steps}\"\n+    assert isinstance(number_of_steps, int) and number_of_steps > 0, (\n+        f\"number_of_steps needs to be positive integer, your input {number_of_steps}\"\n+    )\n     if number_of_steps == 1:\n         return 1\n     previous, current = 1, 1"
+        },
+        {
+          "file": "dynamic_programming/iterating_through_submasks.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -37,9 +37,9 @@ def list_of_submasks(mask: int) -> list[int]:\n \n     \"\"\"\n \n-    assert (\n-        isinstance(mask, int) and mask > 0\n-    ), f\"mask needs to be positive integer, your input {mask}\"\n+    assert isinstance(mask, int) and mask > 0, (\n+        f\"mask needs to be positive integer, your input {mask}\"\n+    )\n \n     \"\"\"\n     first submask iterated will be mask itself then operation will be performed"
+        },
+        {
+          "file": "dynamic_programming/matrix_chain_multiplication.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -134,7 +134,7 @@ def elapsed_time(msg: str) -> Iterator:\n \n     start = perf_counter_ns()\n     yield\n-    print(f\"Finished: {msg} in {(perf_counter_ns() - start) / 10 ** 9} seconds.\")\n+    print(f\"Finished: {msg} in {(perf_counter_ns() - start) / 10**9} seconds.\")\n \n \n if __name__ == \"__main__\":"
+        },
+        {
+          "file": "machine_learning/linear_discriminant_analysis.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -322,7 +322,7 @@ def main():\n             user_count = valid_input(\n                 input_type=int,\n                 condition=lambda x: x > 0,\n-                input_msg=(f\"Enter The number of instances for class_{i+1}: \"),\n+                input_msg=(f\"Enter The number of instances for class_{i + 1}: \"),\n                 err_msg=\"Number of instances should be positive!\",\n             )\n             counts.append(user_count)\n@@ -333,7 +333,7 @@ def main():\n         for a in range(n_classes):\n             user_mean = valid_input(\n                 input_type=float,\n-                input_msg=(f\"Enter the value of mean for class_{a+1}: \"),\n+                input_msg=(f\"Enter the value of mean for class_{a + 1}: \"),\n                 err_msg=\"This is an invalid value.\",\n             )\n             user_means.append(user_mean)"
+        },
+        {
+          "file": "maths/dual_number_automatic_differentiation.py",
+          "additions": 2,
+          "deletions": 4,
+          "patch": "@@ -17,10 +17,8 @@ def __init__(self, real, rank):\n             self.duals = rank\r\n \r\n     def __repr__(self):\r\n-        return (\r\n-            f\"{self.real}+\"\r\n-            f\"{'+'.join(str(dual)+'E'+str(n+1)for n,dual in enumerate(self.duals))}\"\r\n-        )\r\n+        s = \"+\".join(f\"{dual}E{n}\" for n, dual in enumerate(self.duals, 1))\r\n+        return f\"{self.real}+{s}\"\r\n \r\n     def reduce(self):\r\n         cur = self.duals.copy()\r"
+        },
+        {
+          "file": "maths/max_sum_sliding_window.py",
+          "additions": 3,
+          "deletions": 1,
+          "patch": "@@ -43,4 +43,6 @@ def max_sum_in_array(array: list[int], k: int) -> int:\n     testmod()\n     array = [randint(-1000, 1000) for i in range(100)]\n     k = randint(0, 110)\n-    print(f\"The maximum sum of {k} consecutive elements is {max_sum_in_array(array,k)}\")\n+    print(\n+        f\"The maximum sum of {k} consecutive elements is {max_sum_in_array(array, k)}\"\n+    )"
+        },
+        {
+          "file": "matrix/matrix_based_game.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -273,7 +273,7 @@ def process_game(size: int, matrix: list[str], moves: list[tuple[int, int]]) ->\n         size = int(input(\"Enter the size of the matrix: \"))\n         validate_matrix_size(size)\n         print(f\"Enter the {size} rows of the matrix:\")\n-        matrix = [input(f\"Row {i+1}: \") for i in range(size)]\n+        matrix = [input(f\"Row {i + 1}: \") for i in range(size)]\n         validate_matrix_content(matrix, size)\n         moves_input = input(\"Enter the moves (e.g., '0 0, 1 1'): \")\n         moves = parse_moves(moves_input)"
+        },
+        {
+          "file": "neural_network/input_data.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -160,9 +160,9 @@ def __init__(\n             self._num_examples = 10000\n             self.one_hot = one_hot\n         else:\n-            assert (\n-                images.shape[0] == labels.shape[0]\n-            ), f\"images.shape: {images.shape} labels.shape: {labels.shape}\"\n+            assert images.shape[0] == labels.shape[0], (\n+                f\"images.shape: {images.shape} labels.shape: {labels.shape}\"\n+            )\n             self._num_examples = images.shape[0]\n \n             # Convert shape from [num examples, rows, columns, depth]"
+        },
+        {
+          "file": "scripts/validate_solutions.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -94,6 +94,6 @@ def test_project_euler(solution_path: pathlib.Path) -> None:\n     solution_module = convert_path_to_module(solution_path)\n     answer = str(solution_module.solution())\n     answer = hashlib.sha256(answer.encode()).hexdigest()\n-    assert (\n-        answer == expected\n-    ), f\"Expected solution to {problem_number} to have hash {expected}, got {answer}\"\n+    assert answer == expected, (\n+        f\"Expected solution to {problem_number} to have hash {expected}, got {answer}\"\n+    )"
+        },
+        {
+          "file": "strings/jaro_winkler.py",
+          "additions": 3,
+          "deletions": 1,
+          "patch": "@@ -33,7 +33,9 @@ def get_matched_characters(_str1: str, _str2: str) -> str:\n             right = int(min(i + limit + 1, len(_str2)))\n             if char in _str2[left:right]:\n                 matched.append(char)\n-                _str2 = f\"{_str2[0:_str2.index(char)]} {_str2[_str2.index(char) + 1:]}\"\n+                _str2 = (\n+                    f\"{_str2[0 : _str2.index(char)]} {_str2[_str2.index(char) + 1 :]}\"\n+                )\n \n         return \"\".join(matched)\n "
+        },
+        {
+          "file": "web_programming/fetch_anime_and_play.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -165,7 +165,7 @@ def get_anime_episode(episode_endpoint: str) -> list:\n         print(f\"Found {len(anime_list)} results: \")\n         for i, anime in enumerate(anime_list):\n             anime_title = anime[\"title\"]\n-            print(f\"{i+1}. {anime_title}\")\n+            print(f\"{i + 1}. {anime_title}\")\n \n         anime_choice = int(input(\"\\nPlease choose from the following list: \").strip())\n         chosen_anime = anime_list[anime_choice - 1]\n@@ -177,7 +177,7 @@ def get_anime_episode(episode_endpoint: str) -> list:\n         else:\n             print(f\"Found {len(episode_list)} results: \")\n             for i, episode in enumerate(episode_list):\n-                print(f\"{i+1}. {episode['title']}\")\n+                print(f\"{i + 1}. {episode['title']}\")\n \n             episode_choice = int(input(\"\\nChoose an episode by serial no: \").strip())\n             chosen_episode = episode_list[episode_choice - 1]"
+        }
+      ]
+    },
+    {
+      "sha": "cfcc84edf7d14cb56f52ba6fbd8c8deb2e9a7852",
+      "message": "Fix build (#12516)\n\n* Empty commit\r\n\r\n* Fix\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Fix\r\n\r\n* Apply suggestions from code review\r\n\r\n---------\r\n\r\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\r\nCo-authored-by: Christian Clauss <cclauss@me.com>",
+      "changes": [
+        {
+          "file": "web_programming/current_stock_price.py",
+          "additions": 4,
+          "deletions": 6,
+          "patch": "@@ -15,7 +15,7 @@\n def stock_price(symbol: str = \"AAPL\") -> str:\n     \"\"\"\n     >>> stock_price(\"EEEE\")\n-    '-'\n+    '- '\n     >>> isinstance(float(stock_price(\"GOOG\")),float)\n     True\n     \"\"\"\n@@ -24,12 +24,10 @@ def stock_price(symbol: str = \"AAPL\") -> str:\n         url, headers={\"USER-AGENT\": \"Mozilla/5.0\"}, timeout=10\n     ).text\n     soup = BeautifulSoup(yahoo_finance_source, \"html.parser\")\n-    specific_fin_streamer_tag = soup.find(\"fin-streamer\", {\"data-testid\": \"qsp-price\"})\n \n-    if specific_fin_streamer_tag:\n-        text = specific_fin_streamer_tag.get_text()\n-        return text\n-    return \"No <fin-streamer> tag with the specified data-test attribute found.\"\n+    if specific_fin_streamer_tag := soup.find(\"span\", {\"data-testid\": \"qsp-price\"}):\n+        return specific_fin_streamer_tag.get_text()\n+    return \"No <fin-streamer> tag with the specified data-testid attribute found.\"\n \n \n # Search for the symbol at https://finance.yahoo.com/lookup"
+        }
+      ]
+    },
+    {
+      "sha": "4c92de5e03310811a376058e110db8d615769087",
+      "message": "Fix dynamic_programming/longest_increasing_subsequence.py (#12517)\n\n* Fix #12510\r\n\r\n* Added the doctest mentioned in the issue\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Fixed Grammer Mistake\r\n\r\n* Update longest_increasing_subsequence.py\r\n\r\n* Update longest_increasing_subsequence.py\r\n\r\n* Update longest_increasing_subsequence.py\r\n\r\n* Update longest_increasing_subsequence.py\r\n\r\n---------\r\n\r\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\r\nCo-authored-by: Maxim Smolskiy <mithridatus@mail.ru>",
+      "changes": [
+        {
+          "file": "dynamic_programming/longest_increasing_subsequence.py",
+          "additions": 4,
+          "deletions": 2,
+          "patch": "@@ -24,8 +24,10 @@ def longest_subsequence(array: list[int]) -> list[int]:  # This function is recu\n     [10, 22, 33, 41, 60, 80]\n     >>> longest_subsequence([4, 8, 7, 5, 1, 12, 2, 3, 9])\n     [1, 2, 3, 9]\n+    >>> longest_subsequence([28, 26, 12, 23, 35, 39])\n+    [12, 23, 35, 39]\n     >>> longest_subsequence([9, 8, 7, 6, 5, 7])\n-    [8]\n+    [5, 7]\n     >>> longest_subsequence([1, 1, 1])\n     [1, 1, 1]\n     >>> longest_subsequence([])\n@@ -44,7 +46,7 @@ def longest_subsequence(array: list[int]) -> list[int]:  # This function is recu\n     while not is_found and i < array_length:\n         if array[i] < pivot:\n             is_found = True\n-            temp_array = [element for element in array[i:] if element >= array[i]]\n+            temp_array = array[i:]\n             temp_array = longest_subsequence(temp_array)\n             if len(temp_array) > len(longest_subseq):\n                 longest_subseq = temp_array"
+        }
+      ]
+    },
+    {
+      "sha": "b653aee627a95de423f1cad97f283de904271ff7",
+      "message": "Fix ruff (#12515)\n\n* Empty commit\r\n\r\n* Fix\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Fix\r\n\r\n* Fix\r\n\r\n* Fix\r\n\r\n* updating DIRECTORY.md\r\n\r\n---------\r\n\r\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\r\nCo-authored-by: MaximSmolskiy <MaximSmolskiy@users.noreply.github.com>",
+      "changes": [
+        {
+          "file": "project_euler/problem_002/sol4.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -61,7 +61,7 @@ def solution(n: int = 4000000) -> int:\n     if n <= 0:\n         raise ValueError(\"Parameter n must be greater than or equal to one.\")\n     getcontext().prec = 100\n-    phi = (Decimal(5) ** Decimal(0.5) + 1) / Decimal(2)\n+    phi = (Decimal(5) ** Decimal(\"0.5\") + 1) / Decimal(2)\n \n     index = (math.floor(math.log(n * (phi + 2), phi) - 1) // 3) * 3 + 2\n     num = Decimal(round(phi ** Decimal(index + 1))) / (phi + 2)"
+        }
+      ]
+    },
+    {
+      "sha": "f24ddba5b2600486f7c3a4c5807cf2aeed421870",
+      "message": "Implemented doctests for geometry-related classes (#12368)\n\n* Implemented doctests for geometry-related classes\n\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci\n\n* Removed unused noqa directive\n\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci\n\n* refactored sudoku_solver.py\n\n* refactored sudoku_solver.py\n\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci\n\n* context manager for file handling changed too in from_file function\n\n---------\n\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\nCo-authored-by: Tianyi Zheng <tianyizheng02@gmail.com>",
+      "changes": [
+        {
+          "file": "data_structures/arrays/sudoku_solver.py",
+          "additions": 3,
+          "deletions": 2,
+          "patch": "@@ -23,7 +23,7 @@ def cross(items_a, items_b):\n     + [cross(rs, cs) for rs in (\"ABC\", \"DEF\", \"GHI\") for cs in (\"123\", \"456\", \"789\")]\n )\n units = {s: [u for u in unitlist if s in u] for s in squares}\n-peers = {s: set(sum(units[s], [])) - {s} for s in squares}  # noqa: RUF017\n+peers = {s: {x for u in units[s] for x in u} - {s} for s in squares}\n \n \n def test():\n@@ -172,7 +172,8 @@ def unitsolved(unit):\n \n def from_file(filename, sep=\"\\n\"):\n     \"Parse a file into a list of strings, separated by sep.\"\n-    return open(filename).read().strip().split(sep)\n+    with open(filename) as file:\n+        return file.read().strip().split(sep)\n \n \n def random_puzzle(assignments=17):"
+        }
+      ]
+    },
+    {
+      "sha": "2d68bb50e5f12532b5a0d616305c4f805d2b8ff9",
+      "message": "Fix split function to handle trailing delimiters correctly (#12423)\n\n* Fix split function to handle trailing delimiters correctly\r\n\r\n* [pre-commit.ci] auto fixes from pre-commit.com hooks\r\n\r\nfor more information, see https://pre-commit.ci\r\n\r\n* Update split.py\r\n\r\n---------\r\n\r\nCo-authored-by: pre-commit-ci[bot] <66853113+pre-commit-ci[bot]@users.noreply.github.com>\r\nCo-authored-by: Maxim Smolskiy <mithridatus@mail.ru>",
+      "changes": [
+        {
+          "file": "strings/split.py",
+          "additions": 4,
+          "deletions": 1,
+          "patch": "@@ -14,6 +14,9 @@ def split(string: str, separator: str = \" \") -> list:\n \n     >>> split(\"12:43:39\",separator = \":\")\n     ['12', '43', '39']\n+\n+    >>> split(\";abbb;;c;\", separator=';')\n+    ['', 'abbb', '', 'c', '']\n     \"\"\"\n \n     split_words = []\n@@ -23,7 +26,7 @@ def split(string: str, separator: str = \" \") -> list:\n         if char == separator:\n             split_words.append(string[last_index:index])\n             last_index = index + 1\n-        elif index + 1 == len(string):\n+        if index + 1 == len(string):\n             split_words.append(string[last_index : index + 1])\n     return split_words\n "
+        }
+      ]
+    }
+  ]
+}

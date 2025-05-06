@@ -1,0 +1,95 @@
+{
+  "repo_name": "beetbox/beets",
+  "commits": [
+    {
+      "sha": "6ee824fb0f3419a502b580b171cf9530a1a65b34",
+      "message": "Fix #3184: AttributeError in error handler",
+      "changes": [
+        {
+          "file": "beetsplug/beatport.py",
+          "patch": "@@ -191,7 +191,7 @@ def _get(self, endpoint, **kwargs):\n             response = self.api.get(self._make_url(endpoint), params=kwargs)\n         except Exception as e:\n             raise BeatportAPIError(\"Error connecting to Beatport API: {}\"\n-                                   .format(e.message))\n+                                   .format(e))\n         if not response:\n             raise BeatportAPIError(\n                 \"Error {0.status_code} for '{0.request.path_url}\""
+        }
+      ]
+    },
+    {
+      "sha": "3b78d933cf46d5cad8f90ea6cdf38ada9e10846f",
+      "message": "Fix #3041: only try to close opened archives\n\nThe \"finally\" clause here only wants to apply when `archive` is\nassigned. Otherwise, we were getting a NameError trying to refer to the\nappropriate variable.",
+      "changes": [
+        {
+          "file": "beets/importer.py",
+          "patch": "@@ -1059,9 +1059,9 @@ def extract(self):\n             if path_test(util.py3_path(self.toppath)):\n                 break\n \n+        extract_to = mkdtemp()\n+        archive = handler_class(util.py3_path(self.toppath), mode='r')\n         try:\n-            extract_to = mkdtemp()\n-            archive = handler_class(util.py3_path(self.toppath), mode='r')\n             archive.extractall(extract_to)\n         finally:\n             archive.close()"
+        }
+      ]
+    },
+    {
+      "sha": "732f0174c83bbc6e5b7b53436a186b011123af8d",
+      "message": "Expand error message for FileTypeError (#2599)\n\n...when Mutagen doesn't recognize the type at all.",
+      "changes": [
+        {
+          "file": "beets/mediafile.py",
+          "patch": "@@ -96,7 +96,7 @@ class FileTypeError(UnreadableFileError):\n     \"\"\"\n     def __init__(self, path, mutagen_type=None):\n         if mutagen_type is None:\n-            msg = repr(path)\n+            msg = u'{0!r}: not in a recognized format'.format(path)\n         else:\n             msg = u'{0}: of mutagen type {1}'.format(repr(path), mutagen_type)\n         Exception.__init__(self, msg)"
+        }
+      ]
+    },
+    {
+      "sha": "4818264a362de8e23d64bb2f92934b1ee7062d7a",
+      "message": "Added TypeError to the list of caught exceptions in fetachart._fetch_image\n\nrequests/urllib3 is throwing an exception due to an internal problem triggered\nby some sort of timeout. This change catches the TypeError so that beets\nreports \"error fetching art\" instead of crashing when this happens.",
+      "changes": [
+        {
+          "file": "beetsplug/fetchart.py",
+          "patch": "@@ -436,7 +436,7 @@ def _fetch_image(self, url):\n                 self._log.debug(u'downloaded art to: {0}',\n                                 util.displayable_path(fh.name))\n                 return fh.name\n-        except (IOError, requests.RequestException):\n+        except (IOError, requests.RequestException, TypeError):\n             self._log.debug(u'error fetching art')\n \n     def _is_valid_image_candidate(self, candidate):"
+        }
+      ]
+    },
+    {
+      "sha": "f443e0bfc5d1114b1dbc182ea223aab23d9f6a49",
+      "message": "InvalidQueryArgumentTypeError does not extend InvalidQueryError\n\nPlaces where InvalidQueryArgumentTypeError may be raised (i.e. all\ncurrent ones) may not know the query therefore it cannot be an\nInvalidQueryError. The InvalidQueryArgumentTypeError is caught in\nbeets.library.Library._fetch() and an InvalidQueryError is then raised.\n\nImprove #1290.",
+      "changes": [
+        {
+          "file": "test/test_query.py",
+          "patch": "@@ -23,7 +23,7 @@\n \n import beets.library\n from beets import dbcore\n-from beets.dbcore import types, InvalidQueryError\n+from beets.dbcore import types\n from beets.dbcore.query import NoneQuery, InvalidQueryArgumentTypeError\n from beets.library import Library, Item\n \n@@ -290,7 +290,7 @@ def test_invalid_query(self):\n             dbcore.query.RegexpQuery('year', '199(')\n         self.assertIn('not a regular expression', unicode(raised.exception))\n         self.assertIn('unbalanced parenthesis', unicode(raised.exception))\n-        self.assertIsInstance(raised.exception, (InvalidQueryError, TypeError))\n+        self.assertIsInstance(raised.exception, TypeError)\n \n \n class MatchTest(_common.TestCase):"
+        }
+      ]
+    },
+    {
+      "sha": "70ef96d5655ef003a2657f10525be46dd72258a2",
+      "message": "Make list(ui.config) raise a TypeError\n\nAs per PEP234 (https://www.python.org/dev/peps/pep-0234/) if an object\nhas __getitem__() but not __iter__() then the former will be used to\nbuild an iterable, invoking it with 0, then 1, ... until a KeyError is\nraised. Lazy configuration makes it never happen, and list(config) runs\nindefinitely, hogging all memory.\n\nImplement __iter__(), which raises a TypeError, to solve that problem.",
+      "changes": [
+        {
+          "file": "beets/util/confit.py",
+          "patch": "@@ -210,6 +210,11 @@ def root(self):\n     def __repr__(self):\n         return '<ConfigView: %s>' % self.name\n \n+    def __iter__(self):\n+        \"\"\"Prevent list(config) from using __getitem__ and never halting\"\"\"\n+        raise TypeError(u\"{!r} object is not \"\n+                        u\"iterable\".format(self.__class__.__name__))\n+\n     def __getitem__(self, key):\n         \"\"\"Get a subview of this view.\"\"\"\n         return Subview(self, key)"
+        }
+      ]
+    },
+    {
+      "sha": "32626fedc44c430fd2bd2c7d676e420d9fcdff50",
+      "message": "mediafile: Catch IndexError when file has empty list tag\n\nFixes #913",
+      "changes": [
+        {
+          "file": "beets/mediafile.py",
+          "patch": "@@ -411,7 +411,7 @@ def fetch(self, mutagen_file):\n         \"\"\"\n         try:\n             return mutagen_file[self.key][0]\n-        except KeyError:\n+        except (KeyError, IndexError):\n             return None\n \n     def deserialize(self, mutagen_value):\n@@ -665,7 +665,7 @@ def __init__(self, key, id3_lang=None, **kwargs):\n     def fetch(self, mutagen_file):\n         try:\n             return mutagen_file[self.key].text[0]\n-        except KeyError:\n+        except (KeyError, IndexError):\n             return None\n \n     def store(self, mutagen_file, value):"
+        }
+      ]
+    },
+    {
+      "sha": "99e36d870e22036ece8e31e1dac5f6336763967a",
+      "message": "send \"failed reading file\" message to debug\n\nThis message was being logged as an error every time MediaFile failed to parse a\nfile. But this is not actually an error -- the importer uses FileTypeErrors to\ndetermine whether a file is music or not. This resulted in error logs for every\nalbum art file, .m3u, etc. in the imported directory. Verbose output is a better\nhome for this message.",
+      "changes": [
+        {
+          "file": "beets/library.py",
+          "patch": "@@ -276,7 +276,7 @@ def read(self, read_path=None):\n         try:\n             f = MediaFile(syspath(read_path))\n         except Exception:\n-            log.error(u'failed reading file: {0}'.format(\n+            log.debug(u'failed reading file: {0}'.format(\n                 displayable_path(read_path))\n             )\n             raise"
+        }
+      ]
+    },
+    {
+      "sha": "0f79c0f49e047ca6d2114b9f95d1a590bf81780e",
+      "message": "fix a silly UnboundLocalError (#116)",
+      "changes": [
+        {
+          "file": "beets/ui/commands.py",
+          "patch": "@@ -228,11 +228,11 @@ def choose_match(path, items, cur_artist, cur_album, candidates,\n                 'Enter U, S, E, or B:'\n             )\n             if sel == 'u':\n-                info = CHOICE_ASIS\n+                choice = CHOICE_ASIS\n             elif sel == 'e':\n-                info = CHOICE_MANUAL\n+                choice = CHOICE_MANUAL\n             elif sel == 's':\n-                info = CHOICE_SKIP\n+                choice = CHOICE_SKIP\n             elif sel == 'b':\n                 raise ImportAbort()\n     "
+        }
+      ]
+    }
+  ]
+}

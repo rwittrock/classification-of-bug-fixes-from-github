@@ -1,0 +1,317 @@
+{
+  "repo_name": "Significant-Gravitas/AutoGPT",
+  "commits": [
+    {
+      "sha": "296eee0b4f2e056381b0497b7c873e260d5fe573",
+      "message": "feat(platform/library): Library v2 > Agent Runs page (#9051)\n\n- Resolves #8780\n- Part of #8774\n\n### Changes \ud83c\udfd7\ufe0f\n\n- Add new UI components\n- Add `/agents/[id]` page, with sub-components:\n  - `AgentRunsSelectorList`\n    - `AgentRunSummaryCard`\n      - `AgentRunStatusChip`\n  - `AgentRunDetailsView`\n  - `AgentRunDraftView`\n  - `AgentScheduleDetailsView`\n\nBackend improvements:\n- Improve output of execution-related API endpoints: return\n`GraphExecution` instead of `NodeExecutionResult[]`\n- Reduce log spam from Prisma in tests\n\nGeneral frontend improvements:\n- Hide nav link names on smaller screens to prevent navbar overflow\n- Clean up styling and fix sizing of `agptui/Button`\n\nTechnical frontend improvements:\n- Fix tailwind config size increments\n- Rename `font-poppin` -> `font-poppins`\n- Clean up component implementations and usages\n   - Yeet all occurrences of `variant=\"default\"`\n- Remove `default` button variant as duplicate of `outline`; make\n`outline` the default\n- Fix minor typing issues\n\nDX:\n- Add front end type-check step to `pre-commit` config\n- Fix logging setup in conftest.py\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [x] I have clearly listed my changes in the PR description\n- [x] I have made a test plan\n- [x] I have tested my changes according to the test plan:\n  - `/agents/[id]` (new)\n    - Go to page -> list of runs loads\n    - Create new run -> runs; all I/O is visible\n    - Click \"Run again\" -> runs again with same input\n  - `/monitoring` (existing)\n    - Go to page -> everything loads\n    - Selecting agents and agent runs works\n\n---------\n\nCo-authored-by: Nicholas Tindle <nicktindle@outlook.com>\nCo-authored-by: Nicholas Tindle <nicholas.tindle@agpt.co>\nCo-authored-by: Swifty <craigswift13@gmail.com>\nCo-authored-by: Zamil Majdy <zamil.majdy@agpt.co>",
+      "changes": [
+        {
+          "file": "autogpt_platform/autogpt_libs/autogpt_libs/feature_flag/client.py",
+          "additions": 0,
+          "deletions": 1,
+          "patch": "@@ -13,7 +13,6 @@\n from .config import SETTINGS\n \n logger = logging.getLogger(__name__)\n-logging.basicConfig(level=logging.DEBUG)\n \n P = ParamSpec(\"P\")\n T = TypeVar(\"T\")"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/server/rest_api.py",
+          "additions": 3,
+          "deletions": 3,
+          "patch": "@@ -155,18 +155,18 @@ async def test_create_graph(\n \n     @staticmethod\n     async def test_get_graph_run_status(graph_exec_id: str, user_id: str):\n-        execution = await backend.data.graph.get_execution(\n+        execution = await backend.data.graph.get_execution_meta(\n             user_id=user_id, execution_id=graph_exec_id\n         )\n         if not execution:\n             raise ValueError(f\"Execution {graph_exec_id} not found\")\n         return execution.status\n \n     @staticmethod\n-    async def test_get_graph_run_node_execution_results(\n+    async def test_get_graph_run_results(\n         graph_id: str, graph_exec_id: str, user_id: str\n     ):\n-        return await backend.server.routers.v1.get_graph_run_node_execution_results(\n+        return await backend.server.routers.v1.get_graph_execution(\n             graph_id, graph_exec_id, user_id\n         )\n "
+        },
+        {
+          "file": "autogpt_platform/backend/backend/server/v2/store/routes.py",
+          "additions": 2,
+          "deletions": 1,
+          "patch": "@@ -669,7 +669,8 @@ async def review_submission(\n             reviewer_id=user.user_id,\n         )\n         return submission\n-    except Exception:\n+    except Exception as e:\n+        logger.error(f\"Could not create store submission review: {e}\")\n         raise fastapi.HTTPException(\n             status_code=500,\n             detail=\"An error occurred while creating the store submission review\","
+        },
+        {
+          "file": "autogpt_platform/backend/backend/util/test.py",
+          "additions": 2,
+          "deletions": 1,
+          "patch": "@@ -78,9 +78,10 @@ async def is_execution_completed():\n     # Wait for the executions to complete\n     for i in range(timeout):\n         if await is_execution_completed():\n-            return await AgentServer().test_get_graph_run_node_execution_results(\n+            graph_exec = await AgentServer().test_get_graph_run_results(\n                 graph_id, graph_exec_id, user_id\n             )\n+            return graph_exec.node_executions\n         time.sleep(1)\n \n     assert False, \"Execution did not complete in time.\""
+        }
+      ]
+    },
+    {
+      "sha": "a0be165835b4eb51ad306894771e5dfff1fd05ce",
+      "message": "feat(settings): Rework user settings page with Form, loading skeleton\u2026 (#9476)\n\nImplemented a fully functional user settings page allowing changes to\naccount details and notification preferences. This change uses a server\nfirst approach and adds much needed form validation to this page.\nThis PR has added loading skeletons for better UX during data fetching.\nRefactored related components to support these changes and finally\nimplemented server actions to streamline data ingestion.\n\n## Note to developers:\nAt the moment the notification switches set back to default upon save.\nWe will want to pass in this information after the api is implemented.\n\n\n## Changes \ud83c\udfd7\ufe0f\nRebuilt / Refactored `SettingsFormInput` to `SettingsForm`:\n- Implemented Form Validation \n- Implemented a form schema with Zod to validate user input\n- Added toast messaging to properly inform the user if the form has been\nsuccessfully completed or if there is an error in thrown from the server\naction.\n\nAdded `loading.tsx`\n- Using `Skeletons` we can deliver a better loading UI for our users\ncausing less screen shifting.\n\nAdded `actions.ts`\n- Added a server action for the settings page. This server action will\nhandle the updating of user's settings for this page. It handles the\ninteraction between the application and supabase. After this server\naction is ran we revalidate the path for our settings page ensuring\nproper data passed to our components.\n\nThere is an additional TODO for @ntindle for the api endpoint getting\ncreated. This endpoint will cover the newly added notification switches\nand it's toggles.\n\n## Screenshots \ud83d\udcf7\n### Before Changes:\n<img width=\"1083\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/f5283fd5-705b-47cf-a7fa-4ca4d7f03444\"\n/>\n\n\n### After Changes:\n<img width=\"762\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/20f96f01-b138-4eb7-8867-ce62a2d603d4\"\n/>\n\n<img width=\"1083\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/0ae363f5-068f-48e5-8b0f-c079a08f9242\"\n/>\n\n<img width=\"1083\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/8cb045ef-f322-4992-881e-fb92281c55cb\"\n/>\n\n#### Form Validation\n<img width=\"1083\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/b78cfef6-94da-49f1-9c93-56cdb9ea4c96\"\n/>\n<img width=\"1083\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/ade5dce9-8c4b-40eb-aa0f-ff6d31bc3c3c\"\n/>\n<img width=\"245\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/88866bbf-4e33-43d9-b04a-b53ac848852d\"\n/>\n\n\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [x] I have clearly listed my changes in the PR description\n- [x] I have made a test plan\n- [x] I have tested my changes according to the test plan:\n\n\n<details>\n  <summary>Test Plan</summary>\n \n  - [ ] Goto the route of `profile/settings`\n  - [ ] Add an invalid email and notice the new validation messaging\n- [ ] Add invalid passwords that do not match and or is under 8\ncharacters notice the new validation messaging\n- [ ] Select the cancel button and notice that the form has been set\nback to the default values\n- [ ] With the form untouched notice the `Save changes` button is\ndisabled. Toggle a switch and notice the `Save changes` button is now\nenabled.\n- [ ] Enter in a valid pair of new passwords in the `New Password` and\n`Confirm New Password` input fields and select `Save changes`\n- [ ] Enter in the same passwords again and notice that we will now be\nshown an Error. This error is bubbling up from supabase in our backend\nand is stating `New password should be different from the old password`\n</details>\n\n---------\n\nCo-authored-by: Nicholas Tindle <nicholas.tindle@agpt.co>\nCo-authored-by: Nicholas Tindle <nicktindle@outlook.com>\nCo-authored-by: Reinier van der Leer <pwuts@agpt.co>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/notifications.py",
+          "additions": 8,
+          "deletions": 0,
+          "patch": "@@ -217,6 +217,14 @@ def subject(self) -> str:\n         }[self.notification_type]\n \n \n+class NotificationPreferenceDTO(BaseModel):\n+    email: EmailStr = Field(..., description=\"User's email address\")\n+    preferences: dict[NotificationType, bool] = Field(\n+        ..., description=\"Which notifications the user wants\"\n+    )\n+    daily_limit: int = Field(..., description=\"Max emails per day\")\n+\n+\n class NotificationPreference(BaseModel):\n     user_id: str\n     email: EmailStr"
+        }
+      ]
+    },
+    {
+      "sha": "dcbbe11c537e37ce1f34880fbb19365d95108ffb",
+      "message": "fix(backend): correctly check if email service is set up (#9497)\n\n<!-- Clearly explain the need for these changes: -->\nI made a mistake in how we check if postmark exists\n\n### Changes \ud83c\udfd7\ufe0f\n- adds a more explicit setting of postmark to none and extra checking to\nprevent its use if it isn\u2019t set\n\n<!-- Concisely describe all of the changes made in this pull request:\n-->\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [x] I have clearly listed my changes in the PR description\n- [x] I have made a test plan\n- [x] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n- [x] I have no plan, it\u2019s a simple logic bug so if it passes CI it\u2019s\ngood",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/notifications/email.py",
+          "additions": 4,
+          "deletions": 0,
+          "patch": "@@ -41,6 +41,7 @@ def __init__(self):\n             logger.warning(\n                 \"Postmark server API token not found, email sending disabled\"\n             )\n+            self.postmark = None\n         self.formatter = TextFormatter()\n \n     def send_templated(\n@@ -90,6 +91,9 @@ def _get_template(self, notification: NotificationType):\n         )\n \n     def _send_email(self, user_email: str, subject: str, body: str):\n+        if not self.postmark:\n+            logger.warning(\"Email tried to send without postmark configured\")\n+            return\n         logger.debug(f\"Sending email to {user_email} with subject {subject}\")\n         self.postmark.emails.send(\n             From=settings.config.postmark_sender_email,"
+        }
+      ]
+    },
+    {
+      "sha": "15275e2ce105e0403c341d717daf3ab6a90c4d54",
+      "message": "feat(backend): spawn the notifications service + basic test (#9464)\n\nWe want to send emails on a schedule, in response to events, and be\nexpandable without being overbearing on the amount of effort to\nimplement. We also want this to use rabbitmq and be easy for other\nservices to send messages into.\n\nThis PR adds the first use of the service to simply show a log message\n\n\n### Changes \ud83c\udfd7\ufe0f\n\n<!-- Concisely describe all of the changes made in this pull request:\n-->\n- Adds a new backend service for notifications\n- Adds first notification into the service -> Agent Execution\n- Adds spawning the notification service\n\nAlso \n- Adds RabbitMQ to CI so we can test stuff\n- Adds a minor fix for one of the migrations that I thought was causing\nfailures, but isn't but the change is still useful\n\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [x] I have clearly listed my changes in the PR description\n- [x] I have made a test plan\n- [x] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n- [x] Built and ran an agent and ensured the following log line appeared\nwhich shows the event would have sent an email\n  ```\n2025-02-10 15:52:02,232 INFO Processing notification:\nuser_id='96b8d2f5-a036-437f-bd8e-ba8856028553'\ntype=<NotificationType.AGENT_RUN: 'AGENT_RUN'>\ndata=AgentRunData(agent_name='CalculatorBlock', credits_used=0.0,\nexecution_time=0.0, graph_id='30e5f332-a092-4795-892a-b063a8c7bdd9',\nnode_count=1) created_at=datetime.datetime(2025, 2, 10, 15, 52, 2,\n162865)\n  ```\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\nNone of the other ports are configurable via .env.example listing so\nleft as is\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>\n\n---------\n\nCo-authored-by: Reinier van der Leer <pwuts@agpt.co>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/app.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -25,13 +25,15 @@ def main(**kwargs):\n     \"\"\"\n \n     from backend.executor import DatabaseManager, ExecutionManager, ExecutionScheduler\n+    from backend.notifications import NotificationManager\n     from backend.server.rest_api import AgentServer\n     from backend.server.ws_api import WebsocketServer\n \n     run_processes(\n         DatabaseManager(),\n         ExecutionManager(),\n         ExecutionScheduler(),\n+        NotificationManager(),\n         WebsocketServer(),\n         AgentServer(),\n         **kwargs,"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/data/graph.py",
+          "additions": 1,
+          "deletions": 3,
+          "patch": "@@ -70,11 +70,9 @@ class NodeModel(Node):\n \n     @staticmethod\n     def from_db(node: AgentNode):\n-        if not node.AgentBlock:\n-            raise ValueError(f\"Invalid node {node.id}, invalid AgentBlock.\")\n         obj = NodeModel(\n             id=node.id,\n-            block_id=node.AgentBlock.id,\n+            block_id=node.agentBlockId,\n             input_default=type.convert(node.constantInput, dict[str, Any]),\n             metadata=type.convert(node.metadata, dict[str, Any]),\n             graph_id=node.agentGraphId,"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/notifications/__init__.py",
+          "additions": 5,
+          "deletions": 0,
+          "patch": "@@ -0,0 +1,5 @@\n+from .notifications import NotificationManager\n+\n+__all__ = [\n+    \"NotificationManager\",\n+]"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/rest.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -1,5 +1,6 @@\n from backend.app import run_processes\n from backend.executor import DatabaseManager, ExecutionScheduler\n+from backend.notifications.notifications import NotificationManager\n from backend.server.rest_api import AgentServer\n \n \n@@ -8,6 +9,7 @@ def main():\n     Run all the processes required for the AutoGPT-server REST API.\n     \"\"\"\n     run_processes(\n+        NotificationManager(),\n         DatabaseManager(),\n         ExecutionScheduler(),\n         AgentServer(),"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/util/settings.py",
+          "additions": 5,
+          "deletions": 0,
+          "patch": "@@ -140,6 +140,11 @@ class Config(UpdateTrackingModel[\"Config\"], BaseSettings):\n         description=\"The port for agent server API to run on\",\n     )\n \n+    notification_service_port: int = Field(\n+        default=8007,\n+        description=\"The port for notification service daemon to run on\",\n+    )\n+\n     platform_base_url: str = Field(\n         default=\"\",\n         description=\"Must be set so the application knows where it's hosted at. \""
+        },
+        {
+          "file": "autogpt_platform/backend/backend/util/test.py",
+          "additions": 4,
+          "deletions": 0,
+          "patch": "@@ -9,6 +9,7 @@\n from backend.data.model import _BaseCredentials\n from backend.data.user import create_default_user\n from backend.executor import DatabaseManager, ExecutionManager, ExecutionScheduler\n+from backend.notifications.notifications import NotificationManager\n from backend.server.rest_api import AgentServer\n from backend.server.utils import get_user_id\n \n@@ -21,6 +22,7 @@ def __init__(self):\n         self.exec_manager = ExecutionManager()\n         self.agent_server = AgentServer()\n         self.scheduler = ExecutionScheduler()\n+        self.notif_manager = NotificationManager()\n \n     @staticmethod\n     def test_get_user_id():\n@@ -32,6 +34,7 @@ async def __aenter__(self):\n         self.agent_server.__enter__()\n         self.exec_manager.__enter__()\n         self.scheduler.__enter__()\n+        self.notif_manager.__enter__()\n \n         await db.connect()\n         await initialize_blocks()\n@@ -46,6 +49,7 @@ async def __aexit__(self, exc_type, exc_val, exc_tb):\n         self.exec_manager.__exit__(exc_type, exc_val, exc_tb)\n         self.agent_server.__exit__(exc_type, exc_val, exc_tb)\n         self.db_api.__exit__(exc_type, exc_val, exc_tb)\n+        self.notif_manager.__exit__(exc_type, exc_val, exc_tb)\n \n     def setup_dependency_overrides(self):\n         # Override get_user_id for testing"
+        }
+      ]
+    },
+    {
+      "sha": "ce1d63c51735fe36535e6db7e971ba558879db4a",
+      "message": "feat(backend): Library v2 Agents and Presets (#9258)\n\n- Blocked by #9267\n\nThis re-introduces changes from the following PRs with fixes:\n- #9218\n- #9211\n\n### Changes \ud83c\udfd7\ufe0f\n\n- See #9218\n- See #9211\n\nFixes:\n- Fix Prisma query statements in `v2.library.db`\n- Fix creation of (library) agents\n- Fix test cleanup of (library) agents\n- Fix handling and passing of `node_input` parameters\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [x] I have clearly listed my changes in the PR description\n- [x] I have made a test plan\n- [x] I have tested my changes according to the test plan:\n  - [x] Create & run a new agent\n  - [x] Update & run an existing agent",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/execution.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -141,6 +141,7 @@ async def create_graph_execution(\n     graph_version: int,\n     nodes_input: list[tuple[str, BlockInput]],\n     user_id: str,\n+    preset_id: str | None = None,\n ) -> tuple[str, list[ExecutionResult]]:\n     \"\"\"\n     Create a new AgentGraphExecution record.\n@@ -168,6 +169,7 @@ async def create_graph_execution(\n                 ]\n             },\n             \"userId\": user_id,\n+            \"agentPresetId\": preset_id,\n         },\n         include=GRAPH_EXECUTION_INCLUDE,\n     )"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/data/graph.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -534,7 +534,7 @@ async def get_execution(user_id: str, execution_id: str) -> GraphExecution | Non\n async def get_graph(\n     graph_id: str,\n     version: int | None = None,\n-    template: bool = False,\n+    template: bool = False,  # note: currently not in use; TODO: remove from DB entirely\n     user_id: str | None = None,\n     for_export: bool = False,\n ) -> GraphModel | None:"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/executor/manager.py",
+          "additions": 5,
+          "deletions": 3,
+          "patch": "@@ -803,6 +803,7 @@ def add_execution(\n         data: BlockInput,\n         user_id: str,\n         graph_version: Optional[int] = None,\n+        preset_id: str | None = None,\n     ) -> GraphExecutionEntry:\n         graph: GraphModel | None = self.db_client.get_graph(\n             graph_id=graph_id, user_id=user_id, version=graph_version\n@@ -824,9 +825,9 @@ def add_execution(\n \n             # Extract request input data, and assign it to the input pin.\n             if block.block_type == BlockType.INPUT:\n-                name = node.input_default.get(\"name\")\n-                if name in data.get(\"node_input\", {}):\n-                    input_data = {\"value\": data[\"node_input\"][name]}\n+                input_name = node.input_default.get(\"name\")\n+                if input_name and input_name in data:\n+                    input_data = {\"value\": data[input_name]}\n \n             # Extract webhook payload, and assign it to the input pin\n             webhook_payload_key = f\"webhook_{node.webhook_id}_payload\"\n@@ -851,6 +852,7 @@ def add_execution(\n             graph_version=graph.version,\n             nodes_input=nodes_input,\n             user_id=user_id,\n+            preset_id=preset_id,\n         )\n \n         starting_node_execs = []"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/server/external/routes/v1.py",
+          "additions": 4,
+          "deletions": 4,
+          "patch": "@@ -1,9 +1,9 @@\n import logging\n from collections import defaultdict\n-from typing import Any, Dict, List, Optional, Sequence\n+from typing import Annotated, Any, Dict, List, Optional, Sequence\n \n from autogpt_libs.utils.cache import thread_cached\n-from fastapi import APIRouter, Depends, HTTPException\n+from fastapi import APIRouter, Body, Depends, HTTPException\n from prisma.enums import AgentExecutionStatus, APIKeyPermission\n from typing_extensions import TypedDict\n \n@@ -101,7 +101,7 @@ def execute_graph_block(\n def execute_graph(\n     graph_id: str,\n     graph_version: int,\n-    node_input: dict[Any, Any],\n+    node_input: Annotated[dict[str, Any], Body(..., embed=True, default_factory=dict)],\n     api_key: APIKey = Depends(require_permission(APIKeyPermission.EXECUTE_GRAPH)),\n ) -> dict[str, Any]:\n     try:\n@@ -113,7 +113,7 @@ def execute_graph(\n         )\n         return {\"id\": graph_exec.graph_exec_id}\n     except Exception as e:\n-        msg = e.__str__().encode().decode(\"unicode_escape\")\n+        msg = str(e).encode().decode(\"unicode_escape\")\n         raise HTTPException(status_code=400, detail=msg)\n \n "
+        },
+        {
+          "file": "autogpt_platform/backend/backend/server/v2/library/routes/__init__.py",
+          "additions": 9,
+          "deletions": 0,
+          "patch": "@@ -0,0 +1,9 @@\n+import fastapi\n+\n+from .agents import router as agents_router\n+from .presets import router as presets_router\n+\n+router = fastapi.APIRouter()\n+\n+router.include_router(presets_router)\n+router.include_router(agents_router)"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/usecases/block_autogen.py",
+          "additions": 3,
+          "deletions": 1,
+          "patch": "@@ -253,7 +253,9 @@ async def block_autogen_agent():\n         test_graph = await create_graph(create_test_graph(), user_id=test_user.id)\n         input_data = {\"input\": \"Write me a block that writes a string into a file.\"}\n         response = await server.agent_server.test_execute_graph(\n-            test_graph.id, input_data, test_user.id\n+            graph_id=test_graph.id,\n+            user_id=test_user.id,\n+            node_input=input_data,\n         )\n         print(response)\n         result = await wait_execution("
+        },
+        {
+          "file": "autogpt_platform/backend/backend/usecases/reddit_marketing.py",
+          "additions": 3,
+          "deletions": 1,
+          "patch": "@@ -157,7 +157,9 @@ async def reddit_marketing_agent():\n         test_graph = await create_graph(create_test_graph(), user_id=test_user.id)\n         input_data = {\"subreddit\": \"AutoGPT\"}\n         response = await server.agent_server.test_execute_graph(\n-            test_graph.id, input_data, test_user.id\n+            graph_id=test_graph.id,\n+            user_id=test_user.id,\n+            node_input=input_data,\n         )\n         print(response)\n         result = await wait_execution("
+        },
+        {
+          "file": "autogpt_platform/backend/backend/usecases/sample.py",
+          "additions": 3,
+          "deletions": 1,
+          "patch": "@@ -86,7 +86,9 @@ async def sample_agent():\n         test_graph = await create_graph(create_test_graph(), test_user.id)\n         input_data = {\"input_1\": \"Hello\", \"input_2\": \"World\"}\n         response = await server.agent_server.test_execute_graph(\n-            test_graph.id, input_data, test_user.id\n+            graph_id=test_graph.id,\n+            user_id=test_user.id,\n+            node_input=input_data,\n         )\n         print(response)\n         result = await wait_execution("
+        },
+        {
+          "file": "autogpt_platform/backend/backend/util/service.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -62,7 +62,7 @@ def wrapper(*args, **kwargs):\n         try:\n             return func(*args, **kwargs)\n         except Exception as e:\n-            msg = f\"Error in {func.__name__}: {e.__str__()}\"\n+            msg = f\"Error in {func.__name__}: {e}\"\n             if isinstance(e, ValueError):\n                 logger.warning(msg)\n             else:\n@@ -80,7 +80,7 @@ def register_pydantic_serializers(func: Callable):\n         try:\n             pydantic_types = _pydantic_models_from_type_annotation(annotation)\n         except Exception as e:\n-            raise TypeError(f\"Error while exposing {func.__name__}: {e.__str__()}\")\n+            raise TypeError(f\"Error while exposing {func.__name__}: {e}\")\n \n         for model in pydantic_types:\n             logger.debug("
+        },
+        {
+          "file": "autogpt_platform/backend/test/test_data_creator.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -140,10 +140,10 @@ async def main():\n     print(f\"Inserting {NUM_USERS * MAX_AGENTS_PER_USER} user agents\")\n     for user in users:\n         num_agents = random.randint(MIN_AGENTS_PER_USER, MAX_AGENTS_PER_USER)\n-        for _ in range(num_agents):  # Create 1 UserAgent per user\n+        for _ in range(num_agents):  # Create 1 LibraryAgent per user\n             graph = random.choice(agent_graphs)\n             preset = random.choice(agent_presets)\n-            user_agent = await db.useragent.create(\n+            user_agent = await db.libraryagent.create(\n                 data={\n                     \"userId\": user.id,\n                     \"agentId\": graph.id,"
+        }
+      ]
+    },
+    {
+      "sha": "00c312d02cd6a55d99edb5f94399bf9a477b2f9d",
+      "message": "feat(platform): Schedule specific agent version (#9444)\n\nScheduling always takes the newest version of an agent.\n\n### Changes \ud83c\udfd7\ufe0f\n\nThis PR allows to schedule any graph version by adding number input to\nschedule popup. Number is automatically set to the newest version when\nagent is chosen.\n\n<img width=\"533\" alt=\"Screenshot 2025-02-07 at 5 05 56\u202fPM\"\nsrc=\"https://github.com/user-attachments/assets/357b8810-6f02-4066-b7a3-824d9bfd62af\"\n/>\n\n- Update API, so it accepts graph version\n- Update schedule pop up, so it lets user input version number\n- Open and schedule correct agent\n- Add `Version` column to the schedules table\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [x] I have clearly listed my changes in the PR description\n- [x] I have made a test plan\n- [x] I have tested my changes according to the test plan:\n  - [x] Can schedule version between 1 and max version\n  - [x] Reject incorrect version\n  - [x] Table shows proper version\n  - [x] Removing schedule works",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/server/routers/v1.py",
+          "additions": 6,
+          "deletions": 2,
+          "patch": "@@ -609,6 +609,7 @@ class ScheduleCreationRequest(pydantic.BaseModel):\n     cron: str\n     input_data: dict[Any, Any]\n     graph_id: str\n+    graph_version: int\n \n \n @v1_router.post(\n@@ -620,10 +621,13 @@ async def create_schedule(\n     user_id: Annotated[str, Depends(get_user_id)],\n     schedule: ScheduleCreationRequest,\n ) -> scheduler.JobInfo:\n-    graph = await graph_db.get_graph(schedule.graph_id, user_id=user_id)\n+    graph = await graph_db.get_graph(\n+        schedule.graph_id, schedule.graph_version, user_id=user_id\n+    )\n     if not graph:\n         raise HTTPException(\n-            status_code=404, detail=f\"Graph #{schedule.graph_id} not found.\"\n+            status_code=404,\n+            detail=f\"Graph #{schedule.graph_id} v.{schedule.graph_version} not found.\",\n         )\n \n     return await asyncio.to_thread("
+        }
+      ]
+    },
+    {
+      "sha": "8181ee8cd1f71bd351a3e0ad66356a0313877db2",
+      "message": "platform(fix): Fix missing Profiles (#9424)\n\n### What's This PR About?\n\nThis PR makes a few simple improvements to how user profiles are handled\nin the app:\n\n- **Always Have a Profile:**  \nIf a user doesn't already have a profile, the system now automatically\ncreates one with some default info (including a fun, randomly generated\nusername). This way, you never end up with a missing profile.\n\n- **Better Profile Updates:**  \n  Removes the creation of profiles on failed get requests",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/server/v2/store/routes.py",
+          "additions": 6,
+          "deletions": 1,
+          "patch": "@@ -42,6 +42,11 @@ async def get_profile(\n     \"\"\"\n     try:\n         profile = await backend.server.v2.store.db.get_user_profile(user_id)\n+        if profile is None:\n+            return fastapi.responses.JSONResponse(\n+                status_code=404,\n+                content={\"detail\": \"Profile not found\"},\n+            )\n         return profile\n     except Exception:\n         logger.exception(\"Exception occurred whilst getting user profile\")\n@@ -77,7 +82,7 @@ async def update_or_create_profile(\n         HTTPException: If there is an error updating the profile\n     \"\"\"\n     try:\n-        updated_profile = await backend.server.v2.store.db.update_or_create_profile(\n+        updated_profile = await backend.server.v2.store.db.update_profile(\n             user_id=user_id, profile=profile\n         )\n         return updated_profile"
+        }
+      ]
+    },
+    {
+      "sha": "277a896a83bfd0f7ae03b80a1971f121137f2822",
+      "message": "feat(platform/external-api): Enhance the output from the external API on agent output (#9430)\n\nThis PR does two main things: \n\n1) Fixes the nodes block to show the name of the pins, not the generic\nword \"output\".\n2) Addes an output block that shows the name and result of the agent\noutput blocks. This improves readability of the API.\n\n### Changes \ud83c\udfd7\ufe0f\n\n1) Update nodes block to show the name of the input pin\n2) Added an output block to show all the AgentOutputBlocks outputs\n3) Added a status field on the agent graph\n\n\nExample results:\n\n```\n{\n    \"execution_id\": \"ea6b12ac-36f5-4f19-bc94-0df36f028c29\",\n    \"status\": \"COMPLETED\",\n    \"nodes\": [\n        {\n            \"node_id\": \"83cd909d-ff35-43c2-bdc9-a2f5142bd145\",\n            \"input\": \"what is the capital of australia?\",\n            \"output\": {\n                \"result\": [\n                    \"what is the capital of australia?\"\n                ]\n            }\n        },\n        {\n            \"node_id\": \"6bdf81fc-2d56-4e32-82d5-24f8c5645cb5\",\n            \"input\": {\n                \"model\": \"gpt-4o\",\n                \"credentials\": {\n                    \"id\": \"604d8e22-3e24-4451-93eb-b17a276d3b8c\",\n                    \"title\": \"openai\",\n                    \"provider\": \"openai\",\n                    \"type\": \"api_key\"\n                },\n                \"prompt\": \"what is the capital of australia?\"\n            },\n            \"output\": {\n                \"response\": [\n                    \"The capital of Australia is Canberra.\"\n                ],\n                \"prompt\": [\n                    \"[{\\\"role\\\": \\\"user\\\", \\\"content\\\": \\\"what is the capital of australia?\\\"}]\"\n                ]\n            }\n        },\n        {\n            \"node_id\": \"55aa132a-c298-4cb6-9afe-39a56e492ab6\",\n            \"input\": \"The capital of Australia is Canberra.\",\n            \"output\": {\n                \"output\": [\n                    \"The capital of Australia is Canberra.\"\n                ],\n                \"name\": [\n                    \"result\"\n                ]\n            }\n        }\n    ],\n    \"output\": [\n        {\n            \"result\": \"The capital of Australia is Canberra.\"\n        }\n    ]\n}\n```\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\nTesting: \nCreate an agent\nRun it via the API\nFetch the results",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/blocks/basic.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -297,6 +297,7 @@ class Input(BlockSchema):\n \n     class Output(BlockSchema):\n         output: Any = SchemaField(description=\"The value recorded as output.\")\n+        name: Any = SchemaField(description=\"The name of the value recorded as output.\")\n \n     def __init__(self):\n         super().__init__(\n@@ -348,6 +349,7 @@ def run(self, input_data: Input, **kwargs) -> BlockOutput:\n                 yield \"output\", f\"Error: {e}, {input_data.value}\"\n         else:\n             yield \"output\", input_data.value\n+            yield \"name\", input_data.name\n \n \n class AddToDictionaryBlock(Block):"
+        }
+      ]
+    },
+    {
+      "sha": "1d30e401fede2ac42212ad937c3849eba939c5cb",
+      "message": "fix(backend): Charge user credits before its block execution (#9427)\n\n### Changes \ud83c\udfd7\ufe0f\n\nInstead of letting the user to execution the block then break it\npost-execution.\nWe can charge the user first and execute it afterward.\nThe trade-offs:\n* We can't charge a block that is charged based on the execution time.\n* We will also charge failed block executions.\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [ ] I have clearly listed my changes in the PR description\n- [ ] I have made a test plan\n- [ ] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n  - [ ] ...\n\n<details>\n  <summary>Example test plan</summary>\n  \n  - [ ] Create from scratch and execute an agent with at least 3 blocks\n- [ ] Import an agent from file upload, and confirm it executes\ncorrectly\n  - [ ] Upload agent to marketplace\n- [ ] Import an agent from marketplace and confirm it executes correctly\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\n</details>\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/credit.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -232,7 +232,7 @@ async def _add_transaction(\n \n             if amount < 0 and user_balance < abs(amount):\n                 raise ValueError(\n-                    f\"Insufficient balance for user {user_id}, balance: {user_balance}, amount: {amount}\"\n+                    f\"Insufficient balance of ${user_balance/100} to run the block that costs ${abs(amount)/100}\"\n                 )\n \n             # Create the transaction"
+        }
+      ]
+    },
+    {
+      "sha": "22536de71fbc8a84e2f4fd4ff83de5144beb12b9",
+      "message": "feat(backend): Avoid multiple auto-top-ups within the same execution (#9426)\n\n### Changes \ud83c\udfd7\ufe0f\n\nThis PR makes auto-top-up more reliable:\n* Auto top-up will not be executed more than once within a single\nexecution.\n* Auto top-up will always be executed even if it was previously failing.\n* Auto top-up will never be called twice or triggered when the balance\nis more than the threshold, even in the concurrent block executions\nset-up.\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [ ] I have clearly listed my changes in the PR description\n- [ ] I have made a test plan\n- [ ] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n  - [ ] ...\n\n<details>\n  <summary>Example test plan</summary>\n  \n  - [ ] Create from scratch and execute an agent with at least 3 blocks\n- [ ] Import an agent from file upload, and confirm it executes\ncorrectly\n  - [ ] Upload agent to marketplace\n- [ ] Import an agent from marketplace and confirm it executes correctly\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\n</details>\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/cost.py",
+          "additions": 0,
+          "deletions": 1,
+          "patch": "@@ -10,7 +10,6 @@ class BlockCostType(str, Enum):\n     RUN = \"run\"  # cost X credits per run\n     BYTE = \"byte\"  # cost X credits per byte\n     SECOND = \"second\"  # cost X credits per second\n-    DOLLAR = \"dollar\"  # cost X dollars per run\n \n \n class BlockCost(BaseModel):"
+        }
+      ]
+    },
+    {
+      "sha": "58cadeb3b929d593e6e2929179a3dbbc5621805a",
+      "message": "feat(frontend): Fix wordings for auto top-up feature (#9419)\n\n### Changes\r\n\r\nMake the auto top-up wordings clearer: \r\n\r\n<img width=\"547\" alt=\"Screenshot 2025-02-05 at 1 38 16\u202fAM\"\r\nsrc=\"https://github.com/user-attachments/assets/9a902442-1815-4a38-af39-d7d4b0e120f0\"\r\n/>\r\n\r\n<img width=\"555\" alt=\"Screenshot 2025-02-05 at 1 40 29\u202fAM\"\r\nsrc=\"https://github.com/user-attachments/assets/4c9c9cdc-2d73-45f2-8a8d-f7ae7f97541b\"\r\n/>\r\nes \ud83c\udfd7\ufe0f\r\n\r\n### Checklist \ud83d\udccb\r\n\r\n#### For code changes:\r\n- [ ] I have clearly listed my changes in the PR description\r\n- [ ] I have made a test plan\r\n- [ ] I have tested my changes according to the test plan:\r\n  <!-- Put your test plan here: -->\r\n  - [ ] ...\r\n\r\n<details>\r\n  <summary>Example test plan</summary>\r\n  \r\n  - [ ] Create from scratch and execute an agent with at least 3 blocks\r\n- [ ] Import an agent from file upload, and confirm it executes\r\ncorrectly\r\n  - [ ] Upload agent to marketplace\r\n- [ ] Import an agent from marketplace and confirm it executes correctly\r\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\r\n</details>\r\n\r\n#### For configuration changes:\r\n- [ ] `.env.example` is updated or already compatible with my changes\r\n- [ ] `docker-compose.yml` is updated or already compatible with my\r\nchanges\r\n- [ ] I have included a list of my configuration changes in the PR\r\ndescription (under **Changes**)\r\n\r\n<details>\r\n  <summary>Examples of configuration changes</summary>\r\n\r\n  - Changing ports\r\n  - Adding new services that need to communicate with each other\r\n  - Secrets or environment variable changes\r\n  - New or infrastructure changes such as databases\r\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/server/routers/v1.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -177,7 +177,7 @@ async def configure_user_auto_top_up(\n ) -> str:\n     if request.threshold < 0:\n         raise ValueError(\"Threshold must be greater than 0\")\n-    if request.amount < 500:\n+    if request.amount < 500 and request.amount != 0:\n         raise ValueError(\"Amount must be greater than or equal to 500\")\n     if request.amount < request.threshold:\n         raise ValueError(\"Amount must be greater than or equal to threshold\")"
+        }
+      ]
+    },
+    {
+      "sha": "9151211d2aecb7de9f1e89f7c809da58e044421a",
+      "message": "fix(backend): Set the minimum auto top-up amount to 500 credits (#9418)\n\n### Changes \ud83c\udfd7\ufe0f\n\n* Set the minimum auto top-up amount to 500.\n* Add description on minimum and dollar value in the input box.\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [ ] I have clearly listed my changes in the PR description\n- [ ] I have made a test plan\n- [ ] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n  - [ ] ...\n\n<details>\n  <summary>Example test plan</summary>\n  \n  - [ ] Create from scratch and execute an agent with at least 3 blocks\n- [ ] Import an agent from file upload, and confirm it executes\ncorrectly\n  - [ ] Upload agent to marketplace\n- [ ] Import an agent from marketplace and confirm it executes correctly\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\n</details>\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/server/routers/v1.py",
+          "additions": 2,
+          "deletions": 0,
+          "patch": "@@ -177,6 +177,8 @@ async def configure_user_auto_top_up(\n ) -> str:\n     if request.threshold < 0:\n         raise ValueError(\"Threshold must be greater than 0\")\n+    if request.amount < 500:\n+        raise ValueError(\"Amount must be greater than or equal to 500\")\n     if request.amount < request.threshold:\n         raise ValueError(\"Amount must be greater than or equal to threshold\")\n "
+        }
+      ]
+    },
+    {
+      "sha": "8e68e20fef12fbc27944a1fd42a6ae6e61613a2f",
+      "message": "fix(backend): Fix return URL of billing portal when platform_base_url != frontend_base_url (#9417)\n\n### Changes \ud83c\udfd7\ufe0f\n\nFix return URL of billing portal when platform_base_url !=\nfrontend_base_url.\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [ ] I have clearly listed my changes in the PR description\n- [ ] I have made a test plan\n- [ ] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n  - [ ] ...\n\n<details>\n  <summary>Example test plan</summary>\n  \n  - [ ] Create from scratch and execute an agent with at least 3 blocks\n- [ ] Import an agent from file upload, and confirm it executes\ncorrectly\n  - [ ] Upload agent to marketplace\n- [ ] Import an agent from marketplace and confirm it executes correctly\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\n</details>\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/server/routers/v1.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -239,7 +239,7 @@ async def manage_payment_method(\n ) -> dict[str, str]:\n     session = stripe.billing_portal.Session.create(\n         customer=await get_stripe_customer_id(user_id),\n-        return_url=settings.config.platform_base_url + \"/marketplace/credits\",\n+        return_url=settings.config.frontend_base_url + \"/marketplace/credits\",\n     )\n     if not session:\n         raise HTTPException("
+        }
+      ]
+    },
+    {
+      "sha": "f44453be6ead405c6c3f8fabe1a728b0f9ad43ca",
+      "message": "fix(backend): Fix transaction history listing on older transaction with no metadata",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/credit.py",
+          "additions": 5,
+          "deletions": 1,
+          "patch": "@@ -504,7 +504,11 @@ async def get_transaction_history(\n         )\n         tx_time = None\n         for t in transactions:\n-            metadata = UsageTransactionMetadata.model_validate(t.metadata)\n+            metadata = (\n+                UsageTransactionMetadata.model_validate(t.metadata)\n+                if t.metadata\n+                else UsageTransactionMetadata()\n+            )\n             tx_time = t.createdAt.replace(tzinfo=None)\n \n             if t.type == CreditTransactionType.USAGE and metadata.graph_exec_id:"
+        }
+      ]
+    },
+    {
+      "sha": "53aea8908a27d10741e0e054ca7df5c94094f145",
+      "message": "fix(backend): fix missing agent object requirement (#9380)",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/server/v2/store/db.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -809,7 +809,7 @@ async def get_agent(\n     try:\n         store_listing_version = (\n             await prisma.models.StoreListingVersion.prisma().find_unique(\n-                where={\"id\": store_listing_version_id}\n+                where={\"id\": store_listing_version_id}, include={\"Agent\": True}\n             )\n         )\n "
+        }
+      ]
+    },
+    {
+      "sha": "7b50e9bd77d170e912ad343c040f4bb420fa0862",
+      "message": "fix(backend): Fix return url post top-up  (#9392)\n\n### Changes \ud83c\udfd7\ufe0f\n\nFix return URL post-top-up, when FRONT_END_BASE_URL is used.\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [ ] I have clearly listed my changes in the PR description\n- [ ] I have made a test plan\n- [ ] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n  - [ ] ...\n\n<details>\n  <summary>Example test plan</summary>\n  \n  - [ ] Create from scratch and execute an agent with at least 3 blocks\n- [ ] Import an agent from file upload, and confirm it executes\ncorrectly\n  - [ ] Upload agent to marketplace\n- [ ] Import an agent from marketplace and confirm it executes correctly\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\n</details>\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/credit.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -421,9 +421,9 @@ async def top_up_intent(self, user_id: str, amount: int) -> str:\n             ui_mode=\"hosted\",\n             payment_intent_data={\"setup_future_usage\": \"off_session\"},\n             saved_payment_method_options={\"payment_method_save\": \"enabled\"},\n-            success_url=settings.config.platform_base_url\n+            success_url=settings.config.frontend_base_url\n             + \"/marketplace/credits?topup=success\",\n-            cancel_url=settings.config.platform_base_url\n+            cancel_url=settings.config.frontend_base_url\n             + \"/marketplace/credits?topup=cancel\",\n         )\n "
+        }
+      ]
+    },
+    {
+      "sha": "3de982792e5eedc25301136875acb191f40db45b",
+      "message": "fix(backend): Fix broken top-up flow (#9391)\n\nhttps://github.com/Significant-Gravitas/AutoGPT/pull/9296 caused these\nerrors:\n\n<img width=\"440\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/f100619b-1a4c-44fb-b961-e74210894a91\"\n/>\n\n<img width=\"411\" alt=\"image\"\nsrc=\"https://github.com/user-attachments/assets/0c1a8aff-b14f-4ea8-8ae9-b8928c8511cf\"\n/>\n\n\n\n### Changes \ud83c\udfd7\ufe0f\n\nRemoved customer email & return_url.\n\n### Checklist \ud83d\udccb\n\n#### For code changes:\n- [ ] I have clearly listed my changes in the PR description\n- [ ] I have made a test plan\n- [ ] I have tested my changes according to the test plan:\n  <!-- Put your test plan here: -->\n  - [ ] ...\n\n<details>\n  <summary>Example test plan</summary>\n  \n  - [ ] Create from scratch and execute an agent with at least 3 blocks\n- [ ] Import an agent from file upload, and confirm it executes\ncorrectly\n  - [ ] Upload agent to marketplace\n- [ ] Import an agent from marketplace and confirm it executes correctly\n  - [ ] Edit an agent from monitor, and confirm it executes correctly\n</details>\n\n#### For configuration changes:\n- [ ] `.env.example` is updated or already compatible with my changes\n- [ ] `docker-compose.yml` is updated or already compatible with my\nchanges\n- [ ] I have included a list of my configuration changes in the PR\ndescription (under **Changes**)\n\n<details>\n  <summary>Examples of configuration changes</summary>\n\n  - Changing ports\n  - Adding new services that need to communicate with each other\n  - Secrets or environment variable changes\n  - New or infrastructure changes such as databases\n</details>",
+      "changes": [
+        {
+          "file": "autogpt_platform/backend/backend/data/credit.py",
+          "additions": 1,
+          "deletions": 9,
+          "patch": "@@ -399,16 +399,12 @@ async def top_up_intent(self, user_id: str, amount: int) -> str:\n                 f\"Top up amount must be at least 500 credits and multiple of 100 but is {amount}\"\n             )\n \n-        if not (user := await get_user_by_id(user_id)):\n-            raise ValueError(f\"User not found: {user_id}\")\n-\n         # Create checkout session\n         # https://docs.stripe.com/checkout/quickstart?client=react\n         # unit_amount param is always in the smallest currency unit (so cents for usd)\n         # which is equal to amount of credits\n         checkout_session = stripe.checkout.Session.create(\n             customer=await get_stripe_customer_id(user_id),\n-            customer_email=user.email,\n             line_items=[\n                 {\n                     \"price_data\": {\n@@ -422,13 +418,13 @@ async def top_up_intent(self, user_id: str, amount: int) -> str:\n                 }\n             ],\n             mode=\"payment\",\n+            ui_mode=\"hosted\",\n             payment_intent_data={\"setup_future_usage\": \"off_session\"},\n             saved_payment_method_options={\"payment_method_save\": \"enabled\"},\n             success_url=settings.config.platform_base_url\n             + \"/marketplace/credits?topup=success\",\n             cancel_url=settings.config.platform_base_url\n             + \"/marketplace/credits?topup=cancel\",\n-            return_url=settings.config.platform_base_url + \"/marketplace/credits\",\n         )\n \n         await self._add_transaction(\n@@ -602,8 +598,6 @@ def get_block_costs() -> dict[str, list[BlockCost]]:\n \n async def get_stripe_customer_id(user_id: str) -> str:\n     user = await get_user_by_id(user_id)\n-    if not user:\n-        raise ValueError(f\"User not found: {user_id}\")\n \n     if user.stripeCustomerId:\n         return user.stripeCustomerId\n@@ -624,8 +618,6 @@ async def set_auto_top_up(user_id: str, config: AutoTopUpConfig):\n \n async def get_auto_top_up(user_id: str) -> AutoTopUpConfig:\n     user = await get_user_by_id(user_id)\n-    if not user:\n-        raise ValueError(\"Invalid user ID\")\n \n     if not user.topUpConfig:\n         return AutoTopUpConfig(threshold=0, amount=0)"
+        },
+        {
+          "file": "autogpt_platform/backend/backend/data/user.py",
+          "additions": 4,
+          "deletions": 2,
+          "patch": "@@ -34,9 +34,11 @@ async def get_or_create_user(user_data: dict) -> User:\n     return User.model_validate(user)\n \n \n-async def get_user_by_id(user_id: str) -> Optional[User]:\n+async def get_user_by_id(user_id: str) -> User:\n     user = await prisma.user.find_unique(where={\"id\": user_id})\n-    return User.model_validate(user) if user else None\n+    if not user:\n+        raise ValueError(f\"User not found with ID: {user_id}\")\n+    return User.model_validate(user)\n \n \n async def create_default_user() -> Optional[User]:"
+        }
+      ]
+    }
+  ]
+}

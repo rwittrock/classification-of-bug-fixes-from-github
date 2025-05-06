@@ -1,0 +1,15 @@
+{
+  "repo_name": "httpie/http-prompt",
+  "commits": [
+    {
+      "sha": "77fba91405f17ddda5a43ed3ee06bb926e96055b",
+      "message": "Fix exception in Windows: AttributeError: '_io.BytesIO' object has no attribute 'encoding'. See issue: https://github.com/eliangcs/http-prompt/issues/11",
+      "changes": [
+        {
+          "file": "http_prompt/execution.py",
+          "patch": "@@ -241,7 +241,7 @@ def visit_immutation(self, node, children):\n             assert children[0].expr_name == 'action'\n             output = BytesIO()\n             try:\n-                env = Environment(stdout=output)\n+                env = Environment(stdout=output, is_windows=False)\n                 httpie_main(context.httpie_args(self.method), env=env)\n                 content = output.getvalue()\n             finally:"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "repo_name": "kedro-org/kedro",
+  "commits": [
+    {
+      "sha": "acd01876b2ba6fb89929c5aa2c130ac2a7b1b994",
+      "message": "Don't follow wrapped when validating function's signature (#87)\n\nNodes raise a warning when the function is a partial, but calling\r\nupdate_wrapper as recommended raised a TypeError when binding\r\nargs to the signature. Adding follow_wrapped=False to the signature\r\ncall allows the partial to use the wrapped function's signature.",
+      "changes": [
+        {
+          "file": "kedro/pipeline/node.py",
+          "patch": "@@ -510,9 +510,11 @@ def _validate_inputs(self, func, inputs):\n         if not inspect.isbuiltin(func):\n             args, kwargs = self._process_inputs_for_bind(inputs)\n             try:\n-                inspect.signature(func).bind(*args, **kwargs)\n+                inspect.signature(func, follow_wrapped=False).bind(*args, **kwargs)\n             except Exception as exc:\n-                func_args = inspect.signature(func).parameters.keys()\n+                func_args = inspect.signature(\n+                    func, follow_wrapped=False\n+                ).parameters.keys()\n                 raise TypeError(\n                     \"Inputs of function expected {}, but got {}\".format(\n                         str(list(func_args)), str(inputs)"
+        }
+      ]
+    }
+  ]
+}

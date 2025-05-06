@@ -1,0 +1,19 @@
+{
+  "repo_name": "ray-project/ray",
+  "commits": [
+    {
+      "sha": "5866fd70056e5ad2a60c340cc274ea1fc5db07e1",
+      "message": "Add type check in free and change Exception to TypeError (#4221)",
+      "changes": [
+        {
+          "file": "python/ray/internal/internal_api.py",
+          "patch": "@@ -35,6 +35,12 @@ def free(object_ids, local_only=False):\n         raise TypeError(\"free() expects a list of ObjectID, got {}\".format(\n             type(object_ids)))\n \n+    # Make sure that the values are object IDs.\n+    for object_id in object_ids:\n+        if not isinstance(object_id, ray.ObjectID):\n+            raise TypeError(\"Attempting to call `free` on the value {}, \"\n+                            \"which is not an ray.ObjectID.\".format(object_id))\n+\n     worker.check_connected()\n     with profiling.profile(\"ray.free\"):\n         if len(object_ids) == 0:"
+        },
+        {
+          "file": "python/ray/worker.py",
+          "patch": "@@ -347,7 +347,7 @@ def put_object(self, object_id, value):\n         \"\"\"\n         # Make sure that the value is not an object ID.\n         if isinstance(value, ObjectID):\n-            raise Exception(\n+            raise TypeError(\n                 \"Calling 'put' on an ray.ObjectID is not allowed \"\n                 \"(similarly, returning an ray.ObjectID from a remote \"\n                 \"function is not allowed). If you really want to \"\n@@ -470,7 +470,7 @@ def get_object(self, object_ids):\n         # Make sure that the values are object IDs.\n         for object_id in object_ids:\n             if not isinstance(object_id, ObjectID):\n-                raise Exception(\n+                raise TypeError(\n                     \"Attempting to call `get` on the value {}, \"\n                     \"which is not an ray.ObjectID.\".format(object_id))\n         # Do an initial fetch for remote objects. We divide the fetch into\n@@ -1800,7 +1800,7 @@ def connect(info,\n             driver_id = DriverID(_random_string())\n \n         if not isinstance(driver_id, DriverID):\n-            raise Exception(\"The type of given driver id must be DriverID.\")\n+            raise TypeError(\"The type of given driver id must be DriverID.\")\n \n         worker.worker_id = driver_id.binary()\n "
+        }
+      ]
+    }
+  ]
+}

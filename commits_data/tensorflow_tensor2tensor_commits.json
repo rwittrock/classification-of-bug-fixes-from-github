@@ -1,0 +1,45 @@
+{
+  "repo_name": "tensorflow/tensor2tensor",
+  "commits": [
+    {
+      "sha": "58435743965dfc3bed28fda62664397fc18fff76",
+      "message": "[T2T] Fixed miscellaneous issues during TPU model exporting and serving.\n\n1. Fixed \"AttributeError: '_DefinedFunction' object has no attribute 'get_operations'\"\n  - Added function graph isinstance check in prune_unconnected_ops_from_xla\n\n2. Fixed \"ValueError: prediction values with \"inputs: DatasetToSingleElement:0\" must be from the default graph.\"\n  - Added tf.identity to all values in the predictions as a workaround.\n\nPiperOrigin-RevId: 255493712",
+      "changes": [
+        {
+          "file": "tensor2tensor/utils/t2t_model.py",
+          "patch": "@@ -1698,6 +1698,12 @@ def estimator_spec_predict(self, features, use_tpu=False):\n       outputs = infer_out\n       scores = None\n \n+    # Workaround for \"ValueError: prediction values must be from the default\n+    # graph\" during TPU model exporting.\n+    # TODO(b/130501786): remove tf.identity once default graph mismatch is fixed\n+    for name, feature in features.items():\n+      features[name] = tf.identity(feature)\n+\n     inputs = features.get(\"inputs\")\n     if inputs is None:\n       inputs = features[\"targets\"]"
+        }
+      ]
+    },
+    {
+      "sha": "7fdbcc1b2b6dee44a951eb781ddaf2086bd2d691",
+      "message": "OSS T2T currently breaks on import jax when ImportError is thrown. Switch TypeError to ImportError to catch.\n\nPiperOrigin-RevId: 235210246",
+      "changes": [
+        {
+          "file": "tensor2tensor/bin/t2t_trainer.py",
+          "patch": "@@ -40,7 +40,7 @@\n \n try:\n   from tensor2tensor.jax import j2j  # pylint: disable=g-import-not-at-top\n-except TypeError:\n+except (TypeError, ImportError):\n   pass\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "cf1c451d60099d4a291f24f507d29becdf7e1340",
+      "message": "Fix invalid list comprehension (#1343)\n\nFixes #1002 as the current code will raise a NameError at runtime.",
+      "changes": [
+        {
+          "file": "tensor2tensor/utils/t2t_model.py",
+          "patch": "@@ -338,9 +338,9 @@ def model_fn_sharded(self, sharded_features):\n             sharded_logits[k] = dp(self.top, v, datashard_to_features)\n             sharded_losses[k] = dp(self.loss, sharded_logits[k],\n                                    datashard_to_features)\n-          training_loss_dict = average_sharded_losses([{\n+          training_loss_dict = average_sharded_losses([({\n               \"training\": l\n-          } for l in loss for loss in sharded_losses.values()])\n+          } for l in loss) for loss in sharded_losses.values()])\n           losses.update(training_loss_dict)\n         else:\n           sharded_logits = dp(self.top, body_out, datashard_to_features)"
+        }
+      ]
+    },
+    {
+      "sha": "4bbd59569fd5efef4604605bb839f11fd09987ef",
+      "message": "Update universal_transformer_util.py to fix TypeError (#987)",
+      "changes": [
+        {
+          "file": "tensor2tensor/models/research/universal_transformer_util.py",
+          "patch": "@@ -578,7 +578,7 @@ def universal_transformer_basic(layer_inputs,\n     layer_output:\n          new_state: new state\n   \"\"\"\n-  state, inputs, memory = layer_inputs\n+  state, inputs, memory = tf.unstack(layer_inputs,num=None,axis=0,name=\"unstack\")\n   state = step_preprocess(state, step, hparams)\n \n   new_state = ffn_unit(attention_unit(state))"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,65 @@
+{
+  "repo_name": "tensorflow/models",
+  "commits": [
+    {
+      "sha": "63605b95da965e46b53a9ec740b77ae1bb4f12a0",
+      "message": "Fix for #7225: CIFAR-10 eval fails with error TypeError: Input 'predictions' of 'InTopKV2' Op has type float16 that contributed by mattmann. (#7227)",
+      "changes": [
+        {
+          "file": "tutorials/image/cifar10/cifar10_eval.py",
+          "patch": "@@ -123,6 +123,9 @@ def evaluate():\n     # inference model.\n     logits = cifar10.inference(images)\n \n+    logits = tf.cast(logits, \"float32\")\n+    labels = tf.cast(labels, \"int32\")\n+\n     # Calculate predictions.\n     top_k_op = tf.nn.in_top_k(logits, labels, 1)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e7b21bfd58614f43131be55308dadd619d7773ae",
+      "message": "absl_app.run() fails without including `main` as an argument (#6940)\n\nAfter the change (https://github.com/tensorflow/models/pull/6846/files#diff-965780bf33f2aeca41a33f8eba197c79) I receive the following error:\r\n\r\nFile \"./models/official/mnist/mnist_tpu.py\", line 202, in <module>\r\n    absl_app.run()\r\nTypeError: run() missing 1 required positional argument: 'main'\r\n\r\nI added main as an argument and it seems to be working fine now.",
+      "changes": [
+        {
+          "file": "official/mnist/mnist_tpu.py",
+          "patch": "@@ -198,4 +198,4 @@ def main(argv):\n \n \n if __name__ == \"__main__\":\n-  absl_app.run()\n+  absl_app.run(main)"
+        }
+      ]
+    },
+    {
+      "sha": "1c99681ed94495f446399e247a8d63e07f28391c",
+      "message": "Stop crashing at the end of training phase. (#6049)\n\nIt currently fails with\r\nTypeError: not all arguments converted during string formatting",
+      "changes": [
+        {
+          "file": "official/transformer/transformer_main.py",
+          "patch": "@@ -232,8 +232,8 @@ def evaluate_and_log_bleu(estimator, bleu_source, bleu_ref, vocab_file):\n   uncased_score, cased_score = translate_and_compute_bleu(\n       estimator, subtokenizer, bleu_source, bleu_ref)\n \n-  tf.logging.info(\"Bleu score (uncased):\", uncased_score)\n-  tf.logging.info(\"Bleu score (cased):\", cased_score)\n+  tf.logging.info(\"Bleu score (uncased): %d\", uncased_score)\n+  tf.logging.info(\"Bleu score (cased): %d\", cased_score)\n   return uncased_score, cased_score\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "eb784c09b2c1206551e474ab841d6fd6f424a984",
+      "message": "Prevents TypeError:'dict_keys' object does not support indexing",
+      "changes": [
+        {
+          "file": "research/skip_thoughts/skip_thoughts/data/preprocess_dataset.py",
+          "patch": "@@ -121,8 +121,8 @@ def _build_vocabulary(input_files):\n \n   tf.logging.info(\"Processed %d sentences total\", num)\n \n-  words = wordcount.keys()\n-  freqs = wordcount.values()\n+  words = list(wordcount)\n+  freqs = list(wordcount.values())\n   sorted_indices = np.argsort(freqs)[::-1]\n \n   vocab = collections.OrderedDict()"
+        }
+      ]
+    },
+    {
+      "sha": "33bc8b14693d024ba92f8e6b411e6e3f733bed8c",
+      "message": "fix the error of \"TypeError: ones_initializer() got multiple values for (#777)\n\nkeyword argument 'dtype'\".",
+      "changes": [
+        {
+          "file": "inception/inception/slim/ops.py",
+          "patch": "@@ -91,7 +91,7 @@ def batch_norm(inputs,\n     if scale:\n       gamma = variables.variable('gamma',\n                                  params_shape,\n-                                 initializer=tf.ones_initializer,\n+                                 initializer=tf.ones_initializer(),\n                                  trainable=trainable,\n                                  restore=restore)\n     # Create moving_mean and moving_variance add them to\n@@ -105,7 +105,7 @@ def batch_norm(inputs,\n                                      collections=moving_collections)\n     moving_variance = variables.variable('moving_variance',\n                                          params_shape,\n-                                         initializer=tf.ones_initializer,\n+                                         initializer=tf.ones_initializer(),\n                                          trainable=False,\n                                          restore=restore,\n                                          collections=moving_collections)"
+        }
+      ]
+    },
+    {
+      "sha": "c716c1b8b55d0e318d6e8a8f214bc6ecba382a45",
+      "message": "Import scipy.ndimage before tensorflow to fix jpeg load. (#165)\n\nWhen importing tensorflow before scipi.ndimage and running the\r\nexample in a docker container, the following error is given:\r\n\r\n```\r\n % python example.py\r\nTraceback (most recent call last):\r\n  File \"example.py\", line 25, in <module>\r\n    im = im / 255.\r\nTypeError: unsupported operand type(s) for /: 'instance' and 'float'\r\n```\r\nThis only happens for 'cat.jpg'. When converting the image to a '.png'\r\nfile, the example runs as expected.\r\n\r\nWhen swapping the imports around so that scipy.ndimage is imported\r\nBEFORE tensorflow, both 'jpg' and 'png' files work.",
+      "changes": [
+        {
+          "file": "transformer/example.py",
+          "patch": "@@ -12,9 +12,9 @@\n # See the License for the specific language governing permissions and\n # limitations under the License.\n # ==============================================================================\n+from scipy import ndimage\n import tensorflow as tf\n from spatial_transformer import transformer\n-from scipy import ndimage\n import numpy as np\n import matplotlib.pyplot as plt\n "
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "repo_name": "tqdm/tqdm",
+  "commits": [
+    {
+      "sha": "825f7dc7ea4f101f324619ddcc09276455166093",
+      "message": "except TypeError instead of UnicodeDecodeError",
+      "changes": [
+        {
+          "file": "tqdm/utils.py",
+          "patch": "@@ -293,6 +293,6 @@ def _text_width(s):  # pragma: no cover\n     else:\n         try:\n             return len(s) + sum(east_asian_width(ch) in 'FW' for ch in s)\n-        except UnicodeDecodeError:  # Py2\n+        except TypeError:  # Py2\n             s = s.decode('utf-8')\n             return len(s) + sum(east_asian_width(ch) in 'FW' for ch in s)"
+        }
+      ]
+    },
+    {
+      "sha": "964dee631d0ed30e2f799b42fc58ba5e73795a08",
+      "message": "fix `TypeError` when `unit_scale` and unknown `total`",
+      "changes": [
+        {
+          "file": "tqdm/_tqdm.py",
+          "patch": "@@ -320,7 +320,8 @@ def format_meter(n, total, elapsed, ncols=None, prefix='', ascii=False,\n \n         # apply custom scale if necessary\n         if unit_scale and unit_scale not in (True, 1):\n-            total *= unit_scale\n+            if total:\n+                total *= unit_scale\n             n *= unit_scale\n             if rate:\n                 rate *= unit_scale  # by default rate = 1 / self.avg_time"
+        }
+      ]
+    },
+    {
+      "sha": "0f54b99804e94d8042b8075ed46a8016397e6be1",
+      "message": "Fix for IronPython 2.7\n\nfix for:\r\n\r\n    File \"tqdm\\_tqdm.py\", line 337, in __init__\r\n    TypeError: NoneType is not callable\r\n\r\nin IronPython",
+      "changes": [
+        {
+          "file": "tqdm/_utils.py",
+          "patch": "@@ -41,11 +41,11 @@ def _environ_cols_wrapper():  # pragma: no cover\n     import platform\n     current_os = platform.system()\n     _environ_cols = None\n-    if current_os == 'Windows':\n+    if current_os in {'Windows', 'cli'}:\n         _environ_cols = _environ_cols_windows\n         if _environ_cols is None:\n             _environ_cols = _environ_cols_tput\n-    if current_os in ['Linux', 'Darwin', 'SunOS', 'FreeBSD'] or \\\n+    if current_os in {'Linux', 'Darwin', 'SunOS', 'FreeBSD'} or \\\n             current_os.startswith('CYGWIN'):\n         _environ_cols = _environ_cols_linux\n     return _environ_cols"
+        }
+      ]
+    }
+  ]
+}

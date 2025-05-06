@@ -1,0 +1,17 @@
+{
+  "repo_name": "donnemartin/system-design-primer",
+  "commits": [
+    {
+      "sha": "e50f26960dde9adce5614d8ead8be48ee47053e5",
+      "message": "Change raise NotImplemented to raise NotImplementedError (#345)",
+      "changes": [
+        {
+          "file": "solutions/object_oriented_design/call_center/call_center.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -66,7 +66,7 @@ def __init__(self, employee_id, name):\n         super(Operator, self).__init__(employee_id, name, Rank.DIRECTOR)\n \n     def escalate_call(self):\n-        raise NotImplemented('Directors must be able to handle any call')\n+        raise NotImplementedError('Directors must be able to handle any call')\n \n \n class CallState(Enum):"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "repo_name": "aws/chalice",
+  "commits": [
+    {
+      "sha": "15eada7bb0119ca2e387d06f0faae91426a70e05",
+      "message": "Fix route name kwarg causing a TypeError",
+      "changes": [
+        {
+          "file": "chalice/app.py",
+          "patch": "@@ -540,7 +540,7 @@ def schedule(self, expression, name=None):\n     def route(self, path, **kwargs):\n         return self._create_registration_function(\n             handler_type='route',\n-            name=kwargs.get('name'),\n+            name=kwargs.pop('name', None),\n             # This looks a little weird taking kwargs as a key,\n             # but we want to preserve keep the **kwargs signature\n             # in the route decorator."
+        }
+      ]
+    },
+    {
+      "sha": "17e95a63a7487839dac564c53c5995dc1ffdff74",
+      "message": "Fixed handle_decimals to raise a TypeError if it can't encode the object",
+      "changes": [
+        {
+          "file": "chalice/app.py",
+          "patch": "@@ -52,7 +52,7 @@ def handle_decimals(obj):\n     # to support that as well.\n     if isinstance(obj, decimal.Decimal):\n         return float(obj)\n-    return obj\n+    raise TypeError('Object of type %s is not JSON serializable' % obj.__class__.__name__)\n \n \n def error_response(message, error_code, http_status_code, headers=None):"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "repo_name": "pallets/click",
+  "commits": [
+    {
+      "sha": "8b0531125943af4a40bad2bd3166940f7f2f4050",
+      "message": "Bugfix: Make click.progressbar work with codecs.open files\n\n- codecs.open returns a StreamReaderWriter when used with encoding, this object doesn't have a `__len__` attribute, so calling the `len` function on it result in an `AttributeError` instead of a `TypeError`\n- this will catch the AttributeError as well as the TypeError instead of only catching the later",
+      "changes": [
+        {
+          "file": "click/_termui_impl.py",
+          "patch": "@@ -31,7 +31,7 @@ def _length_hint(obj):\n     \"\"\"Returns the length hint of an object.\"\"\"\n     try:\n         return len(obj)\n-    except TypeError:\n+    except (AttributeError, TypeError):\n         try:\n             get_hint = type(obj).__length_hint__\n         except AttributeError:"
+        }
+      ]
+    }
+  ]
+}

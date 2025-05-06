@@ -1,0 +1,75 @@
+{
+  "repo_name": "InstaPy/InstaPy",
+  "commits": [
+    {
+      "sha": "317e99380eca624b0d7bd415a2c1b45a598f1352",
+      "message": "Fix error `TypeError: '<' not supported between instances of 'int' and 'NoneType'",
+      "changes": [
+        {
+          "file": "instapy/like_util.py",
+          "patch": "@@ -921,7 +921,7 @@ def verify_liking(browser, maximum, minimum, logger):\n             \"{}\".format(likes_count)\n         )\n         return False\n-    elif min is not None and likes_count < minimum:\n+    elif minimum is not None and likes_count < minimum:\n         logger.info(\n             \"Not liked this post! ~less likes exist off minumum limit \"\n             \"at {}\".format(likes_count)"
+        }
+      ]
+    },
+    {
+      "sha": "967856b48a0c4d836cc7ba1d78428fd340e58c8b",
+      "message": "Fix the bug raised at #3451\n\n\"TypeError: can't multiply sequence by non-int of type 'float'\";\n\nIt happened after my change to that expression inside # #3318.",
+      "changes": [
+        {
+          "file": "instapy/util.py",
+          "patch": "@@ -926,7 +926,7 @@ def highlight_print(username=None, message=None, priority=None, level=None, logg\n \n \n     if show_logs == True:\n-        print(\"\\n{}\".format(upper_char * ceil(output_len/len(upper_char))))\n+        print(\"\\n{}\".format(upper_char * int(ceil(output_len/len(upper_char)))))\n \n     if level == \"info\":\n         logger.info(message)"
+        }
+      ]
+    },
+    {
+      "sha": "9a5b16039795e7de66fba7575d64156f6e045765",
+      "message": "Add fix for the same `IndexError` in old pythons for `dump_record_activity` def",
+      "changes": [
+        {
+          "file": "instapy/util.py",
+          "patch": "@@ -741,6 +741,7 @@ def dump_record_activity(profile_name, logger, logfolder):\n \n             # re-order live user data in the required structure\n             for hourly_data in user_data:\n+                hourly_data = tuple(hourly_data)\n                 day = hourly_data[-1][:10]\n                 hour = hourly_data[-1][-8:-6]\n "
+        }
+      ]
+    },
+    {
+      "sha": "55ddd17d57f6a2f0bf00122d16babe1f1752cb32",
+      "message": "Fix crazy `IndexError` for python 2 (older versions like `2.7.6`)\n\nForce render sqlite3 row object into tuples if python does not.",
+      "changes": [
+        {
+          "file": "instapy/quota_supervisor.py",
+          "patch": "@@ -331,6 +331,7 @@ def load_records():\n \n         # iterate over hourly rows and re-order data in the required structure\n         for hourly_data in daily_data:\n+            hourly_data = tuple(hourly_data)\n             hour = hourly_data[-1][-8:-6]\n \n             ordered_data[today].update({hour: {\"likes\": hourly_data[1],"
+        }
+      ]
+    },
+    {
+      "sha": "45bdfad43d0959a2c36f4f736529a7bbcfe58202",
+      "message": "bugfix: \"TypeError: makedirs() got an unexpected keyword argument 'exist_ok'\"",
+      "changes": [
+        {
+          "file": "proxy_extension.py",
+          "patch": "@@ -60,7 +60,10 @@ def create_proxy_extension(proxy):\n     \"\"\" % (ip, port, login, password)\n \n     dir_path = 'assets/chrome_extensions'\n-    os.makedirs(dir_path)\n+    try:\n+        os.makedirs(dir_path)\n+    except OSError:\n+        pass\n     pluginfile = '%s/proxy_auth_%s:%s.zip' % (dir_path, ip, port)\n     with zipfile.ZipFile(pluginfile, 'w') as zp:\n         zp.writestr(\"manifest.json\", manifest_json)"
+        }
+      ]
+    },
+    {
+      "sha": "d8831efb6dd09077e022703182f85995528354f0",
+      "message": "bugfix: \"TypeError: makedirs() got an unexpected keyword argument 'exist_ok'\"",
+      "changes": [
+        {
+          "file": "proxy_extension.py",
+          "patch": "@@ -60,7 +60,7 @@ def create_proxy_extension(proxy):\n     \"\"\" % (ip, port, login, password)\n \n     dir_path = 'assets/chrome_extensions'\n-    os.makedirs(dir_path, exist_ok=True)\n+    os.makedirs(dir_path)\n     pluginfile = '%s/proxy_auth_%s:%s.zip' % (dir_path, ip, port)\n     with zipfile.ZipFile(pluginfile, 'w') as zp:\n         zp.writestr(\"manifest.json\", manifest_json)"
+        }
+      ]
+    },
+    {
+      "sha": "a5644c22316146fe0ae0a115c4f6e86044bcc237",
+      "message": "Fix string formatting\n\nTypeError: not all arguments converted during string formatting\r\n\r\nhttps://github.com/timgrossmann/InstaPy/issues/1108",
+      "changes": [
+        {
+          "file": "instapy/instapy.py",
+          "patch": "@@ -1394,7 +1394,8 @@ def like_by_feed(self,\n                 else:\n                     if link in history:\n                         self.logger.info('This link has already '\n-                                         'been visited:\\n', link, '\\n')\n+                                         'been visited: {}'\n+                                         .format(link))\n                     else:\n                         self.logger.info('New link found...')\n                         history.append(link)"
+        }
+      ]
+    }
+  ]
+}

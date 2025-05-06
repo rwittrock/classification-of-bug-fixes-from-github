@@ -1,0 +1,15 @@
+{
+  "repo_name": "MrS0m30n3/youtube-dl-gui",
+  "commits": [
+    {
+      "sha": "8919a7d838f95fccced3ff0a2d0d500ddff2b2c3",
+      "message": "Fix IndexError SignalHandler.py handle()",
+      "changes": [
+        {
+          "file": "youtube_dl_gui/YoutubeDLGUI.py",
+          "patch": "@@ -250,6 +250,8 @@ def OnTrackListChange(self, event):\n \tif url not in self.urlList and url != '':\n \t  ''' Add url into original download list '''\n \t  self.urlList.append(url)\n+\t  ''' Add handler for url '''\n+\t  self.downloadHandler._add_empty_handler()\n \t  ''' Add url into statusList '''\n \t  self.statusList._add_item(url)\n \t  ''' Retrieve last item as {url:url, index:indexNo} '''"
+        }
+      ]
+    }
+  ]
+}

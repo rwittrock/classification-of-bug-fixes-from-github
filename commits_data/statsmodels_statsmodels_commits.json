@@ -1,0 +1,55 @@
+{
+  "repo_name": "statsmodels/statsmodels",
+  "commits": [
+    {
+      "sha": "b702e803c738e56b47b9730763a55117810bb0de",
+      "message": "MAINT: remove NameError-having version of levinson_durbin, just keep copied-and-fixed version in stattools",
+      "changes": [
+        {
+          "file": "statsmodels/tsa/stattools.py",
+          "patch": "@@ -903,8 +903,8 @@ def periodogram(X):\n     return pergr\n \n \n-#copied from nitime and statsmodels\\sandbox\\tsa\\examples\\try_ld_nitime.py\n-#TODO: check what to return, for testing and trying out returns everything\n+# moved from sandbox.tsa.examples.try_ld_nitime, via nitime\n+# TODO: check what to return, for testing and trying out returns everything\n def levinson_durbin(s, nlags=10, isacov=False):\n     \"\"\"\n     Levinson-Durbin recursion for autoregressive processes"
+        }
+      ]
+    },
+    {
+      "sha": "529aa1e10334590d9463047d7c088d3cc2657311",
+      "message": "MAINT: Fix NameErrors by adding missing import, using method correctly",
+      "changes": [
+        {
+          "file": "statsmodels/sandbox/panel/correlation_structures.py",
+          "patch": "@@ -17,6 +17,7 @@\n import numpy as np\n \n from statsmodels.regression.linear_model import yule_walker\n+from statsmodels.stats.moment_helpers import cov2corr\n \n \n def corr_equi(k_vars, rho):\n@@ -198,4 +199,4 @@ def corr(self, k_vars=None):\n         return corr_ar(k_vars, self.ar)\n \n     def cov(self, k_vars=None):\n-        return cov2corr(corr(self, k_vars=None), self.sigma)\n+        return cov2corr(self.corr(k_vars=None), self.sigma)"
+        }
+      ]
+    },
+    {
+      "sha": "bfbb10d7df844d29c74a3b3e8d1b4733a702a445",
+      "message": "BUG: Implemented __getnewargs__() method for unpickling\n\nWithin the ARIMA class, __getnewargs__() method is implemented\nin order to pass \"endog\" and \"order\" arguments to the __new__()\nmethod when called upon.\nSolved the error: \"TypeError: __new__() missing 1 required positional arguments: 'endog' and 'order'\"",
+      "changes": [
+        {
+          "file": "statsmodels/tsa/arima_model.py",
+          "patch": "@@ -974,7 +974,6 @@ def fit(self, start_params=None, trend='c', method=\"css-mle\",\n #so model methods are not the same on unfit models as fit ones\n #starting to think that order of model should be put in instantiation...\n class ARIMA(ARMA):\n-\n     __doc__ = tsbase._tsa_doc % {\"model\" : _arima_model,\n                                  \"params\" : _arima_params, \"extra_params\" : \"\",\n                                  \"extra_sections\" : _armax_notes %\n@@ -990,6 +989,9 @@ def __new__(cls, endog, order, exog=None, dates=None, freq=None,\n             mod.__init__(endog, order, exog, dates, freq, missing)\n             return mod\n \n+    def __getnewargs__(self):\n+        return ((self.endog),(self.k_lags, self.k_diff, self.k_ma))\n+\n     def __init__(self, endog, order, exog=None, dates=None, freq=None,\n                  missing='none'):\n         p, d, q = order"
+        }
+      ]
+    },
+    {
+      "sha": "6d6e90411335af9492d22aaad3fb44b6057261ea",
+      "message": "BUG: add NameError for python 2 exception",
+      "changes": [
+        {
+          "file": "statsmodels/base/data.py",
+          "patch": "@@ -103,8 +103,8 @@ def __setstate__(self, d):\n                     _, design = dmatrices(d['formula'], data, eval_env=depth,\n                                           return_type='dataframe')\n                     break\n-                except PatsyError as e: #NameError as e:\n-                    #print('not in depth %d' % depth)\n+                except (NameError, PatsyError) as e:\n+                    print('not in depth %d' % depth)\n                     exc.append(e)   # why do I need a reference from outside except block\n                     pass\n             else:"
+        }
+      ]
+    },
+    {
+      "sha": "2b28782a64a63a2cb9ea4939e4cc3a0fddaab7b3",
+      "message": "BUG python 3.3 fix for numpy str TypeError, see #633",
+      "changes": [
+        {
+          "file": "statsmodels/iolib/table.py",
+          "patch": "@@ -609,7 +609,7 @@ def __init__(self, data='', datatype=None, row=None, **fmt_dict):\n             self.data = data.data\n             self._datatype = data.datatype\n             self._fmt = data._fmt\n-        except AttributeError: #passed ordinary data\n+        except (AttributeError, TypeError): #passed ordinary data\n             self.data = data\n             self._datatype = datatype\n             self._fmt = dict()"
+        }
+      ]
+    }
+  ]
+}

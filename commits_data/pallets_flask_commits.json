@@ -1,0 +1,25 @@
+{
+  "repo_name": "pallets/flask",
+  "commits": [
+    {
+      "sha": "5da31f8af36012a4f76c3bd0d536ae107e0519b5",
+      "message": "fix UnboundLocalError in handle_url_build_error\n\n- caused by changes in the execution model of python 3 where the alias of an except clause is cleared on exit of the except",
+      "changes": [
+        {
+          "file": "flask/app.py",
+          "patch": "@@ -1631,8 +1631,9 @@ def handle_url_build_error(self, error, endpoint, values):\n                 rv = handler(error, endpoint, values)\n                 if rv is not None:\n                     return rv\n-            except BuildError as error:\n-                pass\n+            except BuildError as e:\n+                # make error available outside except block (py3)\n+                error = e\n \n         # At this point we want to reraise the exception.  If the error is\n         # still the same one we can reraise it with the original traceback,"
+        }
+      ]
+    },
+    {
+      "sha": "348bf52188b9f7bef1096d8fe70edf2e62ea04a8",
+      "message": "Handle empty deque on errorhandler lookup.\n\nAfter registering a custom errorhandler by exception class, raising any\nunhandled exception in a view function swallows the error and instead\nthrows an `IndexError` on trying to look up the appropriate handler.\nThis patch avoids the uninformative `IndexError` and preserves the\noriginal exception by looping until the deque of classes is empty, not\nforever.",
+      "changes": [
+        {
+          "file": "flask/app.py",
+          "patch": "@@ -1421,7 +1421,7 @@ def find_handler(handler_map):\n             # __mro__\n             done = set()\n \n-            while True:\n+            while queue:\n                 cls = queue.popleft()\n                 if cls in done:\n                     continue"
+        }
+      ]
+    }
+  ]
+}

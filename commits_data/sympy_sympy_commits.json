@@ -1,0 +1,395 @@
+{
+  "repo_name": "sympy/sympy",
+  "commits": [
+    {
+      "sha": "dc80e71a60df91f10c107688ceeecf73c7baad09",
+      "message": "capture TypeError",
+      "changes": [
+        {
+          "file": "sympy/logic/boolalg.py",
+          "patch": "@@ -685,7 +685,8 @@ def _eval_subs(self, old, new):\n         for i in self.args:\n             try:\n                 i = i.subs(old, new)\n-            except:  # store any problem\n+            except TypeError:\n+                # store TypeError\n                 if bad is None:\n                     bad = i\n                 continue\n@@ -822,7 +823,8 @@ def _eval_subs(self, old, new):\n         for i in self.args:\n             try:\n                 i = i.subs(old, new)\n-            except:  # store any problem\n+            except TypeError:\n+                # store TypeError\n                 if bad is None:\n                     bad = i\n                 continue"
+        }
+      ]
+    },
+    {
+      "sha": "725ad5dedbd687db28310f06615d762ad5c94e10",
+      "message": "Updated code in sympify.py module, reduced the need of catching AttributeError, TypeError and KeyError. Update code in core.py made __sympy__ a property for SymPy objects so as to avoid changing its value.",
+      "changes": [
+        {
+          "file": "sympy/core/core.py",
+          "patch": "@@ -69,7 +69,7 @@ class BasicMeta(type):\n \n     def __init__(cls, *args, **kws):\n         all_classes.add(cls)\n-        cls.__sympy__ = True\n+        cls.__sympy__ = property(lambda self: True)\n \n     def __cmp__(cls, other):\n         # If the other object is not a Basic subclass, then we are not equal to"
+        }
+      ]
+    },
+    {
+      "sha": "51f4ac874619fe68846444e508b3325227c35267",
+      "message": "raise TypeError when divmod arg is oo, -oo, or nan",
+      "changes": [
+        {
+          "file": "sympy/core/numbers.py",
+          "patch": "@@ -548,6 +548,9 @@ def __divmod__(self, other):\n \n         try:\n             other = Number(other)\n+            if other.is_infinite or self.is_infinite or \\\n+                    S.NaN in (self, other):\n+                raise TypeError\n         except TypeError:\n             msg = \"unsupported operand type(s) for divmod(): '%s' and '%s'\"\n             raise TypeError(msg % (type(self).__name__, type(other).__name__))"
+        }
+      ]
+    },
+    {
+      "sha": "1c95054da84d88c6b535d617ccd1aa7383992339",
+      "message": "TypeError with too many functions",
+      "changes": [
+        {
+          "file": "sympy/solvers/ode.py",
+          "patch": "@@ -1543,6 +1543,8 @@ def _sympify(eq):\n     funcs = list(set(funcs))\n     if len(funcs) < len(eq):\n         raise ValueError(\"Number of functions given is less than number of equations %s\" % funcs)\n+    if len(funcs) > len(eq):\n+        raise ValueError(\"Number of functions given is more than number of equations %s\" % funcs)\n     func_dict = dict()\n     for func in funcs:\n         if not order.get(func, False):"
+        }
+      ]
+    },
+    {
+      "sha": "3145b4144b3db44b69bd1aa2fdb131f41dd1bb30",
+      "message": "More AttributeError",
+      "changes": [
+        {
+          "file": "sympy/vector/basisdependent.py",
+          "patch": "@@ -123,7 +123,7 @@ def as_numer_denom(self):\n         expression -> a/b -> a, b\n \n         \"\"\"\n-        return self, 1\n+        return self, S.One\n \n     def factor(self, *args, **kwargs):\n         \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "8b933ddd6aec7ae4c234bc593f93073549d6cd81",
+      "message": "Modified TypeError message in distance\nTypeError is raised when Non GeometricEntity other than list or tuple is passed.",
+      "changes": [
+        {
+          "file": "sympy/geometry/point.py",
+          "patch": "@@ -418,7 +418,10 @@ def distance(self, other):\n \n         \"\"\"\n         if not isinstance(other , GeometryEntity) :\n-            other = Point(other, dim=self.ambient_dimension)\n+            try :\n+                other = Point(other, dim=self.ambient_dimension)\n+            except TypeError :\n+                raise TypeError(\"only distnace with some GeometricEntity, Point, List or tuple is supported\")\n         if isinstance(other , Point) :\n             s, p = Point._normalize_dimension(self, Point(other))\n             return sqrt(Add(*((a - b)**2 for a, b in zip(s, p))))"
+        }
+      ]
+    },
+    {
+      "sha": "630ffa713ab80bbe6f43eace67db97546f718fed",
+      "message": "added implementation of IndexError for indices in matrix _insert()",
+      "changes": [
+        {
+          "file": "sympy/matrices/tests/test_commonmatrix.py",
+          "patch": "@@ -189,14 +189,14 @@ def test_col_join():\n \n def test_row_insert():\n     r4 = Matrix([[4, 4, 4]])\n-    for i in range(-4, 5):\n+    for i in range(-3, 3):\n         l = [1, 0, 0]\n         l.insert(i, 4)\n         assert flatten(eye_Shaping(3).row_insert(i, r4).col(0).tolist()) == l\n \n def test_col_insert():\n     c4 = Matrix([4, 4, 4])\n-    for i in range(-4, 5):\n+    for i in range(-3, 3):\n         l = [0, 0, 0]\n         l.insert(i, 4)\n         assert flatten(zeros_Shaping(3).col_insert(i, c4).row(0).tolist()) == l"
+        }
+      ]
+    },
+    {
+      "sha": "712db26c028672706cd714f93112ec91114ced39",
+      "message": "Probability of continuous random variables lying in a finite set is now zero\n\nProbability of any continuous random variable with a finite density lying\non a finite number of points is zero.\n\nExample(before fix):\n```\n>>> E = Exponential('E', 3)\n>>> P(Eq(E, 1))\n...\nAttributeError: 'FiniteSet' object has no attribute 'as_coeff_Mul'\n```\n\nExample(after fix):\n```\n>>> E = Exponential('E', 3)\n>>> P(Eq(E, 1))\n0\n```",
+      "changes": [
+        {
+          "file": "sympy/stats/crv.py",
+          "patch": "@@ -16,7 +16,7 @@\n from sympy.functions.special.delta_functions import DiracDelta\n from sympy import (Interval, Intersection, symbols, sympify, Dummy, Mul,\n         Integral, And, Or, Piecewise, cacheit, integrate, oo, Lambda,\n-        Basic, S, exp, I)\n+        Basic, S, exp, I, FiniteSet)\n from sympy.solvers.solveset import solveset\n from sympy.solvers.inequalities import reduce_rational_inequalities\n from sympy.polys.polyerrors import PolynomialError\n@@ -340,10 +340,11 @@ def probability(self, condition, **kwargs):\n             # Integrate out all other random variables\n             pdf = self.compute_density(rv, **kwargs)\n             # return S.Zero if `domain` is empty set\n-            if domain.set is S.EmptySet:\n+            domain_set = domain.set\n+            if domain_set is S.EmptySet or isinstance(domain_set, FiniteSet):\n                 return S.Zero\n             # Integrate out the last variable over the special domain\n-            return Integral(pdf(z), (z, domain.set), **kwargs)\n+            return Integral(pdf(z), (z, domain_set), **kwargs)\n \n         # Other cases can be turned into univariate case\n         # by computing a density handled by density computation"
+        }
+      ]
+    },
+    {
+      "sha": "294fb1524f6b5d92d2caeca150f23a87bf308417",
+      "message": "fixes for TypeError",
+      "changes": [
+        {
+          "file": "sympy/integrals/meijerint.py",
+          "patch": "@@ -1800,7 +1800,8 @@ def meijerint_definite(f, x, a, b):\n             return res, cond\n \n     elif a == oo:\n-        return -meijerint_definite(f, x, b, oo)\n+        res = meijerint_definite(f, x, b, oo)\n+        return -res[0], res[1]\n \n     elif (a, b) == (0, oo):\n         # This is a common case - try it directly first."
+        }
+      ]
+    },
+    {
+      "sha": "62b72739687004030357fe4a7fbc594d5043b12d",
+      "message": "Revert \"raise TypeError for inequalities involving zoo\"\n\nThis reverts commit b27ea5968f84bcc47633780b4f5325b1e010a80e.",
+      "changes": [
+        {
+          "file": "sympy/integrals/transforms.py",
+          "patch": "@@ -916,10 +916,7 @@ def bigger(ex1, ex2):\n         if isinstance(ex2, Abs):\n             ex2 = ex2.args[0]\n         if ex1.has(s):\n-            try:\n-                return bigger(1/ex2, 1/ex1)\n-            except TypeError:\n-                return None\n+            return bigger(1/ex2, 1/ex1)\n         n = power(ex2)\n         if n is None:\n             return None"
+        }
+      ]
+    },
+    {
+      "sha": "9c8d032119300673dbbf3852b2da4107d596f344",
+      "message": "Revert change of IndexError",
+      "changes": [
+        {
+          "file": "sympy/matrices/matrices.py",
+          "patch": "@@ -4010,7 +4010,7 @@ def a2idx(j, n=None):\n         try:\n             j = j.__index__()\n         except AttributeError:\n-            raise IndexError(\"Invalid index a[%r]\" % j)\n+            raise IndexError(\"Invalid index a[%r]\" % (j,))\n     if n is not None:\n         if j < 0:\n             j += n"
+        }
+      ]
+    },
+    {
+      "sha": "eba213c91d668269a40c47dd5a4d9294e80e7c76",
+      "message": "Corrected IndexError for `spherical_jn`",
+      "changes": [
+        {
+          "file": "sympy/functions/special/bessel.py",
+          "patch": "@@ -956,7 +956,7 @@ def jn_zeros(n, k, method=\"sympy\", dps=15):\n         from scipy.optimize import newton\n         try:\n             from scipy.special import spherical_jn\n-            f = lambda x: spherical_jn(n, x)[0][-1]\n+            f = lambda x: spherical_jn(n, x)\n         except:\n             from scipy.special import sph_jn\n             f = lambda x: sph_jn(n, x)[0][-1]"
+        }
+      ]
+    },
+    {
+      "sha": "65a5cdb7247c490f2abc9d9002890acd2f146685",
+      "message": "exceptions: Changed bare exception in str.py to explicit exception\n\nThe last exception in _print_RandomDomain() should be called when the\nRandomDomain object doesn't have a set property which will raise an\nIndexError",
+      "changes": [
+        {
+          "file": "sympy/printing/str.py",
+          "patch": "@@ -124,7 +124,7 @@ def _print_RandomDomain(self, d):\n             try:\n                 return ('Domain: ' + self._print(d.symbols) + ' in ' +\n                         self._print(d.set))\n-            except:\n+            except IndexError:\n                 return 'Domain on ' + self._print(d.symbols)\n \n     def _print_Dummy(self, expr):"
+        }
+      ]
+    },
+    {
+      "sha": "8c637ace71078761fe2e768fa1bccd5174e9d38a",
+      "message": "Added better typeerror message for wrt in hint",
+      "changes": [
+        {
+          "file": "sympy/functions/special/delta_functions.py",
+          "patch": "@@ -101,7 +101,11 @@ def _eval_expand_DiracDelta(self, **hints):\n         \"\"\"\n         from sympy.polys.polyroots import roots\n \n+        if 'wrt' not in hints:\n+          raise TypeError(\"The 'wrt' keyword is required for the DiracDelta hint.\")\n+\n         wrt = hints.pop('wrt')\n+\n         if not self.args[0].has(wrt) or (len(self.args) > 1 and self.args[1] != 0 ):\n             return self\n         try:"
+        }
+      ]
+    },
+    {
+      "sha": "ed9ea3d07687514887c946d5c792b4f496ba3d67",
+      "message": "Implemented function on symbol can give ValueError\n\nSee: https://github.com/sympy/sympy/issues/10810\n\nSympy may try and simplify functions such as f(0.), by evaluating them\nnumerically.  When doing this, the floating point value (such as 0.) has\nbeen converted to a sympy Float object.  Trying to evaluate the symbolic\nfloat argument with numerical implemented functions can cause a variety\nof errors.  Around line 468 of core/function.py:eval_evalf, there is a check for\nthese kinds of errors, falling back to the not-evaluated form.  At the\nmoment eval_evalf only allows implemented functions to return TypeError\nand AttributeError, otherwise the routine raises the error and crashes\nout.\n\nI recently came across a case where a numerical function\n(scipy.interpolate.interp1d) returns a ValueError if we pass it symbols\nto operate on, which seems a reasonable thing to do, and something that\nmay be true of other implemented functions receiving unexpected sympy\narguments to evaluate.\n\nAllow ValueError as well as the other valid errors.",
+      "changes": [
+        {
+          "file": "sympy/core/function.py",
+          "patch": "@@ -466,7 +466,7 @@ def _eval_evalf(self, prec):\n         except (AttributeError, KeyError):\n             try:\n                 return Float(self._imp_(*self.args), prec)\n-            except (AttributeError, TypeError):\n+            except (AttributeError, TypeError, ValueError):\n                 return\n \n         # Convert all args to mpf or mpc"
+        }
+      ]
+    },
+    {
+      "sha": "652150e05f430865086d6b3346afe1819ee84668",
+      "message": "10755: raise TypeError when using int or round on symbolic expr",
+      "changes": [
+        {
+          "file": "sympy/core/expr.py",
+          "patch": "@@ -192,6 +192,8 @@ def __int__(self):\n         # (regardless of how much extra work we do to calculate extra decimal\n         # places) we need to test whether we are off by one.\n         from sympy import Dummy\n+        if not self.is_number:\n+            raise TypeError(\"can't convert symbols to int\")\n         r = self.round(2)\n         if not r.is_Number:\n             raise TypeError(\"can't convert complex to int\")\n@@ -3139,7 +3141,9 @@ def round(self, p=0):\n         \"\"\"\n         from sympy import Float\n         x = self\n-        if x.is_number and not x.is_Atom:\n+        if not x.is_number:\n+            raise TypeError(\"can't round symbolic expression\")\n+        if not x.is_Atom:\n             xn = x.n(2)\n             if not pure_complex(xn, or_real=True):\n                 raise TypeError('Expected a number but got %s:' %"
+        }
+      ]
+    },
+    {
+      "sha": "ebed1387880e28eb33f6de20b8bb99da93393813",
+      "message": "Changed TypeError to NotImplementedError",
+      "changes": [
+        {
+          "file": "sympy/sets/fancysets.py",
+          "patch": "@@ -9,6 +9,8 @@\n from sympy.core.singleton import Singleton, S, sympify\n from sympy.core.sympify import _sympify\n from sympy.core.function import Lambda\n+from textwrap import fill, dedent\n+\n \n \n class Naturals(with_metaclass(Singleton, Set)):\n@@ -242,7 +244,10 @@ def _contains(self, other):\n             if solnsSet.is_FiniteSet:\n                 solns = list(solveset(L.expr - other, L.variables[0]))\n             else:\n-                raise TypeError(\"Set obtained is not Finite Set\")\n+                filldedent = lambda s, w=70: '\\n' + fill(dedent(str(s)).strip('\\n'), width=w)\n+                raise NotImplementedError(filldedent('''\n+                Determining that whether an ImageSet contains %s has not been implemented.'''\n+                                                     % solveset(L.expr-other, L.variables[0])))\n \n         for soln in solns:\n             try:"
+        }
+      ]
+    },
+    {
+      "sha": "cdc1e9088a1cb0c29e431a5c3a209e2aaccb72a0",
+      "message": "Fix #7163\n\nAdded `**hints`, now `integrate((sign(x - 1) - sign(x - 2))*cos(x), x)` doesn't raise TypeError",
+      "changes": [
+        {
+          "file": "sympy/functions/elementary/complexes.py",
+          "patch": "@@ -257,7 +257,7 @@ class sign(Function):\n     is_finite = True\n     is_complex = True\n \n-    def doit(self):\n+    def doit(self, **hints):\n         if self.args[0].is_zero is False:\n             return self.args[0] / Abs(self.args[0])\n         return self"
+        }
+      ]
+    },
+    {
+      "sha": "9e017ea8a22688ddb1f9b6b933b3fa563dd328e1",
+      "message": "`.is_normal` for PermutationGroup with `strict`(optional)\n\nAdd `strict` argument for `.is_normal` method for the PermutationGroup,\nsimilar to `strict` argument for `.is_subgroup` method, it also does the same\nthing to make the degree of both the groups same, like\n```\n>>> s4 = SymmetricGroup(4)\n>>> s6 = SymmetricGroup(6)\n>>> s6.is_normal(s4, strict=False)\nTrue\n```\n\nEarlier this used to raise IndexError, the default value of `strict` is True",
+      "changes": [
+        {
+          "file": "sympy/combinatorics/tests/test_perm_groups.py",
+          "patch": "@@ -273,6 +273,10 @@ def test_is_normal():\n     assert G1.is_subgroup(G6)\n     assert not G1.is_subgroup(G4)\n     assert G2.is_subgroup(G4)\n+    s4 = PermutationGroup(Permutation(0, 1, 2, 3), Permutation(3)(0, 1))\n+    s6 = PermutationGroup(Permutation(0, 1, 2, 3, 5), Permutation(5)(0, 1))\n+    assert s6.is_normal(s4, strict=False)\n+    assert not s4.is_normal(s6, strict=False)\n \n \n def test_eq():"
+        }
+      ]
+    },
+    {
+      "sha": "3b40f1c5090aae6e9c2864779ee75e775a7f6144",
+      "message": "Error changed from `ValueError` to `IndexError`",
+      "changes": [
+        {
+          "file": "sympy/matrices/dense.py",
+          "patch": "@@ -883,7 +883,7 @@ def row_del(self, i):\n         if i >= -self.rows and i < self.rows:\n             del self._mat[i*self.cols:(i + 1)*self.cols]\n         else:\n-            raise ValueError(\"Row value out of range\")\n+            raise IndexError(\"Index value out of range\")\n         self.rows -= 1\n \n     def col_del(self, i):\n@@ -911,7 +911,7 @@ def col_del(self, i):\n             for j in range(self.rows - 1, -1, -1):\n                 del self._mat[i + j*self.cols]\n         else:\n-            raise ValueError(\"Column value out of range\")\n+            raise IndexError(\"Index out of range\")\n         self.cols -= 1\n \n     # Utility functions"
+        }
+      ]
+    },
+    {
+      "sha": "b27ea5968f84bcc47633780b4f5325b1e010a80e",
+      "message": "raise TypeError for inequalities involving zoo\n\nand Except TypeError: invalid comparison of zoo in _simplifyconds",
+      "changes": [
+        {
+          "file": "sympy/integrals/transforms.py",
+          "patch": "@@ -916,7 +916,10 @@ def bigger(ex1, ex2):\n         if ex2.func is Abs:\n             ex2 = ex2.args[0]\n         if ex1.has(s):\n-            return bigger(1/ex2, 1/ex1)\n+            try:\n+                return bigger(1/ex2, 1/ex1)\n+            except TypeError:\n+                return None\n         n = power(ex2)\n         if n is None:\n             return None"
+        }
+      ]
+    },
+    {
+      "sha": "c30b28710e233bc8920a38e369528d959b291262",
+      "message": "watch for inequality TypeError in valid",
+      "changes": [
+        {
+          "file": "sympy/solvers/inequalities.py",
+          "patch": "@@ -413,7 +413,10 @@ def solve_univariate_inequality(expr, gen, relational=True):\n \n     def valid(x):\n         v = e.subs(gen, x)\n-        r = expr.func(v, 0)\n+        try:\n+            r = expr.func(v, 0)\n+        except TypeError:\n+            r = S.false\n         if r in (S.true, S.false):\n             return r\n         if v.is_real is False:"
+        }
+      ]
+    },
+    {
+      "sha": "d383cc72176e42d40db546ce7f6727acfd5924a2",
+      "message": "show failing expression for nonzero TypeError",
+      "changes": [
+        {
+          "file": "sympy/core/relational.py",
+          "patch": "@@ -94,7 +94,7 @@ def _eval_simplify(self, ratio, measure):\n             return self\n \n     def __nonzero__(self):\n-        raise TypeError(\"symbolic boolean expression has no truth value.\")\n+        raise TypeError(\"cannot determine truth value of\\n%s\" % self)\n \n     __bool__ = __nonzero__\n "
+        }
+      ]
+    },
+    {
+      "sha": "83254aed70c8e28175b0c026b5a6727565cac6c5",
+      "message": "raise TypeError if subs for evalf is not a dictionary",
+      "changes": [
+        {
+          "file": "sympy/core/tests/test_evalf.py",
+          "patch": "@@ -346,12 +346,13 @@ def test_bugs():\n     assert abs(polar_lift(0)).n() == 0\n \n \n-def test_subs_bugs():\n+def test_subs():\n     from sympy import besseli\n     assert NS('besseli(-x, y) - besseli(x, y)', subs={x: 3.5, y: 20.0}) == \\\n         '-4.92535585957223e-10'\n     assert NS('Piecewise((x, x>0)) + Piecewise((1-x, x>0))', subs={x: 0.1}) == \\\n         '1.00000000000000'\n+    raises(TypeError, lambda: x.evalf(subs=(x, 1)))\n \n \n def test_issue_4956_5204():"
+        }
+      ]
+    },
+    {
+      "sha": "c2a719da0858819da5162c9bda90a5b1ceccb8b2",
+      "message": "Return TypeError for comparisons, if self is not a real",
+      "changes": [
+        {
+          "file": "sympy/sets/tests/test_sets.py",
+          "patch": "@@ -661,7 +661,6 @@ def test_image_EmptySet():\n def test_issue_5724_7680():\n     assert I not in S.Reals  # issue 7680\n     assert Interval(-oo,oo).contains(I) is False\n-    raises(TypeError, lambda: I > 2)\n \n \n def test_boundary():"
+        }
+      ]
+    },
+    {
+      "sha": "28f4fef5e4d4ddbbb2782326e22992e7ddd75c52",
+      "message": "corrected nameerror",
+      "changes": [
+        {
+          "file": "sympy/solvers/ode.py",
+          "patch": "@@ -3263,10 +3263,10 @@ def ode_nth_linear_euler_eq_nonhomogeneous(eq, func, order, match, returns='sol'\n     Examples\n     ========\n \n-    >>> from sympy import Function, dsolve, Eq\n+    >>> from sympy import Function, dsolve, Eq, Derivative\n     >>> from sympy.abc import x\n     >>> f = Function('f')\n-    >>> dsolve(x**2*diff(f(x), x, x) - 2*x*diff(f(x), x) + 2*f(x) - x**3, f(x),\n+    >>> dsolve(x**2*Derivative(f(x), x, x) - 2*x*Derivative(f(x), x) + 2*f(x) - x**3, f(x),\n     ... hint='nth_linear_euler_eq_nonhomogeneous')\n     f(x) = C1*x**2 + C2*x + Rational(1, 2)*x**3\n "
+        }
+      ]
+    },
+    {
+      "sha": "58f538b09d06492004ddecf93040c6ccfe1e5876",
+      "message": "make out of range indices in Sparse raise IndexError",
+      "changes": [
+        {
+          "file": "sympy/matrices/sparse.py",
+          "patch": "@@ -99,12 +99,16 @@ def __getitem__(self, key):\n                 elif is_sequence(i):\n                     pass\n                 else:\n+                    if i >= self.rows:\n+                        raise IndexError('Row index out of bounds')\n                     i = [i]\n                 if isinstance(j, slice):\n                     j = range(self.cols)[j]\n                 elif is_sequence(j):\n                     pass\n                 else:\n+                    if j >= self.cols:\n+                        raise IndexError('Col index out of bounds')\n                     j = [j]\n                 return self.extract(i, j)\n "
+        }
+      ]
+    },
+    {
+      "sha": "2b190bac7407bde8a91fa5ed2da107f4f9333364",
+      "message": "gruntz: Check that nuse will be an integer.\n\nAvoids the following bug:\n\n>>> limit(exp(x)/(x*exp(x*y) + exp(x*y)), x, oo)\nTraceback (most recent call last):\n  File \"<console>\", line 1, in <module>\n  File \"~/sympy/sympy/series/limits.py\", line 85, in limit\n    r = gruntz(e, z, z0, dir)\n  File \"~/sympy/sympy/series/gruntz.py\", line 632, in gruntz\n    r = limitinf(e, z)\n  File \"~/sympy/sympy/core/cache.py\", line 93, in wrapper\n    r = func(*args, **kw_args)\n  File \"~/sympy/sympy/series/gruntz.py\", line 416, in limitinf\n    c0, e0 = mrv_leadterm(e, x)\n  File \"~/sympy/sympy/core/cache.py\", line 93, in wrapper\n    r = func(*args, **kw_args)\n  File \"~/sympy/sympy/series/gruntz.py\", line 501, in mrv_leadterm\n    series = calculate_series(f, w, logx=logw)\n  File \"~/sympy/sympy/series/gruntz.py\", line 455, in calculate_series\n    series = e.nseries(x, n=n, logx=logx)\n  File \"~/sympy/sympy/core/expr.py\", line 2600, in nseries\n    return self._eval_nseries(x, n=n, logx=logx\n[...]\n  File \"~/sympy/sympy/functions/elementary/exponential.py\",  line 430, in _taylor\n    for i in xrange(n):\nTypeError: 'Add' object cannot be interpreted as an integer",
+      "changes": [
+        {
+          "file": "sympy/core/power.py",
+          "patch": "@@ -828,10 +828,10 @@ def _eval_nseries(self, x, n, logx):\n                 try:\n                     ord = b.as_leading_term(x)\n                     cf = C.Order(ord, x).getn()\n-                    if cf:\n+                    if cf and cf.is_Integer:\n                         nuse = n + 2*cf\n                     else:\n-                       cf = 1\n+                        cf = 1\n                 except NotImplementedError:\n                     pass\n "
+        }
+      ]
+    },
+    {
+      "sha": "57a8ca703375be3389430a4b73332770fa26816f",
+      "message": "watch for TypeError from int",
+      "changes": [
+        {
+          "file": "sympy/core/mod.py",
+          "patch": "@@ -45,8 +45,11 @@ def doit(p, q):\n \n             # by ratio\n             r = p/q\n-            if r.is_number:\n+            try:\n                 d = int(r)\n+            except TypeError:\n+                pass\n+            else:\n                 if type(d) is int:\n                     rv = p - d*q\n                     if rv*q < 0:"
+        }
+      ]
+    },
+    {
+      "sha": "15c60429ff237457c24b1f88db24c00fd936cc70",
+      "message": "Fix exception while series expansion of function with multiple args:\n\n    >>> zeta(x, y).series(y, 0, 2)\n    Traceback (most recent call last):\n      File \"<console>\", line 1, in <module>\n      File \"/home/sk/sympy/py3k-sympy/sympy/core/expr.py\", line 2360, in\n    series\n        s1 = self._eval_nseries(x, n=n, logx=None)\n      File \"/home/sk/sympy/py3k-sympy/sympy/core/function.py\", line 502, in\n    _eval_nseries\n        if (self.func.nargs == 1 and args0[0]) or self.func.nargs > 1:\n    TypeError: unorderable types: tuple() > int()",
+      "changes": [
+        {
+          "file": "sympy/core/function.py",
+          "patch": "@@ -501,7 +501,8 @@ def _eval_nseries(self, x, n, logx):\n             s = s.removeO()\n             s = s.subs(v, zi).expand() + C.Order(o.expr.subs(v, zi), x)\n             return s\n-        if (self.func.nargs == 1 and args0[0]) or self.func.nargs > 1:\n+        if (self.func.nargs == 1 and args0[0]) or \\\n+           isinstance(self.func.nargs, tuple) or self.func.nargs > 1:\n             e = self\n             e1 = e.expand()\n             if e == e1:"
+        }
+      ]
+    },
+    {
+      "sha": "bff734917e542a7dc1d1c31185dc48b976ae840f",
+      "message": "Bugfix: Raise TypeError instead of infinite loop when DeferredVector is passed directly to Matrix",
+      "changes": [
+        {
+          "file": "sympy/matrices/matrices.py",
+          "patch": "@@ -172,7 +172,8 @@ def _handle_creation_inputs(cls, *args, **kwargs):\n                     \"SymPy supports just 1D and 2D matrices\")\n \n         # Matrix([1, 2, 3]) or Matrix([[1, 2], [3, 4]])\n-        elif len(args) == 1 and is_sequence(args[0]):\n+        elif len(args) == 1 and is_sequence(args[0])\\\n+                and not isinstance(args[0], DeferredVector):\n             in_mat = []\n             ncol = set()\n             for row in args[0]:"
+        }
+      ]
+    },
+    {
+      "sha": "8e7e4d5182e3f66a9488fed3c64080a95992b99a",
+      "message": "X+1 raises TypeError, not ValueError",
+      "changes": [
+        {
+          "file": "sympy/matrices/expressions/tests/test_matrix_exprs.py",
+          "patch": "@@ -283,8 +283,7 @@ def test_MatAdd():\n     raises(ValueError, lambda: 5 - A)\n \n     assert MatAdd(A, ZeroMatrix(n, m), -A) == ZeroMatrix(n, m)\n-    assert MatAdd(ZeroMatrix(n, m), S(0)) == ZeroMatrix(n, m)\n-\n+    # raises(TypeError, lambda : MatAdd(ZeroMatrix(n,m), S(0)))\n \n def test_MatMul():\n     n, m, l = symbols('n m l', integer=True)"
+        }
+      ]
+    },
+    {
+      "sha": "d0d43a7bc4e4be025cc7bc45fa940eef75ae972d",
+      "message": "Make element_sort_fn catch only TypeError and AttributeError.\n\nPreviously the exception handling block would catch any exception,\nincluding keyboard interrupts.",
+      "changes": [
+        {
+          "file": "sympy/core/sets.py",
+          "patch": "@@ -1125,7 +1125,9 @@ def _union(self, other):\n def element_sort_fn(x):\n     try:\n         return x.sort_key()\n-    except:\n+    except TypeError:\n+        return Float(1e9+abs(hash(x))).sort_key()\n+    except AttributeError:\n         return Float(1e9+abs(hash(x))).sort_key()\n \n class FiniteSet(Set, EvalfMixin):"
+        }
+      ]
+    },
+    {
+      "sha": "9fffc9ba19619919557d563c0bab8db964ecbae6",
+      "message": "Raise TypeError when composing a Morphism with a non-Morphism.\n\nInvoking Morphism.compose on something that is not a Morphism or a\nderived class now raises TypeError.  __mul__ will in this case raise a\nNotImplementedError instead.",
+      "changes": [
+        {
+          "file": "sympy/categories/tests/test_baseclasses.py",
+          "patch": "@@ -107,6 +107,11 @@ def test_morphism():\n     assert f != Morphism(A, B)\n     assert f == f\n \n+    raises(TypeError, lambda: f.compose(None))\n+    raises(TypeError, lambda: id_A.compose(None))\n+    raises(TypeError, lambda: f * None)\n+    raises(TypeError, lambda: id_A * None)\n+\n def test_diagram():\n     A = Object(\"A\")\n     B = Object(\"B\")"
+        }
+      ]
+    },
+    {
+      "sha": "b834368513069bed91063515a60378a634d65ab7",
+      "message": "fix result_display_10 NameError",
+      "changes": [
+        {
+          "file": "sympy/interactive/printing.py",
+          "patch": "@@ -59,7 +59,7 @@ def result_display(self, arg):\n             'sympy.matrices.matrices', 'Matrix', pretty_print\n         )\n     else:\n-        ip.set_hook('result_display', result_display_10)\n+        ip.set_hook('result_display', result_display)\n \n def init_printing(pretty_print=True, order=None, use_unicode=None, wrap_line=None, no_global=False, ip=None):\n     \"\"\"Initializes pretty-printer depending on the environment. \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "40e8b5178d98fcfbb9211710b26e12b13bb0bc24",
+      "message": "parsers/sympy_tokenize: remove del statement\n\nCommit e282b5de copied Python's tokenize.py with some modifications to\nsympy_tokenize, including a \"del x\" statement. This statement fails in\nPython 3 with a NameError; in Python 3, variables used in list\ncomprehensions are no longer in the namespace so there is nothing to\ndelete. This line was eliminated upstream with changeset\n41464:060c79f6d919: \"Hide list comp variables and support set\ncomprehensions\", so delete it here as well.",
+      "changes": [
+        {
+          "file": "sympy/parsing/sympy_tokenize.py",
+          "patch": "@@ -34,7 +34,6 @@\n import token\n __all__ = [x for x in dir(token) if x[0] != '_'] + [\"COMMENT\", \"tokenize\",\n            \"generate_tokens\", \"NL\", \"untokenize\"]\n-del x\n del token\n \n COMMENT = N_TOKENS"
+        }
+      ]
+    },
+    {
+      "sha": "02f66f59c90f7f449c521245cdbd82a68d135e22",
+      "message": "TypeError for wrong arguments and maxprec to maxn in evalf",
+      "changes": [
+        {
+          "file": "sympy/integrals/tests/test_integrals.py",
+          "patch": "@@ -245,9 +245,9 @@ def test_evalf_integrals():\n     assert NS(2+Integral(log(2*cos(x/2)), (x, -pi, pi)), 20, chop=True) == NS(2, 20)\n     assert NS(2+Integral(log(2*cos(x/2)), (x, -pi, pi)), 22, chop=True) == NS(2, 22)\n     # Needs zero handling\n-    assert NS(pi - 4*Integral('sqrt(1-x**2)', (x, 0, 1)), 15, maxprec=30, chop=True) in ('0.0', '0')\n+    assert NS(pi - 4*Integral('sqrt(1-x**2)', (x, 0, 1)), 15, maxn=30, chop=True) in ('0.0', '0')\n     # Oscillatory quadrature\n-    a = Integral(sin(x)/x**2, (x, 1, oo)).evalf(maxprec=15)\n+    a = Integral(sin(x)/x**2, (x, 1, oo)).evalf(maxn=15)\n     assert 0.49 < a < 0.51\n     assert NS(Integral(sin(x)/x**2, (x, 1, oo)), quad='osc') == '0.504067061906928'\n     assert NS(Integral(cos(pi*x+1)/x, (x, -oo, -1)), quad='osc') == '0.276374705640365'"
+        }
+      ]
+    },
+    {
+      "sha": "9cd251dcda0415705d5eabe2496fc561b96bca45",
+      "message": "Fixes the __class__ AttributeError exception in printing",
+      "changes": [
+        {
+          "file": "sympy/printing/precedence.py",
+          "patch": "@@ -61,7 +61,11 @@ def precedence(item):\n     \"\"\"\n     if hasattr(item, \"precedence\"):\n         return item.precedence\n-    for i in item.__class__.__mro__:\n+    try:\n+        mro = item.__class__.__mro__\n+    except AttributeError:\n+        return PRECEDENCE[\"Atom\"]\n+    for i in mro:\n         n = i.__name__\n         if n in PRECEDENCE_FUNCTIONS:\n             return PRECEDENCE_FUNCTIONS[n](item)"
+        }
+      ]
+    },
+    {
+      "sha": "ccc09e9445fd0bb619cff88336e3e773b090f2c5",
+      "message": "Fixed problem with Set.__contains__.\n\nPreviously, if Set.contains returned a non-bool, __contains__\nwould simply cast it as a bool.  Now __contains__will raise\na TypeError.  This allows contains to return symbolic expressions\nthat won't be auto-cast to a bool in __contains__.",
+      "changes": [
+        {
+          "file": "sympy/core/sets.py",
+          "patch": "@@ -175,7 +175,10 @@ def __invert__(self):\n         return self.complement\n \n     def __contains__(self, other):\n-        return self.contains(other)\n+        result = self.contains(other)\n+        if not isinstance(result, bool):\n+            raise TypeError('contains did not evaluate to a bool: %r' % result)\n+        return result\n \n     def _eval_subs(self, old, new):\n         if self == old: return new"
+        }
+      ]
+    }
+  ]
+}

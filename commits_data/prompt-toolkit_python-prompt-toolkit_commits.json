@@ -1,0 +1,45 @@
+{
+  "repo_name": "prompt-toolkit/python-prompt-toolkit",
+  "commits": [
+    {
+      "sha": "26ea22a1ad61454c37afb463a71ba1aa6ac5b677",
+      "message": "Fixed bug in print_formatted_text (UnboundLocalError).",
+      "changes": [
+        {
+          "file": "prompt_toolkit/shortcuts/utils.py",
+          "patch": "@@ -76,7 +76,7 @@ def print_formatted_text(*values, **kwargs):\n         assert isinstance(style, BaseStyle)\n         merged_style = merge_styles([\n             default_ui_style(),\n-            merged_style\n+            style\n         ])\n \n     if output is None:"
+        }
+      ]
+    },
+    {
+      "sha": "5791714e670e256f2b3acf03f5165e1a8d450f29",
+      "message": "Fix IndexError in operate-and-get-next command",
+      "changes": [
+        {
+          "file": "prompt_toolkit/key_binding/bindings/named_commands.py",
+          "patch": "@@ -561,7 +561,8 @@ def operate_and_get_next(event):\n \n     # Set the new index at the start of the next run.\n     def set_working_index():\n-        buff.working_index = new_index\n+        if new_index < len(buff._working_lines):\n+            buff.working_index = new_index\n \n     event.cli.pre_run_callables.append(set_working_index)\n "
+        }
+      ]
+    },
+    {
+      "sha": "6ed2477b9bea4aae017bdccc6aa69020dc900c33",
+      "message": "Fix IndexError in operate-and-get-next command",
+      "changes": [
+        {
+          "file": "prompt_toolkit/key_binding/bindings/named_commands.py",
+          "patch": "@@ -561,7 +561,8 @@ def operate_and_get_next(event):\n \n     # Set the new index at the start of the next run.\n     def set_working_index():\n-        buff.working_index = new_index\n+        if new_index < len(buff._working_lines):\n+            buff.working_index = new_index\n \n     event.cli.pre_run_callables.append(set_working_index)\n "
+        }
+      ]
+    },
+    {
+      "sha": "f5f95550af953fc9f2875f40ba7f89df468485fc",
+      "message": "Use IndexError instead of more general Exception.",
+      "changes": [
+        {
+          "file": "prompt_toolkit/focus_stack.py",
+          "patch": "@@ -31,7 +31,7 @@ def pop(self):\n         if len(self._stack) > 1:\n             self._stack.pop()\n         else:\n-            raise Exception('Cannot pop last item from the focus stack.')\n+            raise IndexError('Cannot pop last item from the focus stack.')\n \n     def replace(self, buffer_name):\n         assert buffer_name == None or isinstance(buffer_name, string_types)"
+        }
+      ]
+    }
+  ]
+}

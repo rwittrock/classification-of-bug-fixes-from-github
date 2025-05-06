@@ -1,0 +1,95 @@
+{
+  "repo_name": "kivy/kivy",
+  "commits": [
+    {
+      "sha": "96444207756b2783f20760af916083bc386c53ff",
+      "message": "Addresses Issue #6155, adds a meaningful message regarding the cause of an AttributeError.",
+      "changes": [
+        {
+          "file": "kivy/factory.py",
+          "patch": "@@ -141,7 +141,7 @@ def __getattr__(self, name):\n             if name[0] == name[0].lower():\n                 # if trying to access attributes like checking for `bind`\n                 # then raise AttributeError\n-                raise AttributeError\n+                raise AttributeError('First letter of class name <%s> is in lowercase' % name)\n             raise FactoryException('Unknown class <%s>' % name)\n \n         item = classes[name]"
+        }
+      ]
+    },
+    {
+      "sha": "d175cf82cd7714afeb0263609865f690fcb9fd5f",
+      "message": "Fix Inspector crash if shaped window is disabled\n\nif disabled, SDL2 returns garbage as the 'shape_mode' index, therefore IndexError when Inspector tries to get the value",
+      "changes": [
+        {
+          "file": "kivy/core/window/__init__.py",
+          "patch": "@@ -1114,9 +1114,12 @@ def _get_shaped(self):\n     '''\n \n     def _get_shape_mode(self):\n-        mode = self._get_shaped_mode()['mode']\n+        if not self.shaped:\n+            return ''\n+\n+        i = self._get_shaped_mode()['mode']\n         modes = ('default', 'binalpha', 'reversebinalpha', 'colorkey')\n-        return modes[mode]\n+        return modes[i]\n \n     def _set_shape_mode(self, value):\n         self._set_shaped_mode(value)"
+        }
+      ]
+    },
+    {
+      "sha": "ccdba403afa11d42f1237c15e88eb8f5697c9fb6",
+      "message": "Fix #4388: Fixes nameerror issue in RecycleBoxLayout. (#4785)\n\n* Fixed nameerror in _update_sizes method.  Fixes #4388.",
+      "changes": [
+        {
+          "file": "kivy/uix/recycleboxlayout.py",
+          "patch": "@@ -91,7 +91,7 @@ def _update_sizes(self, changed):\n                         xo = posx - (w / 2.)\n                 opt['pos'] = [xo, yo]\n \n-        return relayout\n+        return False\n \n     def compute_layout(self, data, flags):\n         super(RecycleBoxLayout, self).compute_layout(data, flags)"
+        }
+      ]
+    },
+    {
+      "sha": "b331ac18b2c6a619d7f72f946d339581c1f57e83",
+      "message": "Only update fbo when it has an fbo.\n\nFixes:\r\n   File \"C:\\Users\\gmn\\Dropbox\\gmn\\code\\.virtualenvs\\LLP_3.4\\lib\\site-packages\\kivy\\core\\video\\video_ffpyplayer.py\", line 205, in _redraw\r\n     self._fbo.ask_update()\r\n AttributeError: 'VideoFFPy' object has no attribute '_fbo'",
+      "changes": [
+        {
+          "file": "kivy/core/video/video_ffpyplayer.py",
+          "patch": "@@ -200,12 +200,12 @@ def _redraw(self, *args):\n                 self._tex_y.blit_buffer(dy, colorfmt='luminance')\n                 self._tex_u.blit_buffer(du, colorfmt='luminance')\n                 self._tex_v.blit_buffer(dv, colorfmt='luminance')\n+                self._fbo.ask_update()\n+                self._fbo.draw()\n             else:\n                 self._texture.blit_buffer(\n                     img.to_memoryview()[0], colorfmt='rgba')\n \n-            self._fbo.ask_update()\n-            self._fbo.draw()\n             self.dispatch('on_frame')\n \n     def _next_frame_run(self):"
+        }
+      ]
+    },
+    {
+      "sha": "cb46515da70b67e08b773759283515d0d42198d1",
+      "message": "Kv Lang: fix profiling tool HTML output generation\n\nFixes `TypeError: coercing to Unicode: need string or buffer, NoneType found` error during HTML output generation. Skips one loop iteration if the file cant be opened.\r\n\r\nWorks like a charm for me and I believe it's better way of handling file than None check. Tool can encounter various problems while handling files and try/except is the most reliable solution in my opinion.",
+      "changes": [
+        {
+          "file": "kivy/lang/builder.py",
+          "patch": "@@ -865,7 +865,10 @@ def dump_builder_stats():\n             '</style>']\n         files = set([x[1].ctx.filename for x in Builder.rules])\n         for fn in files:\n-            lines = open(fn).readlines()\n+            try:\n+                lines = open(fn).readlines()\n+            except:\n+                continue\n             html += ['<h2>', fn, '</h2>', '<table>']\n             count = 0\n             for index, line in enumerate(lines):"
+        }
+      ]
+    },
+    {
+      "sha": "09607b8ffaf66fe5519e31d07b84bd6f43d60ab8",
+      "message": "py3: TypeError: a bytes-like object is required, not 'str'",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -304,7 +304,7 @@ def _check_and_fix_sdl2_mixer(f_path):\n         rpath_from, rpath_to, smpeg2_path))\n \n     output = getoutput((\"otool -L '{}'\").format(smpeg2_path))\n-    if \"@executable_path\" not in output:\n+    if b\"@executable_path\" not in output:\n         print(\"WARNING: Change successfully applied!\")\n         print(\"WARNING: You'll never see this message again.\")\n     else:"
+        }
+      ]
+    },
+    {
+      "sha": "db62a579275271aa97713c32815b137dc34343a6",
+      "message": "fix dict_keys AttributeError",
+      "changes": [
+        {
+          "file": "examples/keyboard/main.py",
+          "patch": "@@ -166,7 +166,7 @@ def __init__(self, **kwargs):\n     def _add_keyboards(self):\n         \"\"\" Add a buttons for each available keyboard layout. When clicked,\n         the buttons will change the keyboard layout to the one selected. \"\"\"\n-        layouts = VKeyboard().available_layouts.keys()\n+        layouts = list(VKeyboard().available_layouts.keys())\n         layouts.append(\"numeric.json\")  # Add the file in our app directory\n                                         # Note the .json extension is required\n         for key in layouts:"
+        }
+      ]
+    },
+    {
+      "sha": "977f296f02bc35c1710ac099b5086de3b0cfc0fa",
+      "message": "Do not mask AttributeError as KeyError.\n\nhasattr in python2 catches KeyError, but this is considered 'broken by design'\nand in Python3 it only works with AttributeError.\n\nSee http://mail.python.org/pipermail/python-dev/2010-August/103184.html for more\ninformation.\n\nI am not certain if any code depends on hasattr raising a keyerror when parsing\n.kv files, but this is my best guess for a solution.",
+      "changes": [
+        {
+          "file": "kivy/utils.py",
+          "patch": "@@ -207,10 +207,7 @@ def __getattr__(self, attr):\n         try:\n             return self.__getitem__(attr)\n         except KeyError:\n-            try:\n-                return super(QueryDict, self).__getattr__(attr)\n-            except AttributeError:\n-                raise KeyError(attr)\n+            return super(QueryDict, self).__getattr__(attr)\n \n     def __setattr__(self, attr, value):\n         self.__setitem__(attr, value)"
+        }
+      ]
+    },
+    {
+      "sha": "71358566d69dcb7cf3b19183c1fb6f05c9085142",
+      "message": "querydict: in case of attribute is not found, prefer to raise a KeyError instead of AttributeError. Cause it's the meaning of a QueryDict anyway.",
+      "changes": [
+        {
+          "file": "kivy/utils.py",
+          "patch": "@@ -289,7 +289,10 @@ def __getattr__(self, attr):\n         try:\n             return self.__getitem__(attr)\n         except KeyError:\n-            return super(QueryDict, self).__getattr__(attr)\n+            try:\n+                return super(QueryDict, self).__getattr__(attr)\n+            except AttributeError:\n+                raise KeyError(attr)\n \n     def __setattr__(self, attr, value):\n         self.__setitem__(attr, value)"
+        }
+      ]
+    }
+  ]
+}

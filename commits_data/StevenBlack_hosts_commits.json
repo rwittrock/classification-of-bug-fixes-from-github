@@ -1,0 +1,15 @@
+{
+  "repo_name": "StevenBlack/hosts",
+  "commits": [
+    {
+      "sha": "a7c73805eb825dcee23aa55cb9cdc8aecf34deb9",
+      "message": "Fix IndentationError.",
+      "changes": [
+        {
+          "file": "updateHostsFile.py",
+          "patch": "@@ -190,8 +190,8 @@ def updateAllSources():\n def getUpdateURLFromFile( source ):\n \tpathToUpdateFile = os.path.join( DATA_PATH, source, UPDATE_URL_FILENAME )\n \tif os.path.exists( pathToUpdateFile ):\n-        updateFile = open( pathToUpdateFile, 'r' )\n-        retURL     = updateFile.readline().strip()\n+\t\tupdateFile = open( pathToUpdateFile, 'r' )\n+\t\tretURL     = updateFile.readline().strip()\n \t\tupdateFile.close()\n \telse:\n \t\tretURL = None"
+        }
+      ]
+    }
+  ]
+}

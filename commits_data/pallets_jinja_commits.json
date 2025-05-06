@@ -1,0 +1,15 @@
+{
+  "repo_name": "pallets/jinja",
+  "commits": [
+    {
+      "sha": "eeea49596a7431df2dd7afa7f6fd8360b37b5cd1",
+      "message": "Fixed a bug causing \"NameError: global name 'code' is not defined\".",
+      "changes": [
+        {
+          "file": "jinja2/bccache.py",
+          "patch": "@@ -98,7 +98,7 @@ def write_bytecode(self, f):\n             raise TypeError('can\\'t write empty bucket')\n         f.write(bc_magic)\n         pickle.dump(self.checksum, f, 2)\n-        marshal_dump(code, f)\n+        marshal_dump(self.code, f)\n \n     def bytecode_from_string(self, string):\n         \"\"\"Load bytecode from a string.\"\"\""
+        }
+      ]
+    }
+  ]
+}

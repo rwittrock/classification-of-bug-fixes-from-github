@@ -1,0 +1,55 @@
+{
+  "repo_name": "spotDL/spotify-downloader",
+  "commits": [
+    {
+      "sha": "2780ba405fc64a1574f413037842f2c37d68740d",
+      "message": "Catch only IndexError",
+      "changes": [
+        {
+          "file": "spotdl.py",
+          "patch": "@@ -30,7 +30,7 @@ def generate_metadata(raw_song):\n         # otherwise search on spotify and fetch information from first result\n         try:\n             meta_tags = spotify.search(raw_song, limit=1)['tracks']['items'][0]\n-        except:\n+        except IndexError:\n             return None\n     artist = spotify.artist(meta_tags['artists'][0]['id'])\n     album = spotify.album(meta_tags['album']['id'])"
+        }
+      ]
+    },
+    {
+      "sha": "b677a5454e71516e5eeed92dd493ef4937fe1daa",
+      "message": "Catch None TypeError when comparing metadata",
+      "changes": [
+        {
+          "file": "core/metadata.py",
+          "patch": "@@ -23,7 +23,7 @@ def compare(file, metadata):\n             audiofile = MP4('Music/' + file)\n             # fetch track title metadata\n             already_tagged = audiofile[tags['title']] == metadata['name']\n-    except KeyError:\n+    except (KeyError, TypeError):\n         pass\n     return already_tagged\n "
+        }
+      ]
+    },
+    {
+      "sha": "93469bbfd9d64a2b5e1ffcfd49f0505d52932efc",
+      "message": "Fix TypeError in python3 on conversion",
+      "changes": [
+        {
+          "file": "core/convert.py",
+          "patch": "@@ -1,10 +1,12 @@\n import subprocess\n import os\n+import sys\n \n def song(input_song, output_song, avconv=False, verbose=False):\n     if not input_song == output_song:\n-        input_song = input_song.encode('utf-8')\n-        output_song = output_song.encode('utf-8')\n+        if sys.version_info < (3, 0):\n+            input_song = input_song.encode('utf-8')\n+            output_song = output_song.encode('utf-8')\n         print('Converting ' + input_song + ' to ' + output_song.split('.')[-1])\n         if avconv:\n             exit_code = convert_with_avconv(input_song, output_song, verbose)"
+        }
+      ]
+    },
+    {
+      "sha": "4547ef7e71545f686ce11965e549bd7612b37f77",
+      "message": "Capture TypeError",
+      "changes": [
+        {
+          "file": "spotdl.py",
+          "patch": "@@ -261,7 +261,7 @@ def grab_list(file):\n             global spotify\n             spotify = spotipy.Spotify(auth=token)\n             grab_single(raw_song, number=number)\n-        except (urllib2.URLError, IOError):\n+        except (urllib2.URLError, TypeError, IOError):\n             lines.append(raw_song)\n             misc.trim_song(file)\n             with open(file, 'a') as myfile:"
+        }
+      ]
+    },
+    {
+      "sha": "18ea897dff0918b99e5625ea23261c00911f41f5",
+      "message": "pass on IndexError when could not find genre",
+      "changes": [
+        {
+          "file": "spotdl.py",
+          "patch": "@@ -242,7 +242,10 @@ def fixSong(music_file, meta_tags):\n     audiofile.tag.album = meta_tags['album']['name']\n     audiofile.tag.title = meta_tags['name']\n     artist = spotify.artist(meta_tags['artists'][0]['id'])\n-    audiofile.tag.genre = titlecase(artist['genres'][0])\n+    try:\n+        audiofile.tag.genre = titlecase(artist['genres'][0])\n+    except IndexError:\n+        pass\n     audiofile.tag.track_num = meta_tags['track_number']\n     audiofile.tag.disc_num = meta_tags['disc_number']\n     audiofile.tag.release_date = spotify.album("
+        }
+      ]
+    }
+  ]
+}

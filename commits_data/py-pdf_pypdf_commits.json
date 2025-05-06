@@ -1,0 +1,25 @@
+{
+  "repo_name": "py-pdf/pypdf",
+  "commits": [
+    {
+      "sha": "494f1e3405541cb7006967134b7b7121e016e79d",
+      "message": "temporary typeError fix for python 2.6",
+      "changes": [
+        {
+          "file": "PyPDF2/utils.py",
+          "patch": "@@ -161,7 +161,7 @@ def u_(s):\n         return unicode(s, 'unicode_escape')\n \n     def str_(b):\n-        return b\n+        return str(b)\n \n     def ord_(b):\n         return ord(b)"
+        }
+      ]
+    },
+    {
+      "sha": "6659bc30b316594166f3e15b651d9f8a2bffb0a9",
+      "message": "Corrected TypeError in scaleTo() method.",
+      "changes": [
+        {
+          "file": "PyPDF2/pdf.py",
+          "patch": "@@ -1865,9 +1865,9 @@ def scaleBy(self, factor):\n     # @param width The new width\n     # @param height The new heigth\n     def scaleTo(self, width, height):\n-        sx = width / (self.mediaBox.getUpperRight_x() -\n+        sx = width / float(self.mediaBox.getUpperRight_x() -\n                       self.mediaBox.getLowerLeft_x ())\n-        sy = height / (self.mediaBox.getUpperRight_y() -\n+        sy = height / float(self.mediaBox.getUpperRight_y() -\n                        self.mediaBox.getLowerLeft_x ())\n         self.scale(sx, sy)\n "
+        }
+      ]
+    }
+  ]
+}

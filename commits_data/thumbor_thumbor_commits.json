@@ -1,0 +1,45 @@
+{
+  "repo_name": "thumbor/thumbor",
+  "commits": [
+    {
+      "sha": "21799d4731ed0901dcd85a3025f6836412333e09",
+      "message": "Fixed i386 build\n\nTypeError: longs are not supported for this option",
+      "changes": [
+        {
+          "file": "tests/loaders/test_http_loader.py",
+          "patch": "@@ -383,7 +383,7 @@ def test_load_with_speed_timeout(self):\n         config = Config()\n         config.HTTP_LOADER_CURL_ASYNC_HTTP_CLIENT = True\n         config.HTTP_LOADER_CURL_LOW_SPEED_TIME = 1\n-        config.HTTP_LOADER_CURL_LOW_SPEED_LIMIT = 1000000000000\n+        config.HTTP_LOADER_CURL_LOW_SPEED_LIMIT = 1000000000\n         ctx = Context(None, config, None)\n \n         loader.load(ctx, url, self.stop)\n@@ -406,7 +406,7 @@ def test_load_without_curl_but_speed_timeout(self):\n         url = self.get_url('/')\n         config = Config()\n         config.HTTP_LOADER_CURL_LOW_SPEED_TIME = 1\n-        config.HTTP_LOADER_CURL_LOW_SPEED_LIMIT = 1000000000000\n+        config.HTTP_LOADER_CURL_LOW_SPEED_LIMIT = 1000000000\n         ctx = Context(None, config, None)\n \n         loader.load(ctx, url, self.stop)"
+        }
+      ]
+    },
+    {
+      "sha": "2ff8bc7f5e8a76b019aa7c5804b2e207b2548a1f",
+      "message": "Allow loader failures to 500\n\nIf a loader error happens and it's not a 404, a 502 nor a 504, currently an AttributeError will happen on that condition, because engine_error doesn't exist for a FetchResult in the loader case.",
+      "changes": [
+        {
+          "file": "thumbor/handlers/__init__.py",
+          "patch": "@@ -154,7 +154,7 @@ def get_image(self):\n                     # Return a Gateway Timeout status if upstream timed out (i.e. 599)\n                     self._error(504)\n                     return\n-                elif result.engine_error == EngineResult.COULD_NOT_LOAD_IMAGE:\n+                elif hasattr(result, 'engine_error') and result.engine_error == EngineResult.COULD_NOT_LOAD_IMAGE:\n                     self._error(400)\n                     return\n                 else:"
+        }
+      ]
+    },
+    {
+      "sha": "869fec0bbe8822ff205b94a24edfbf109c5b3ff0",
+      "message": "vows.mongo_storage_vows: Set a server in GetNothingAfterExpiration\n\nAvoid:\n\n  Traceback (most recent call last):\n    File \"/.../pyvows/runner/gevent.py\", line 104, in _run_setup_and_topic\n      topic = topic_func(*topic_list)\n    File \"/.../vows/mongo_storage_vows.py\", line 210, in topic\n      storage.put(IMAGE_URL % 10, IMAGE_BYTES)\n    File \"/.../thumbor/storages/mongo_storage.py\", line 39, in put\n      if not self.context.server.security_key:\n  AttributeError: 'NoneType' object has no attribute 'security_key'",
+      "changes": [
+        {
+          "file": "vows/mongo_storage_vows.py",
+          "patch": "@@ -206,7 +206,8 @@ def topic(self):\n                     MONGO_STORAGE_SERVER_PORT=7777, STORES_CRYPTO_KEY_FOR_EACH_IMAGE=True,\n                     SECURITY_KEY='ACME-SEC', STORAGE_EXPIRATION_SECONDS=0\n                 )\n-                storage = MongoStorage(Context(config=config))\n+                server = get_server('ACME-SEC')\n+                storage = MongoStorage(Context(server=server, config=config))\n                 storage.put(IMAGE_URL % 10, IMAGE_BYTES)\n \n                 item = storage.get(IMAGE_URL % 10)"
+        }
+      ]
+    },
+    {
+      "sha": "e0677a6dd1732f4dc915c855c107a4c63ad09c17",
+      "message": "constructor for detectors need context now\n\nOtherwise it fail with :\r\n\r\nTraceback (most recent call last):\r\n  File \"/usr/local/lib/python2.6/dist-packages/tornado/stack_context.py\", line 209, in _nested\r\n    yield vars\r\n  File \"/usr/local/lib/python2.6/dist-packages/tornado/stack_context.py\", line 180, in wrapped\r\n    callback(*args, **kwargs)\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/loaders/http_loader.py\", line 37, in return_contents\r\n    callback(response.body)\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/handlers/__init__.py\", line 226, in handle_loader_loaded\r\n    callback(normalized, engine=engine)\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/handlers/__init__.py\", line 116, in callback\r\n    Transformer(self.context).transform(after_transform_cb)\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/transformer.py\", line 87, in transform\r\n    self.smart_detect()\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/transformer.py\", line 141, in smart_detect\r\n    detectors[0](self.context, index=0, detectors=detectors).detect(self.after_smart_detect)\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/detectors/face_detector/__init__.py\", line 35, in detect\r\n    self.next(callback)\r\n  File \"/usr/local/lib/python2.6/dist-packages/thumbor/detectors/__init__.py\", line 27, in next\r\n    next_detector = self.detectors[self.index + 1](self.context, self.index + 1, self.detectors)\r\nTypeError: __init__() takes exactly 3 arguments (4 given)",
+      "changes": [
+        {
+          "file": "thumbor/detectors/profile_detector/__init__.py",
+          "patch": "@@ -16,6 +16,6 @@\n \n class Detector(CascadeLoaderDetector):\n \n-    def __init__(self, index, detectors):\n+    def __init__(self, context, index, detectors):\n         self.load_cascade_file(__file__, options.PROFILE_DETECTOR_CASCADE_FILE)\n-        super(Detector, self).__init__(index, detectors)\n+        super(Detector, self).__init__(context, index, detectors)"
+        }
+      ]
+    }
+  ]
+}

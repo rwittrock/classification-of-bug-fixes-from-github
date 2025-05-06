@@ -1,0 +1,163 @@
+{
+  "repo_name": "certbot/certbot",
+  "commits": [
+    {
+      "sha": "f6be07da74c664b57ac8c053585f919c79f9af44",
+      "message": "fix #5111 AttributeError occured with >=pyOpenSSL-17.2.0 (#5112)",
+      "changes": [
+        {
+          "file": "acme/acme/crypto_util.py",
+          "patch": "@@ -2,6 +2,7 @@\n import binascii\n import contextlib\n import logging\n+import os\n import re\n import socket\n import sys\n@@ -243,7 +244,7 @@ def gen_ss_cert(key, domains, not_before=None,\n     \"\"\"\n     assert domains, \"Must provide one or more hostnames for the cert.\"\n     cert = OpenSSL.crypto.X509()\n-    cert.set_serial_number(int(binascii.hexlify(OpenSSL.rand.bytes(16)), 16))\n+    cert.set_serial_number(int(binascii.hexlify(os.urandom(16)), 16))\n     cert.set_version(2)\n \n     extensions = ["
+        }
+      ]
+    },
+    {
+      "sha": "738732a0db3f9afb916cb202ccf57d463a1cde01",
+      "message": "Improve bad preferred challenge error message. (#4761)\n\nUsing ArgumentTypeError causes Certbot to report an unexpected error occurred\r\nwhile using ArgumentError causes argparse to print more usage information and\r\ncall sys.exit().",
+      "changes": [
+        {
+          "file": "certbot/cli.py",
+          "patch": "@@ -1303,7 +1303,7 @@ def __call__(self, parser, namespace, pref_challs, option_string=None):\n         try:\n             challs = parse_preferred_challenges(pref_challs.split(\",\"))\n         except errors.Error as error:\n-            raise argparse.ArgumentTypeError(str(error))\n+            raise argparse.ArgumentError(self, str(error))\n         namespace.pref_challs.extend(challs)\n \n "
+        },
+        {
+          "file": "certbot/tests/cli_test.py",
+          "patch": "@@ -211,7 +211,10 @@ def test_preferred_challenges(self):\n         self.assertEqual(namespace.pref_challs, expected)\n \n         short_args = ['--preferred-challenges', 'jumping-over-the-moon']\n-        self.assertRaises(argparse.ArgumentTypeError, self.parse, short_args)\n+        # argparse.ArgumentError makes argparse print more information\n+        # to stderr and call sys.exit()\n+        with mock.patch('sys.stderr'):\n+            self.assertRaises(SystemExit, self.parse, short_args)\n \n     def test_server_flag(self):\n         namespace = self.parse('--server example.com'.split())"
+        }
+      ]
+    },
+    {
+      "sha": "e9d981acebd0c0d4ba4b5e504fc4687dbc6610e3",
+      "message": "Change zope's classProvides to be a class decorator.\n\nWhen attempting to import any module that uses\nzope.interface.classProvides in Python 3, a TypeError is raised; it\nreads:\n\n    TypeError: Class advice impossible in Python3.  Use the @provider\n    class decorator instead.\n\nFollowing the listed advice seems to function in Python 3.",
+      "changes": [
+        {
+          "file": "examples/plugins/letsencrypt_example_plugins.py",
+          "patch": "@@ -10,9 +10,9 @@\n \n \n @zope.interface.implementer(interfaces.IAuthenticator)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class Authenticator(common.Plugin):\n     \"\"\"Example Authenticator.\"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Example Authenticator plugin\"\n \n@@ -21,9 +21,9 @@ class Authenticator(common.Plugin):\n \n \n @zope.interface.implementer(interfaces.IInstaller)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class Installer(common.Plugin):\n     \"\"\"Example Installer.\"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Example Installer plugin\"\n "
+        },
+        {
+          "file": "letsencrypt-apache/letsencrypt_apache/configurator.py",
+          "patch": "@@ -61,6 +61,7 @@\n #     and load()\n \n @zope.interface.implementer(interfaces.IAuthenticator, interfaces.IInstaller)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class ApacheConfigurator(augeas_configurator.AugeasConfigurator):\n     # pylint: disable=too-many-instance-attributes,too-many-public-methods\n     \"\"\"Apache configurator.\n@@ -81,7 +82,6 @@ class ApacheConfigurator(augeas_configurator.AugeasConfigurator):\n     :ivar dict assoc: Mapping between domains and vhosts\n \n     \"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Apache Web Server - Alpha\"\n "
+        },
+        {
+          "file": "letsencrypt-nginx/letsencrypt_nginx/configurator.py",
+          "patch": "@@ -32,6 +32,7 @@\n \n \n @zope.interface.implementer(interfaces.IAuthenticator, interfaces.IInstaller)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class NginxConfigurator(common.Plugin):\n     # pylint: disable=too-many-instance-attributes,too-many-public-methods\n     \"\"\"Nginx configurator.\n@@ -53,7 +54,6 @@ class NginxConfigurator(common.Plugin):\n     :ivar tup version: version of Nginx\n \n     \"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Nginx Web Server - currently doesn't work\"\n "
+        },
+        {
+          "file": "letsencrypt/plugins/common.py",
+          "patch": "@@ -34,8 +34,8 @@ def dest_namespace(name):\n @zope.interface.implementer(interfaces.IPlugin)\n class Plugin(object):\n     \"\"\"Generic plugin.\"\"\"\n-    # classProvides is not inherited, subclasses must define it on their own\n-    #zope.interface.classProvides(interfaces.IPluginFactory)\n+    # provider is not inherited, subclasses must define it on their own\n+    # @zope.interface.provider(interfaces.IPluginFactory)\n \n     def __init__(self, config, name):\n         self.config = config"
+        },
+        {
+          "file": "letsencrypt/plugins/manual.py",
+          "patch": "@@ -24,6 +24,7 @@\n \n \n @zope.interface.implementer(interfaces.IAuthenticator)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class Authenticator(common.Plugin):\n     \"\"\"Manual Authenticator.\n \n@@ -35,7 +36,6 @@ class Authenticator(common.Plugin):\n     .. todo:: Support for `~.challenges.TLSSNI01`.\n \n     \"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n     hidden = True\n \n     description = \"Manually configure an HTTP server\""
+        },
+        {
+          "file": "letsencrypt/plugins/null.py",
+          "patch": "@@ -12,9 +12,9 @@\n \n \n @zope.interface.implementer(interfaces.IInstaller)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class Installer(common.Plugin):\n     \"\"\"Null installer.\"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Null Installer\"\n     hidden = True"
+        },
+        {
+          "file": "letsencrypt/plugins/standalone.py",
+          "patch": "@@ -136,6 +136,7 @@ def supported_challenges_validator(data):\n \n \n @zope.interface.implementer(interfaces.IAuthenticator)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class Authenticator(common.Plugin):\n     \"\"\"Standalone Authenticator.\n \n@@ -144,7 +145,6 @@ class Authenticator(common.Plugin):\n     challenges from the certificate authority. Therefore, it does not\n     rely on any existing server program.\n     \"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Automatically use a temporary webserver\"\n "
+        },
+        {
+          "file": "letsencrypt/plugins/webroot.py",
+          "patch": "@@ -18,9 +18,9 @@\n \n \n @zope.interface.implementer(interfaces.IAuthenticator)\n+@zope.interface.provider(interfaces.IPluginFactory)\n class Authenticator(common.Plugin):\n     \"\"\"Webroot Authenticator.\"\"\"\n-    zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Webroot Authenticator\"\n "
+        }
+      ]
+    },
+    {
+      "sha": "b6142c13d65e45c9b7e624fd8c416d604dc95c06",
+      "message": "Change zope's implements to be a class decorator.\n\nWhen attempting to import any module that uses zope.interface.implements\nin Python 3, a TypeError is raised; it reads:\n\n    TypeError: Class advice impossible in Python3.  Use the @implementer\n    class decorator instead.\n\nFollowing the listed advice seems to function in Python 3.",
+      "changes": [
+        {
+          "file": "examples/plugins/letsencrypt_example_plugins.py",
+          "patch": "@@ -9,9 +9,9 @@\n from letsencrypt.plugins import common\n \n \n+@zope.interface.implementer(interfaces.IAuthenticator)\n class Authenticator(common.Plugin):\n     \"\"\"Example Authenticator.\"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Example Authenticator plugin\"\n@@ -20,9 +20,9 @@ class Authenticator(common.Plugin):\n     # \"self\" as first argument, e.g. def prepare(self)...\n \n \n+@zope.interface.implementer(interfaces.IInstaller)\n class Installer(common.Plugin):\n     \"\"\"Example Installer.\"\"\"\n-    zope.interface.implements(interfaces.IInstaller)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Example Installer plugin\""
+        },
+        {
+          "file": "letsencrypt-apache/letsencrypt_apache/configurator.py",
+          "patch": "@@ -60,6 +60,7 @@\n #     sites-available doesn't allow immediate find_dir search even with save()\n #     and load()\n \n+@zope.interface.implementer(interfaces.IAuthenticator, interfaces.IInstaller)\n class ApacheConfigurator(augeas_configurator.AugeasConfigurator):\n     # pylint: disable=too-many-instance-attributes,too-many-public-methods\n     \"\"\"Apache configurator.\n@@ -80,7 +81,6 @@ class ApacheConfigurator(augeas_configurator.AugeasConfigurator):\n     :ivar dict assoc: Mapping between domains and vhosts\n \n     \"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator, interfaces.IInstaller)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Apache Web Server - Alpha\""
+        },
+        {
+          "file": "letsencrypt-compatibility-test/letsencrypt_compatibility_test/configurators/apache/apache24.py",
+          "patch": "@@ -34,11 +34,10 @@\n     \"vhost_alias\"}\n \n \n+@zope.interface.implementer(interfaces.IConfiguratorProxy)\n class Proxy(apache_common.Proxy):\n     \"\"\"Wraps the ApacheConfigurator for Apache 2.4 tests\"\"\"\n \n-    zope.interface.implements(interfaces.IConfiguratorProxy)\n-\n     def __init__(self, args):\n         \"\"\"Initializes the plugin with the given command line args\"\"\"\n         super(Proxy, self).__init__(args)"
+        },
+        {
+          "file": "letsencrypt-compatibility-test/letsencrypt_compatibility_test/configurators/apache/common.py",
+          "patch": "@@ -19,12 +19,11 @@\n APACHE_COMMANDS = [\"apachectl\", \"a2enmod\", \"a2dismod\"]\n \n \n+@zope.interface.implementer(interfaces.IConfiguratorProxy)\n class Proxy(configurators_common.Proxy):\n     # pylint: disable=too-many-instance-attributes\n     \"\"\"A common base for Apache test configurators\"\"\"\n \n-    zope.interface.implements(interfaces.IConfiguratorProxy)\n-\n     def __init__(self, args):\n         \"\"\"Initializes the plugin with the given command line args\"\"\"\n         super(Proxy, self).__init__(args)"
+        },
+        {
+          "file": "letsencrypt-compatibility-test/letsencrypt_compatibility_test/validator.py",
+          "patch": "@@ -12,10 +12,10 @@\n logger = logging.getLogger(__name__)\n \n \n+@zope.interface.implementer(interfaces.IValidator)\n class Validator(object):\n     # pylint: disable=no-self-use\n     \"\"\"Collection of functions to test a live webserver's configuration\"\"\"\n-    zope.interface.implements(interfaces.IValidator)\n \n     def certificate(self, cert, name, alt_host=None, port=443):\n         \"\"\"Verifies the certificate presented at name is cert\"\"\""
+        },
+        {
+          "file": "letsencrypt-nginx/letsencrypt_nginx/configurator.py",
+          "patch": "@@ -31,6 +31,7 @@\n logger = logging.getLogger(__name__)\n \n \n+@zope.interface.implementer(interfaces.IAuthenticator, interfaces.IInstaller)\n class NginxConfigurator(common.Plugin):\n     # pylint: disable=too-many-instance-attributes,too-many-public-methods\n     \"\"\"Nginx configurator.\n@@ -52,7 +53,6 @@ class NginxConfigurator(common.Plugin):\n     :ivar tup version: version of Nginx\n \n     \"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator, interfaces.IInstaller)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Nginx Web Server - currently doesn't work\""
+        },
+        {
+          "file": "letsencrypt/configuration.py",
+          "patch": "@@ -11,6 +11,7 @@\n from letsencrypt import le_util\n \n \n+@zope.interface.implementer(interfaces.IConfig)\n class NamespaceConfig(object):\n     \"\"\"Configuration wrapper around :class:`argparse.Namespace`.\n \n@@ -32,7 +33,6 @@ class NamespaceConfig(object):\n     :type namespace: :class:`argparse.Namespace`\n \n     \"\"\"\n-    zope.interface.implements(interfaces.IConfig)\n \n     def __init__(self, namespace):\n         self.namespace = namespace"
+        },
+        {
+          "file": "letsencrypt/continuity_auth.py",
+          "patch": "@@ -9,6 +9,7 @@\n from letsencrypt import proof_of_possession\n \n \n+@zope.interface.implementer(interfaces.IAuthenticator)\n class ContinuityAuthenticator(object):\n     \"\"\"IAuthenticator for\n     :const:`~acme.challenges.ContinuityChallenge` class challenges.\n@@ -18,7 +19,6 @@ class ContinuityAuthenticator(object):\n         :class:`letsencrypt.proof_of_possession.Proof_of_Possession`\n \n     \"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator)\n \n     # This will have an installer soon for get_key/cert purposes\n     def __init__(self, config, installer):  # pylint: disable=unused-argument"
+        },
+        {
+          "file": "letsencrypt/plugins/common.py",
+          "patch": "@@ -31,9 +31,9 @@ def dest_namespace(name):\n     r\"^(([a-z0-9]|[a-z0-9][a-z0-9\\-]*[a-z0-9])\\.)*[a-z]+$\", re.IGNORECASE)\n \n \n+@zope.interface.implementer(interfaces.IPlugin)\n class Plugin(object):\n     \"\"\"Generic plugin.\"\"\"\n-    zope.interface.implements(interfaces.IPlugin)\n     # classProvides is not inherited, subclasses must define it on their own\n     #zope.interface.classProvides(interfaces.IPluginFactory)\n "
+        },
+        {
+          "file": "letsencrypt/plugins/manual.py",
+          "patch": "@@ -23,6 +23,7 @@\n logger = logging.getLogger(__name__)\n \n \n+@zope.interface.implementer(interfaces.IAuthenticator)\n class Authenticator(common.Plugin):\n     \"\"\"Manual Authenticator.\n \n@@ -34,7 +35,6 @@ class Authenticator(common.Plugin):\n     .. todo:: Support for `~.challenges.TLSSNI01`.\n \n     \"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n     hidden = True\n "
+        },
+        {
+          "file": "letsencrypt/plugins/null.py",
+          "patch": "@@ -11,9 +11,9 @@\n logger = logging.getLogger(__name__)\n \n \n+@zope.interface.implementer(interfaces.IInstaller)\n class Installer(common.Plugin):\n     \"\"\"Null installer.\"\"\"\n-    zope.interface.implements(interfaces.IInstaller)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Null Installer\""
+        },
+        {
+          "file": "letsencrypt/plugins/standalone.py",
+          "patch": "@@ -135,6 +135,7 @@ def supported_challenges_validator(data):\n     return data\n \n \n+@zope.interface.implementer(interfaces.IAuthenticator)\n class Authenticator(common.Plugin):\n     \"\"\"Standalone Authenticator.\n \n@@ -143,7 +144,6 @@ class Authenticator(common.Plugin):\n     challenges from the certificate authority. Therefore, it does not\n     rely on any existing server program.\n     \"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Automatically use a temporary webserver\""
+        },
+        {
+          "file": "letsencrypt/plugins/webroot.py",
+          "patch": "@@ -17,9 +17,9 @@\n logger = logging.getLogger(__name__)\n \n \n+@zope.interface.implementer(interfaces.IAuthenticator)\n class Authenticator(common.Plugin):\n     \"\"\"Webroot Authenticator.\"\"\"\n-    zope.interface.implements(interfaces.IAuthenticator)\n     zope.interface.classProvides(interfaces.IPluginFactory)\n \n     description = \"Webroot Authenticator\""
+        },
+        {
+          "file": "letsencrypt/reporter.py",
+          "patch": "@@ -17,14 +17,14 @@\n logger = logging.getLogger(__name__)\n \n \n+@zope.interface.implementer(interfaces.IReporter)\n class Reporter(object):\n     \"\"\"Collects and displays information to the user.\n \n     :ivar `Queue.PriorityQueue` messages: Messages to be displayed to\n         the user.\n \n     \"\"\"\n-    zope.interface.implements(interfaces.IReporter)\n \n     HIGH_PRIORITY = 0\n     \"\"\"High priority constant. See `add_message`.\"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "0822906c297856b6d745fd020ca55233e80393c4",
+      "message": "Keep storage.names() from passing None to open()\n\nFixes exiting abnormally with:\n    TypeError: coercing to Unicode: need string or buffer, NoneType found",
+      "changes": [
+        {
+          "file": "letsencrypt/storage.py",
+          "patch": "@@ -450,12 +450,15 @@ def names(self, version=None):\n         :param int version: the desired version number\n         :returns: the subject names\n         :rtype: `list` of `str`\n+        :raises .CertStorageError: if could not find cert file.\n \n         \"\"\"\n         if version is None:\n             target = self.current_target(\"cert\")\n         else:\n             target = self.version(\"cert\", version)\n+        if target is None:\n+            raise errors.CertStorageError(\"could not find cert file\")\n         with open(target) as f:\n             return crypto_util.get_sans_from_cert(f.read())\n "
+        }
+      ]
+    },
+    {
+      "sha": "6bcbe641bd7a9a04873f950362158850bcc003c8",
+      "message": "fix 2 IndexErrors in the nginx plugin",
+      "changes": [
+        {
+          "file": "letsencrypt-nginx/letsencrypt_nginx/parser.py",
+          "patch": "@@ -246,7 +246,7 @@ def _has_server_names(self, entry, names):\n                 # Can't be a server block\n                 return False\n \n-            if item[0] == 'server_name':\n+            if len(item) > 0 and item[0] == 'server_name':\n                 server_names.update(_get_servernames(item[1]))\n \n         return server_names == names\n@@ -425,7 +425,7 @@ def _is_include_directive(entry):\n \n     \"\"\"\n     return (isinstance(entry, list) and\n-            entry[0] == 'include' and len(entry) == 2 and\n+            len(entry) == 2 and entry[0] == 'include' and\n             isinstance(entry[1], str))\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "834691278ecfccdb7d72514104f48c26dd051f27",
+      "message": "Fix repr for PluginsRegistry (unhashable PluginEntryPoint).\n\n(venv)root@le:~/lets-encrypt-preview# letsencrypt -vv auth\nDEBUG:root:Logging level set at 10\nTraceback (most recent call last):\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 859, in emit\nmsg = self.format(record)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 732, in format\nreturn fmt.format(record)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 471, in format\nrecord.message = record.getMessage()\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 335, in getMessage\nmsg = msg % self.args\nFile \"/root/lets-encrypt-preview/letsencrypt/plugins/disco.py\", line 219, in __repr__\nself.__class__.__name__, set(self._plugins.itervalues()))\nTypeError: unhashable type: 'PluginEntryPoint'\nLogged from file cli.py, line 356\nTraceback (most recent call last):\nFile \"/root/lets-encrypt-preview/venv/bin/letsencrypt\", line 9, in <module>\nload_entry_point('letsencrypt==0.1', 'console_scripts', 'letsencrypt')()\nFile \"/root/lets-encrypt-preview/letsencrypt/cli.py\", line 356, in main\nlogging.debug(\"Discovered plugins: %r\", plugins)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 1630, in debug\nroot.debug(msg, *args, **kwargs)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 1148, in debug\nself._log(DEBUG, msg, args, **kwargs)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 1279, in _log\nself.handle(record)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 1289, in handle\nself.callHandlers(record)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 1329, in callHandlers\nhdlr.handle(record)\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 757, in handle\nself.emit(record)\nFile \"/root/lets-encrypt-preview/letsencrypt/log.py\", line 40, in emit\nfor line in record.getMessage().splitlines():\nFile \"/usr/lib/python2.7/logging/__init__.py\", line 335, in getMessage\nmsg = msg % self.args\nFile \"/root/lets-encrypt-preview/letsencrypt/plugins/disco.py\", line 219, in __repr__\nself.__class__.__name__, set(self._plugins.itervalues()))\nTypeError: unhashable type: 'PluginEntryPoint'",
+      "changes": [
+        {
+          "file": "letsencrypt/plugins/disco.py",
+          "patch": "@@ -215,8 +215,9 @@ def find_init(self, plugin):\n             return None\n \n     def __repr__(self):\n-        return \"{0}({1!r})\".format(\n-            self.__class__.__name__, set(self._plugins.itervalues()))\n+        return \"{0}({1})\".format(\n+            self.__class__.__name__, ','.join(\n+                repr(p_ep) for p_ep in self._plugins.itervalues()))\n \n     def __str__(self):\n         if not self._plugins:"
+        },
+        {
+          "file": "letsencrypt/plugins/disco_test.py",
+          "patch": "@@ -154,6 +154,7 @@ class PluginsRegistryTest(unittest.TestCase):\n     def setUp(self):\n         from letsencrypt.plugins.disco import PluginsRegistry\n         self.plugin_ep = mock.MagicMock(name=\"mock\")\n+        self.plugin_ep.__hash__.side_effect = TypeError\n         self.plugins = {\"mock\": self.plugin_ep}\n         self.reg = PluginsRegistry(self.plugins)\n \n@@ -227,7 +228,7 @@ def test_find_init(self):\n \n     def test_repr(self):\n         self.plugin_ep.__repr__ = lambda _: \"PluginEntryPoint#mock\"\n-        self.assertEqual(\"PluginsRegistry(set([PluginEntryPoint#mock]))\",\n+        self.assertEqual(\"PluginsRegistry(PluginEntryPoint#mock)\",\n                          repr(self.reg))\n \n     def test_str(self):"
+        }
+      ]
+    }
+  ]
+}

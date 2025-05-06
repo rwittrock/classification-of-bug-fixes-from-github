@@ -1,0 +1,15 @@
+{
+  "repo_name": "evilsocket/opensnitch",
+  "commits": [
+    {
+      "sha": "5875e1432965e99ed93e4543a91b05b5b8b3bd94",
+      "message": "Bug fix - TypeError list str\n\nfix install error of package_data\r\nTypeError: Can't convert 'list' object to str implicitly",
+      "changes": [
+        {
+          "file": "ui/setup.py",
+          "patch": "@@ -17,6 +17,6 @@\n       license='GPL',\n       packages=find_packages(),\n       include_package_data = True,\n-      package_data={'': '*.*'},\n+      package_data={'': ['*.*']},\n       scripts = [ 'bin/opensnitch-ui' ],\n       zip_safe=False)"
+        }
+      ]
+    }
+  ]
+}

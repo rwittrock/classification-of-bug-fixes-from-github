@@ -1,0 +1,15 @@
+{
+  "repo_name": "dbt-labs/dbt-core",
+  "commits": [
+    {
+      "sha": "c621e7d3815a56a8fa849e9a286307c75a555651",
+      "message": "Fix some connection-related bugs\n\n - fix a bug where failed connections caused an AttributeError\n - fix an issue where the rpc server and its child processes secretly shared mutable state",
+      "changes": [
+        {
+          "file": "core/dbt/adapters/sql/connections.py",
+          "patch": "@@ -35,7 +35,10 @@ def cancel_open(self):\n                 if connection is this_connection:\n                     continue\n \n-                self.cancel(connection)\n+                # if the connection failed, the handle will be None so we have\n+                # nothing to cancel.\n+                if connection.handle is not None:\n+                    self.cancel(connection)\n                 names.append(connection.name)\n         return names\n "
+        }
+      ]
+    }
+  ]
+}

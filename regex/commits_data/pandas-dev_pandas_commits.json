@@ -1,0 +1,1037 @@
+{
+  "repo_name": "pandas-dev/pandas",
+  "commits": [
+    {
+      "sha": "deceebe01aa9a3e4631828cb5b7453b25e9620bb",
+      "message": "BUG: IndexError in __repr__ (#29681)",
+      "changes": [
+        {
+          "file": "pandas/core/computation/pytables.py",
+          "patch": "@@ -2,7 +2,7 @@\n \n import ast\n from functools import partial\n-from typing import Optional\n+from typing import Any, Optional, Tuple\n \n import numpy as np\n \n@@ -72,7 +72,6 @@ def __init__(self, op, lhs, rhs, queryables, encoding):\n         super().__init__(op, lhs, rhs)\n         self.queryables = queryables\n         self.encoding = encoding\n-        self.filter = None\n         self.condition = None\n \n     def _disallow_scalar_only_bool_ops(self):\n@@ -230,7 +229,11 @@ def convert_values(self):\n \n \n class FilterBinOp(BinOp):\n+    filter: Optional[Tuple[Any, Any, pd.Index]] = None\n+\n     def __repr__(self) -> str:\n+        if self.filter is None:\n+            return \"Filter: Not Initialized\"\n         return pprint_thing(\n             \"[Filter : [{lhs}] -> [{op}]\".format(lhs=self.filter[0], op=self.filter[1])\n         )"
+        }
+      ]
+    },
+    {
+      "sha": "bceac8eb717729bf7771b40c572a5dc4d3674f23",
+      "message": "CLN: no longer need to catch AttributeError, IndexError (#29591)",
+      "changes": [
+        {
+          "file": "pandas/core/groupby/generic.py",
+          "patch": "@@ -257,10 +257,7 @@ def aggregate(self, func=None, *args, **kwargs):\n \n             try:\n                 return self._python_agg_general(func, *args, **kwargs)\n-            except (ValueError, KeyError, AttributeError, IndexError):\n-                # TODO: IndexError can be removed here following GH#29106\n-                # TODO: AttributeError is caused by _index_data hijinx in\n-                #  libreduction, can be removed after GH#29160\n+            except (ValueError, KeyError):\n                 # TODO: KeyError is raised in _python_agg_general,\n                 #  see see test_groupby.test_basic\n                 result = self._aggregate_named(func, *args, **kwargs)"
+        },
+        {
+          "file": "pandas/core/groupby/ops.py",
+          "patch": "@@ -721,6 +721,10 @@ def __init__(\n         self.mutated = mutated\n         self.indexer = indexer\n \n+        # These lengths must match, otherwise we could call agg_series\n+        #  with empty self.bins, which would raise in libreduction.\n+        assert len(self.binlabels) == len(self.bins)\n+\n     @cache_readonly\n     def groups(self):\n         \"\"\" dict {group name -> group labels} \"\"\"\n@@ -828,6 +832,7 @@ def groupings(self) -> \"List[grouper.Grouping]\":\n     def agg_series(self, obj: Series, func):\n         # Caller is responsible for checking ngroups != 0\n         assert self.ngroups != 0\n+        assert len(self.bins) > 0  # otherwise we'd get IndexError in get_result\n \n         if is_extension_array_dtype(obj.dtype):\n             # pre-empt SeriesBinGrouper from raising TypeError"
+        },
+        {
+          "file": "pandas/core/resample.py",
+          "patch": "@@ -187,6 +187,7 @@ def _get_binner(self):\n         \"\"\"\n \n         binner, bins, binlabels = self._get_binner_for_time()\n+        assert len(bins) == len(binlabels)\n         bin_grouper = BinGrouper(bins, binlabels, indexer=self.groupby.indexer)\n         return binner, bin_grouper\n "
+        }
+      ]
+    },
+    {
+      "sha": "1f67a70d3895297d9f2135b8b29d4ac8a96016ee",
+      "message": "CLN: prevent libreduction TypeError (#29228)",
+      "changes": [
+        {
+          "file": "pandas/core/groupby/generic.py",
+          "patch": "@@ -1104,6 +1104,7 @@ def _aggregate_item_by_item(self, func, *args, **kwargs):\n                     # raised in _aggregate_named, handle at higher level\n                     #  see test_apply_with_mutated_index\n                     raise\n+                # otherwise we get here from an AttributeError in _make_wrapper\n                 cannot_agg.append(item)\n                 continue\n \n@@ -1466,7 +1467,8 @@ def _transform_item_by_item(self, obj, wrapper):\n                 output[col] = self[col].transform(wrapper)\n             except AssertionError:\n                 raise\n-            except Exception:\n+            except TypeError:\n+                # e.g. trying to call nanmean with string values\n                 pass\n             else:\n                 inds.append(i)"
+        },
+        {
+          "file": "pandas/core/groupby/groupby.py",
+          "patch": "@@ -641,12 +641,15 @@ def curried(x):\n             # if we don't have this method to indicated to aggregate to\n             # mark this column as an error\n             try:\n-                return self._aggregate_item_by_item(name, *args, **kwargs)\n+                result = self._aggregate_item_by_item(name, *args, **kwargs)\n+                assert self.obj.ndim == 2\n+                return result\n             except AttributeError:\n                 # e.g. SparseArray has no flags attr\n                 # FIXME: 'SeriesGroupBy' has no attribute '_aggregate_item_by_item'\n                 #  occurs in idxmax() case\n                 #  in tests.groupby.test_function.test_non_cython_api\n+                assert self.obj.ndim == 1\n                 raise ValueError\n \n         wrapper.__name__ = name"
+        }
+      ]
+    },
+    {
+      "sha": "4ccea11321cdbc5199cce0e0f4cdae8655d4e93c",
+      "message": "CLN: AttributeError in _wrap_applied_output (#29195)",
+      "changes": [
+        {
+          "file": "pandas/core/base.py",
+          "patch": "@@ -571,8 +571,6 @@ def _aggregate_multiple_funcs(self, arg, _level, _axis):\n \n                 except (TypeError, DataError):\n                     pass\n-                except SpecificationError:\n-                    raise\n                 else:\n                     results.append(new_res)\n \n@@ -591,8 +589,6 @@ def _aggregate_multiple_funcs(self, arg, _level, _axis):\n                 except ValueError:\n                     # cannot aggregate\n                     continue\n-                except SpecificationError:\n-                    raise\n                 else:\n                     results.append(new_res)\n                     keys.append(col)"
+        }
+      ]
+    },
+    {
+      "sha": "bbadfa1270c4bcdcafac80f116abcd9ec8e8efd5",
+      "message": "CLN: preempt TypeError for EAs in groupby agg_series (#29186)",
+      "changes": [
+        {
+          "file": "pandas/core/groupby/generic.py",
+          "patch": "@@ -264,7 +264,12 @@ def aggregate(self, func=None, *args, **kwargs):\n                 return self._python_agg_general(func, *args, **kwargs)\n             except (AssertionError, TypeError):\n                 raise\n-            except Exception:\n+            except (ValueError, KeyError, AttributeError, IndexError):\n+                # TODO: IndexError can be removed here following GH#29106\n+                # TODO: AttributeError is caused by _index_data hijinx in\n+                #  libreduction, can be removed after GH#29160\n+                # TODO: KeyError is raised in _python_agg_general,\n+                #  see see test_groupby.test_basic\n                 result = self._aggregate_named(func, *args, **kwargs)\n \n             index = Index(sorted(result), name=self.grouper.names[0])"
+        }
+      ]
+    },
+    {
+      "sha": "30362ed828bebdd58d4f1f74d70236d32547d52a",
+      "message": "BUG: fix TypeError raised in maybe_downcast_numeric (#29103)",
+      "changes": [
+        {
+          "file": "pandas/core/dtypes/cast.py",
+          "patch": "@@ -202,7 +202,7 @@ def trans(x):\n         r = result.ravel()\n         arr = np.array([r[0]])\n \n-        if isna(arr).any() or not np.allclose(arr, trans(arr).astype(dtype), rtol=0):\n+        if isna(arr).any():\n             # if we have any nulls, then we are done\n             return result\n "
+        },
+        {
+          "file": "pandas/core/groupby/generic.py",
+          "patch": "@@ -262,7 +262,7 @@ def aggregate(self, func=None, *args, **kwargs):\n \n             try:\n                 return self._python_agg_general(func, *args, **kwargs)\n-            except AssertionError:\n+            except (AssertionError, TypeError):\n                 raise\n             except Exception:\n                 result = self._aggregate_named(func, *args, **kwargs)"
+        }
+      ]
+    },
+    {
+      "sha": "04893a954b91574279c402e8730a4b5fae2ae9e1",
+      "message": "BUG: parse_time_string failing to raise TypeError (#29098)",
+      "changes": [
+        {
+          "file": "pandas/core/indexes/datetimes.py",
+          "patch": "@@ -1106,7 +1106,7 @@ def _maybe_cast_slice_bound(self, label, side, kind):\n         else:\n             return label\n \n-    def _get_string_slice(self, key, use_lhs=True, use_rhs=True):\n+    def _get_string_slice(self, key: str, use_lhs: bool = True, use_rhs: bool = True):\n         freq = getattr(self, \"freqstr\", getattr(self, \"inferred_freq\", None))\n         _, parsed, reso = parsing.parse_time_string(key, freq)\n         loc = self._partial_date_slice(reso, parsed, use_lhs=use_lhs, use_rhs=use_rhs)"
+        },
+        {
+          "file": "pandas/core/indexes/timedeltas.py",
+          "patch": "@@ -528,7 +528,7 @@ def get_loc(self, key, method=None, tolerance=None):\n             # the try/except clauses below\n             tolerance = self._convert_tolerance(tolerance, np.asarray(key))\n \n-        if _is_convertible_to_td(key):\n+        if _is_convertible_to_td(key) or key is NaT:\n             key = Timedelta(key)\n             return Index.get_loc(self, key, method, tolerance)\n "
+        },
+        {
+          "file": "pandas/tests/tslibs/test_parsing.py",
+          "patch": "@@ -23,6 +23,12 @@ def test_parse_time_string():\n     assert parsed == parsed_lower\n \n \n+def test_parse_time_string_invalid_type():\n+    # Raise on invalid input, don't just return it\n+    with pytest.raises(TypeError):\n+        parse_time_string((4, 5))\n+\n+\n @pytest.mark.parametrize(\n     \"dashed,normal\", [(\"1988-Q2\", \"1988Q2\"), (\"2Q-1988\", \"2Q1988\")]\n )"
+        }
+      ]
+    },
+    {
+      "sha": "0436570f05c3b6e7bbb7c7d8fc8fa2f28a0420a8",
+      "message": "BUG: Fix TypeError raised in libreduction (#28643)",
+      "changes": [
+        {
+          "file": "pandas/tests/groupby/test_groupby.py",
+          "patch": "@@ -775,11 +775,7 @@ def test_omit_nuisance(df):\n \n     # won't work with axis = 1\n     grouped = df.groupby({\"A\": 0, \"C\": 0, \"D\": 1, \"E\": 1}, axis=1)\n-    msg = (\n-        r'\\(\"unsupported operand type\\(s\\) for \\+: '\n-        \"'Timestamp' and 'float'\\\"\"\n-        r\", 'occurred at index 0'\\)\"\n-    )\n+    msg = r'\\(\"unsupported operand type\\(s\\) for \\+: ' \"'Timestamp' and 'float'\\\", 0\"\n     with pytest.raises(TypeError, match=msg):\n         grouped.agg(lambda x: x.sum(0, numeric_only=False))\n "
+        }
+      ]
+    },
+    {
+      "sha": "f61deb962ac0853595a43ad024c482b018d1792b",
+      "message": "BUG: Fix Series.append raises TypeError with tuple of Series (#28412)",
+      "changes": [
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -2730,7 +2730,8 @@ def append(self, to_append, ignore_index=False, verify_integrity=False):\n         from pandas.core.reshape.concat import concat\n \n         if isinstance(to_append, (list, tuple)):\n-            to_concat = [self] + to_append\n+            to_concat = [self]\n+            to_concat.extend(to_append)\n         else:\n             to_concat = [self, to_append]\n         return concat("
+        }
+      ]
+    },
+    {
+      "sha": "e607c3431afc882effe4784a42b0c636ed4099e0",
+      "message": "COMPAT: catch InvalidIndexError in base Indexer getitem (#27259)",
+      "changes": [
+        {
+          "file": "pandas/core/indexing.py",
+          "patch": "@@ -24,7 +24,7 @@\n from pandas.core.dtypes.missing import _infer_fill_value, isna\n \n import pandas.core.common as com\n-from pandas.core.index import Index, MultiIndex\n+from pandas.core.index import Index, InvalidIndexError, MultiIndex\n \n \n # the supported indexers\n@@ -118,7 +118,7 @@ def __getitem__(self, key):\n             key = tuple(com.apply_if_callable(x, self.obj) for x in key)\n             try:\n                 values = self.obj._get_value(*key)\n-            except (KeyError, TypeError):\n+            except (KeyError, TypeError, InvalidIndexError):\n                 # TypeError occurs here if the key has non-hashable entries,\n                 #  generally slice or list.\n                 # TODO(ix): most/all of the TypeError cases here are for ix,"
+        }
+      ]
+    },
+    {
+      "sha": "b115a6bf5553445fdf29824623ea2b7c3a424660",
+      "message": "BUG: Partial slicing an datetime MultiIndex (#27127)\n\nFixes GH26944 AttributeError on partial multiindex timestamp slice",
+      "changes": [
+        {
+          "file": "pandas/core/indexes/multi.py",
+          "patch": "@@ -2755,7 +2755,9 @@ def convert_indexer(start, stop, step, indexer=indexer,\n                 # a partial date slicer on a DatetimeIndex generates a slice\n                 # note that the stop ALREADY includes the stopped point (if\n                 # it was a string sliced)\n-                return convert_indexer(start.start, stop.stop, step)\n+                start = getattr(start, 'start', start)\n+                stop = getattr(stop, 'stop', stop)\n+                return convert_indexer(start, stop, step)\n \n             elif level > 0 or self.lexsort_depth == 0 or step is not None:\n                 # need to have like semantics here to right"
+        }
+      ]
+    },
+    {
+      "sha": "16edaaf756ce0b3b1d5ab74ca754a9ccd774825a",
+      "message": "BUG: Fix #25481 by fixing the error message in TypeError (#25540)",
+      "changes": [
+        {
+          "file": "pandas/plotting/_core.py",
+          "patch": "@@ -361,10 +361,9 @@ def _compute_plot_data(self):\n         except AttributeError:\n             is_empty = not len(numeric_data)\n \n-        # no empty frames or series allowed\n+        # no non-numeric frames or series allowed\n         if is_empty:\n-            raise TypeError('Empty {0!r}: no numeric data to '\n-                            'plot'.format(numeric_data.__class__.__name__))\n+            raise TypeError('no numeric data to plot')\n \n         self.data = numeric_data\n "
+        },
+        {
+          "file": "pandas/tests/plotting/test_datetimelike.py",
+          "patch": "@@ -97,7 +97,7 @@ def test_nonnumeric_exclude(self):\n         assert len(ax.get_lines()) == 1  # B was plotted\n         self.plt.close(fig)\n \n-        msg = \"Empty 'DataFrame': no numeric data to plot\"\n+        msg = \"no numeric data to plot\"\n         with pytest.raises(TypeError, match=msg):\n             df['A'].plot()\n "
+        }
+      ]
+    },
+    {
+      "sha": "221be3b4adde0f45927803b1c593b56d4678faeb",
+      "message": "BUG: caught typeError in series.at (#25506) (#25533)",
+      "changes": [
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -1229,7 +1229,7 @@ def _set_value(self, label, value, takeable=False):\n                 self._values[label] = value\n             else:\n                 self.index._engine.set_value(self._values, label, value)\n-        except KeyError:\n+        except (KeyError, TypeError):\n \n             # set using a non-recursive method\n             self.loc[label] = value"
+        }
+      ]
+    },
+    {
+      "sha": "a422da1f31df8dd8f48fb440a98dd699b9280e29",
+      "message": "BUG: TypeError with to_html(sparsify=False) and max_cols < len(columns) (#24572)",
+      "changes": [
+        {
+          "file": "pandas/tests/io/formats/test_to_html.py",
+          "patch": "@@ -223,7 +223,6 @@ def test_to_html_truncate_multi_index(self, datapath):\n         expected = expected_html(datapath, 'truncate_multi_index')\n         assert result == expected\n \n-    @pytest.mark.xfail(reason='GH22887 TypeError')\n     def test_to_html_truncate_multi_index_sparse_off(self, datapath):\n         arrays = [['bar', 'bar', 'baz', 'baz', 'foo', 'foo', 'qux', 'qux'],\n                   ['one', 'two', 'one', 'two', 'one', 'two', 'one', 'two']]"
+        }
+      ]
+    },
+    {
+      "sha": "31a351258ad36392a8251c195f7e0869b90c7467",
+      "message": "BUG: Fix json_normalize throwing TypeError when record_path has a sequence of dicts #22706 (#22804)",
+      "changes": [
+        {
+          "file": "pandas/io/json/normalize.py",
+          "patch": "@@ -229,6 +229,8 @@ def _pull_field(js, spec):\n     meta_keys = [sep.join(val) for val in meta]\n \n     def _recursive_extract(data, path, seen_meta, level=0):\n+        if isinstance(data, dict):\n+            data = [data]\n         if len(path) > 1:\n             for obj in data:\n                 for val, key in zip(meta, meta_keys):"
+        }
+      ]
+    },
+    {
+      "sha": "1e235245ee6a6ac5976b9a7393da41f58f06e0cb",
+      "message": "BUG: DatetimeIndex slicing with boolean Index raises TypeError (#22852)",
+      "changes": [
+        {
+          "file": "pandas/core/arrays/datetimelike.py",
+          "patch": "@@ -161,7 +161,7 @@ def __getitem__(self, key):\n             return self._box_func(val)\n \n         if com.is_bool_indexer(key):\n-            key = np.asarray(key)\n+            key = np.asarray(key, dtype=bool)\n             if key.all():\n                 key = slice(0, None, None)\n             else:"
+        },
+        {
+          "file": "pandas/core/indexes/base.py",
+          "patch": "@@ -2078,7 +2078,7 @@ def __getitem__(self, key):\n             return promote(getitem(key))\n \n         if com.is_bool_indexer(key):\n-            key = np.asarray(key)\n+            key = np.asarray(key, dtype=bool)\n \n         key = com.values_from_object(key)\n         result = getitem(key)"
+        },
+        {
+          "file": "pandas/core/indexes/multi.py",
+          "patch": "@@ -1614,7 +1614,7 @@ def __getitem__(self, key):\n             return tuple(retval)\n         else:\n             if com.is_bool_indexer(key):\n-                key = np.asarray(key)\n+                key = np.asarray(key, dtype=bool)\n                 sortorder = self.sortorder\n             else:\n                 # cannot be sure whether the result will be sorted"
+        }
+      ]
+    },
+    {
+      "sha": "db399c2f29296caa869fc47863c1bbac4f702380",
+      "message": "BUG: astype(Int64) raises AttributeError (#22869)",
+      "changes": [
+        {
+          "file": "pandas/core/generic.py",
+          "patch": "@@ -18,7 +18,6 @@\n     is_number,\n     is_integer, is_bool,\n     is_bool_dtype,\n-    is_categorical_dtype,\n     is_numeric_dtype,\n     is_datetime64_any_dtype,\n     is_timedelta64_dtype,\n@@ -28,6 +27,7 @@\n     is_re_compilable,\n     is_period_arraylike,\n     is_object_dtype,\n+    is_extension_array_dtype,\n     pandas_dtype)\n from pandas.core.dtypes.cast import maybe_promote, maybe_upcast_putmask\n from pandas.core.dtypes.inference import is_hashable\n@@ -5258,8 +5258,9 @@ def astype(self, dtype, copy=True, errors='raise', **kwargs):\n                 else:\n                     results.append(results.append(col.copy() if copy else col))\n \n-        elif is_categorical_dtype(dtype) and self.ndim > 1:\n+        elif is_extension_array_dtype(dtype) and self.ndim > 1:\n             # GH 18099: columnwise conversion to categorical\n+            # and extension dtype\n             results = (self[col].astype(dtype, copy=copy) for col in self)\n \n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "d09db1fe8dc3bc08c5ca0eff97d43d2b30d5233e",
+      "message": "BUG: fix for \"TypeError: unorderable types\" when creating MultiIndex with mixed dtypes (#22072)\n\ncloses #15457",
+      "changes": [
+        {
+          "file": "pandas/core/arrays/categorical.py",
+          "patch": "@@ -2538,7 +2538,10 @@ def _factorize_from_iterable(values):\n                                       ordered=values.ordered)\n         codes = values.codes\n     else:\n-        cat = Categorical(values, ordered=True)\n+        # The value of ordered is irrelevant since we don't use cat as such,\n+        # but only the resulting categories, the order of which is independent\n+        # from ordered. Set ordered to False as default. See GH #15457\n+        cat = Categorical(values, ordered=False)\n         categories = cat.categories\n         codes = cat.codes\n     return codes, categories"
+        }
+      ]
+    },
+    {
+      "sha": "028492d04bd500995621931ad1c985bbe8865956",
+      "message": "BUG: DataFrame.asof() : Timezone Awareness / Naivety comparison TypeError (#22198)",
+      "changes": [
+        {
+          "file": "pandas/core/indexes/base.py",
+          "patch": "@@ -2463,7 +2463,7 @@ def asof_locs(self, where, mask):\n         result = np.arange(len(self))[mask].take(locs)\n \n         first = mask.argmax()\n-        result[(locs == 0) & (where < self.values[first])] = -1\n+        result[(locs == 0) & (where.values < self.values[first])] = -1\n \n         return result\n "
+        }
+      ]
+    },
+    {
+      "sha": "5fdaa9717f7550c5293d421205bfa19011278396",
+      "message": "BUG: Fix json_normalize throwing TypeError (#21536) (#21540)",
+      "changes": [
+        {
+          "file": "pandas/tests/io/json/test_normalize.py",
+          "patch": "@@ -123,6 +123,12 @@ def test_simple_normalize_with_separator(self, deep_nested):\n                           'country', 'states_name']).sort_values()\n         assert result.columns.sort_values().equals(expected)\n \n+    def test_value_array_record_prefix(self):\n+        # GH 21536\n+        result = json_normalize({'A': [1, 2]}, 'A', record_prefix='Prefix.')\n+        expected = DataFrame([[1], [2]], columns=['Prefix.0'])\n+        tm.assert_frame_equal(result, expected)\n+\n     def test_more_deeply_nested(self, deep_nested):\n \n         result = json_normalize(deep_nested, ['states', 'cities'],"
+        }
+      ]
+    },
+    {
+      "sha": "1eedcf664cab1ca23a1d10071b2b7fb8095d0160",
+      "message": "API: change datetimelike Index to raise IndexError instead ValueError (#18386)",
+      "changes": [
+        {
+          "file": "pandas/core/indexes/datetimelike.py",
+          "patch": "@@ -263,7 +263,9 @@ def __getitem__(self, key):\n \n         is_int = is_integer(key)\n         if is_scalar(key) and not is_int:\n-            raise ValueError\n+            raise IndexError(\"only integers, slices (`:`), ellipsis (`...`), \"\n+                             \"numpy.newaxis (`None`) and integer or boolean \"\n+                             \"arrays are valid indices\")\n \n         getitem = self._data.__getitem__\n         if is_int:"
+        }
+      ]
+    },
+    {
+      "sha": "6691285bbf5af202483c24f62f4e68198a92f279",
+      "message": "CLN/TST: amended TypeError from pd.concat() to be more informative (#15796) (#17885)",
+      "changes": [
+        {
+          "file": "pandas/core/reshape/concat.py",
+          "patch": "@@ -262,7 +262,10 @@ def __init__(self, objs, axis=0, join='outer', join_axes=None,\n         ndims = set()\n         for obj in objs:\n             if not isinstance(obj, NDFrame):\n-                raise TypeError(\"cannot concatenate a non-NDFrame object\")\n+                msg = ('cannot concatenate object of type \"{0}\";'\n+                       ' only pd.Series, pd.DataFrame, and pd.Panel'\n+                       ' (deprecated) objs are valid'.format(type(obj)))\n+                raise TypeError(msg)\n \n             # consolidate\n             obj._consolidate(inplace=True)"
+        },
+        {
+          "file": "pandas/tests/reshape/test_concat.py",
+          "patch": "@@ -177,7 +177,9 @@ def test_concatlike_same_dtypes(self):\n             tm.assert_series_equal(res, exp, check_index_type=True)\n \n             # cannot append non-index\n-            msg = \"cannot concatenate a non-NDFrame object\"\n+            msg = ('cannot concatenate object of type \\\"(.+?)\\\";'\n+                   ' only pd.Series, pd.DataFrame, and pd.Panel'\n+                   ' \\(deprecated\\) objs are valid')\n             with tm.assert_raises_regex(TypeError, msg):\n                 pd.Series(vals1).append(vals2)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e6d8953f8cd5ad9f22894a8948e9b6340ad819f4",
+      "message": "Fix make_signature TypeError in py3 (#17609)",
+      "changes": [
+        {
+          "file": "pandas/util/_decorators.py",
+          "patch": "@@ -242,7 +242,7 @@ def make_signature(func):\n         defaults = ('',) * n_wo_defaults\n     else:\n         n_wo_defaults = len(spec.args) - len(spec.defaults)\n-        defaults = ('',) * n_wo_defaults + spec.defaults\n+        defaults = ('',) * n_wo_defaults + tuple(spec.defaults)\n     args = []\n     for i, (var, default) in enumerate(zip(spec.args, defaults)):\n         args.append(var if default == '' else var + '=' + repr(default))"
+        }
+      ]
+    },
+    {
+      "sha": "23050dca1b404d23527132c0277f3d40dc41cab8",
+      "message": "BUG: Fix TypeError caused by GH13374 (#17465)",
+      "changes": [
+        {
+          "file": "pandas/io/parsers.py",
+          "patch": "@@ -2836,7 +2836,9 @@ def _rows_to_cols(self, content):\n             for row_num, actual_len in bad_lines:\n                 msg = ('Expected %d fields in line %d, saw %d' %\n                        (col_len, row_num + 1, actual_len))\n-                if len(self.delimiter) > 1 and self.quoting != csv.QUOTE_NONE:\n+                if (self.delimiter and\n+                        len(self.delimiter) > 1 and\n+                        self.quoting != csv.QUOTE_NONE):\n                     # see gh-13374\n                     reason = ('Error could possibly be due to quotes being '\n                               'ignored when a multi-char delimiter is used.')"
+        }
+      ]
+    },
+    {
+      "sha": "47e909dc9d619e20b139c43236efde66b52f9d11",
+      "message": "Fixes SparseSeries initiated with dictionary raising AttributeError (#16960)",
+      "changes": [
+        {
+          "file": "pandas/core/sparse/series.py",
+          "patch": "@@ -146,10 +146,9 @@ def __init__(self, data=None, index=None, sparse_index=None, kind='block',\n                 data = data._data\n \n             elif isinstance(data, (Series, dict)):\n-                if index is None:\n-                    index = data.index.view()\n+                data = Series(data, index=index)\n+                index = data.index.view()\n \n-                data = Series(data)\n                 res = make_sparse(data, kind=kind, fill_value=fill_value)\n                 data, sparse_index, fill_value = res\n "
+        }
+      ]
+    },
+    {
+      "sha": "7ea5f49fa238ef27da93b5a6c393b5fc3770eb26",
+      "message": "ENH: Support fspath protocol (#16301)\n\n* ENH: Support fspath protocol\r\n\r\nEnsures that most of pandas readers and writers will honor the fspath\r\nprotocol, if an object defines it.\r\n\r\nTST: remove old xfails\r\n\r\n* API: Raise AttributeError on closed HDFStore\r\n\r\nPreviously, we called _check_if_open, which would raise a ClosedFileError\r\nwhenever the desired attribute wasn't found. This prevented the check required\r\nfor PEP519 to work properly, since hasattr shouldn't raise that error.\r\n\r\n* ENH: add __fspath__ to pandas own file-like objects\r\n\r\n- HDFStore\r\n- ExcelFile",
+      "changes": [
+        {
+          "file": "pandas/io/feather_format.py",
+          "patch": "@@ -3,6 +3,7 @@\n from distutils.version import LooseVersion\n from pandas import DataFrame, RangeIndex, Int64Index\n from pandas.compat import range\n+from pandas.io.common import _stringify_path\n \n \n def _try_import():\n@@ -43,6 +44,7 @@ def to_feather(df, path):\n     path : string\n         File path\n     \"\"\"\n+    path = _stringify_path(path)\n     if not isinstance(df, DataFrame):\n         raise ValueError(\"feather only support IO with DataFrames\")\n \n@@ -99,4 +101,5 @@ def read_feather(path):\n     \"\"\"\n \n     feather = _try_import()\n+    path = _stringify_path(path)\n     return feather.read_dataframe(path)"
+        },
+        {
+          "file": "pandas/io/formats/format.py",
+          "patch": "@@ -369,7 +369,10 @@ def __init__(self, frame, buf=None, columns=None, col_space=None,\n                  index_names=True, line_width=None, max_rows=None,\n                  max_cols=None, show_dimensions=False, decimal='.', **kwds):\n         self.frame = frame\n-        self.buf = _expand_user(buf) if buf is not None else StringIO()\n+        if buf is not None:\n+            self.buf = _expand_user(_stringify_path(buf))\n+        else:\n+            self.buf = StringIO()\n         self.show_index_names = index_names\n \n         if sparsify is None:"
+        },
+        {
+          "file": "pandas/io/json/json.py",
+          "patch": "@@ -7,7 +7,8 @@\n from pandas.compat import StringIO, long, u\n from pandas import compat, isnull\n from pandas import Series, DataFrame, to_datetime, MultiIndex\n-from pandas.io.common import get_filepath_or_buffer, _get_handle\n+from pandas.io.common import (get_filepath_or_buffer, _get_handle,\n+                              _stringify_path)\n from pandas.core.common import AbstractMethodError\n from pandas.io.formats.printing import pprint_thing\n from .normalize import _convert_to_line_delimits\n@@ -25,6 +26,7 @@ def to_json(path_or_buf, obj, orient=None, date_format='epoch',\n             double_precision=10, force_ascii=True, date_unit='ms',\n             default_handler=None, lines=False):\n \n+    path_or_buf = _stringify_path(path_or_buf)\n     if lines and orient != 'records':\n         raise ValueError(\n             \"'lines' keyword only valid when 'orient' is records\")"
+        },
+        {
+          "file": "pandas/io/packers.py",
+          "patch": "@@ -61,7 +61,7 @@\n from pandas.core.sparse.array import BlockIndex, IntIndex\n from pandas.core.generic import NDFrame\n from pandas.errors import PerformanceWarning\n-from pandas.io.common import get_filepath_or_buffer\n+from pandas.io.common import get_filepath_or_buffer, _stringify_path\n from pandas.core.internals import BlockManager, make_block, _safe_reshape\n import pandas.core.internals as internals\n \n@@ -149,6 +149,7 @@ def writer(fh):\n         for a in args:\n             fh.write(pack(a, **kwargs))\n \n+    path_or_buf = _stringify_path(path_or_buf)\n     if isinstance(path_or_buf, compat.string_types):\n         with open(path_or_buf, mode) as fh:\n             writer(fh)"
+        },
+        {
+          "file": "pandas/io/pickle.py",
+          "patch": "@@ -4,7 +4,7 @@\n from numpy.lib.format import read_array, write_array\n from pandas.compat import BytesIO, cPickle as pkl, pickle_compat as pc, PY3\n from pandas.core.dtypes.common import is_datetime64_dtype, _NS_DTYPE\n-from pandas.io.common import _get_handle, _infer_compression\n+from pandas.io.common import _get_handle, _infer_compression, _stringify_path\n \n \n def to_pickle(obj, path, compression='infer', protocol=pkl.HIGHEST_PROTOCOL):\n@@ -34,6 +34,7 @@ def to_pickle(obj, path, compression='infer', protocol=pkl.HIGHEST_PROTOCOL):\n \n \n     \"\"\"\n+    path = _stringify_path(path)\n     inferred_compression = _infer_compression(path, compression)\n     f, fh = _get_handle(path, 'wb',\n                         compression=inferred_compression,\n@@ -71,7 +72,7 @@ def read_pickle(path, compression='infer'):\n     -------\n     unpickled : type of object stored in file\n     \"\"\"\n-\n+    path = _stringify_path(path)\n     inferred_compression = _infer_compression(path, compression)\n \n     def read_wrapper(func):"
+        },
+        {
+          "file": "pandas/io/sas/sasreader.py",
+          "patch": "@@ -2,6 +2,7 @@\n Read SAS sas7bdat or xport files.\n \"\"\"\n from pandas import compat\n+from pandas.io.common import _stringify_path\n \n \n def read_sas(filepath_or_buffer, format=None, index=None, encoding=None,\n@@ -34,6 +35,7 @@ def read_sas(filepath_or_buffer, format=None, index=None, encoding=None,\n         buffer_error_msg = (\"If this is a buffer object rather \"\n                             \"than a string name, you must specify \"\n                             \"a format string\")\n+        filepath_or_buffer = _stringify_path(filepath_or_buffer)\n         if not isinstance(filepath_or_buffer, compat.string_types):\n             raise ValueError(buffer_error_msg)\n         try:"
+        },
+        {
+          "file": "pandas/io/stata.py",
+          "patch": "@@ -30,7 +30,8 @@\n from pandas.util._decorators import Appender\n import pandas as pd\n \n-from pandas.io.common import get_filepath_or_buffer, BaseIterator\n+from pandas.io.common import (get_filepath_or_buffer, BaseIterator,\n+                              _stringify_path)\n from pandas._libs.lib import max_len_string_array, infer_dtype\n from pandas._libs.tslib import NaT, Timestamp\n \n@@ -976,6 +977,7 @@ def __init__(self, path_or_buf, convert_dates=True,\n         self._lines_read = 0\n \n         self._native_byteorder = _set_endianness(sys.byteorder)\n+        path_or_buf = _stringify_path(path_or_buf)\n         if isinstance(path_or_buf, str):\n             path_or_buf, encoding, _ = get_filepath_or_buffer(\n                 path_or_buf, encoding=self._default_encoding\n@@ -1930,7 +1932,7 @@ def __init__(self, fname, data, convert_dates=None, write_index=True,\n         if byteorder is None:\n             byteorder = sys.byteorder\n         self._byteorder = _set_endianness(byteorder)\n-        self._fname = fname\n+        self._fname = _stringify_path(fname)\n         self.type_converters = {253: np.int32, 252: np.int16, 251: np.int8}\n \n     def _write(self, to_write):"
+        },
+        {
+          "file": "pandas/tests/io/sas/test_sas7bdat.py",
+          "patch": "@@ -3,7 +3,6 @@\n import pandas.util.testing as tm\n import os\n import io\n-import pytest\n import numpy as np\n \n \n@@ -66,7 +65,6 @@ def test_from_iterator(self):\n                 tm.assert_frame_equal(df, df0.iloc[2:5, :])\n                 rdr.close()\n \n-    @pytest.mark.xfail(reason=\"read_sas currently doesn't work with pathlib\")\n     def test_path_pathlib(self):\n         tm._skip_if_no_pathlib()\n         from pathlib import Path\n@@ -77,7 +75,6 @@ def test_path_pathlib(self):\n                 df = pd.read_sas(fname, encoding='utf-8')\n                 tm.assert_frame_equal(df, df0)\n \n-    @pytest.mark.xfail(reason=\"read_sas currently doesn't work with localpath\")\n     def test_path_localpath(self):\n         tm._skip_if_no_localpath()\n         from py.path import local as LocalPath"
+        },
+        {
+          "file": "pandas/tests/io/test_feather.py",
+          "patch": "@@ -116,13 +116,11 @@ def test_write_with_index(self):\n         df.columns = pd.MultiIndex.from_tuples([('a', 1), ('a', 2), ('b', 1)]),\n         self.check_error_on_write(df, ValueError)\n \n-    @pytest.mark.xfail(reason=\"feather currently doesn't work with pathlib\")\n     def test_path_pathlib(self):\n         df = tm.makeDataFrame().reset_index()\n         result = tm.round_trip_pathlib(df.to_feather, pd.read_feather)\n         tm.assert_frame_equal(df, result)\n \n-    @pytest.mark.xfail(reason=\"feather currently doesn't work with localpath\")\n     def test_path_localpath(self):\n         df = tm.makeDataFrame().reset_index()\n         result = tm.round_trip_localpath(df.to_feather, pd.read_feather)"
+        },
+        {
+          "file": "pandas/tests/io/test_packers.py",
+          "patch": "@@ -134,13 +134,11 @@ def test_string_io(self):\n             result = read_msgpack(p)\n             tm.assert_frame_equal(result, df)\n \n-    @pytest.mark.xfail(reason=\"msgpack currently doesn't work with pathlib\")\n     def test_path_pathlib(self):\n         df = tm.makeDataFrame()\n         result = tm.round_trip_pathlib(df.to_msgpack, read_msgpack)\n         tm.assert_frame_equal(df, result)\n \n-    @pytest.mark.xfail(reason=\"msgpack currently doesn't work with localpath\")\n     def test_path_localpath(self):\n         df = tm.makeDataFrame()\n         result = tm.round_trip_localpath(df.to_msgpack, read_msgpack)"
+        },
+        {
+          "file": "setup.py",
+          "patch": "@@ -709,6 +709,7 @@ def pxd(name):\n                                         'data/html_encoding/*.html',\n                                         'json/data/*.json'],\n                     'pandas.tests.io.formats': ['data/*.csv'],\n+                    'pandas.tests.io.msgpack': ['data/*.mp'],\n                     'pandas.tests.reshape': ['data/*.csv'],\n                     'pandas.tests.tseries': ['data/*.pickle'],\n                     'pandas.io.formats': ['templates/*.tpl']"
+        }
+      ]
+    },
+    {
+      "sha": "caab85b8520d530c8c67a9e363c8f87905a456e8",
+      "message": "BUG: Fixed to_html with index=False and max_rows\n\ncloses https://github.com/pandas-dev/pandas/issues/14998    Previously\nraised an IndexError by assuming that  `len(fmt_values)` was always\nthe same length as `len(self.data)`.\n\nAuthor: Tom Augspurger <tom.augspurger88@gmail.com>\n\nCloses #14999 from TomAugspurger/html-index-max-rows and squashes the following commits:\n\n2bd8629 [Tom Augspurger] BUG: Fixed to_html with index=False and max_rows",
+      "changes": [
+        {
+          "file": "pandas/formats/format.py",
+          "patch": "@@ -1182,7 +1182,7 @@ def _write_body(self, indent):\n             else:\n                 self._write_regular_rows(fmt_values, indent)\n         else:\n-            for i in range(len(self.frame)):\n+            for i in range(min(len(self.frame), self.max_rows)):\n                 row = [fmt_values[j][i] for j in range(len(self.columns))]\n                 self.write_tr(row, indent, self.indent_delta, tags=None)\n "
+        }
+      ]
+    },
+    {
+      "sha": "36bb8afb6f98dc19558c5ea32362dd033384ff25",
+      "message": "ENH: Introduce UnsortedIndexError  GH11897 (#14762)",
+      "changes": [
+        {
+          "file": "pandas/core/indexing.py",
+          "patch": "@@ -1814,7 +1814,9 @@ def check_bool_indexer(ax, key):\n         result = result.reindex(ax)\n         mask = isnull(result._values)\n         if mask.any():\n-            raise IndexingError('Unalignable boolean Series key provided')\n+            raise IndexingError('Unalignable boolean Series provided as '\n+                                'indexer (index of the boolean Series and of '\n+                                'the indexed object do not match')\n         result = result.astype(bool)._values\n     elif is_sparse(result):\n         result = result.to_dense()"
+        }
+      ]
+    },
+    {
+      "sha": "233d51dd099f590379bd9144c40a61f6785b2b57",
+      "message": "BUG: String indexing against object dtype may raise AttributeError (#14424)",
+      "changes": [
+        {
+          "file": "pandas/indexes/base.py",
+          "patch": "@@ -2966,6 +2966,11 @@ def _wrap_joined_index(self, joined, other):\n         name = self.name if self.name == other.name else None\n         return Index(joined, name=name)\n \n+    def _get_string_slice(self, key, use_lhs=True, use_rhs=True):\n+        # this is for partial string indexing,\n+        # overridden in DatetimeIndex, TimedeltaIndex and PeriodIndex\n+        raise NotImplementedError\n+\n     def slice_indexer(self, start=None, end=None, step=None, kind=None):\n         \"\"\"\n         For an ordered Index, compute the slice indexer for input labels and"
+        }
+      ]
+    },
+    {
+      "sha": "3186fef545b55ca7b4a3c79c800f32b1d586545e",
+      "message": "BUG: pd.to_datetime doesn't raises AttributeError with specific inputs when errors='ignore'(#12424) (#13909)",
+      "changes": [
+        {
+          "file": "pandas/tests/test_algos.py",
+          "patch": "@@ -568,6 +568,12 @@ def test_value_counts_datetime_outofbounds(self):\n         exp = pd.Series([3, 2, 1], index=exp_index)\n         tm.assert_series_equal(res, exp)\n \n+        # GH 12424\n+        res = pd.to_datetime(pd.Series(['2362-01-01', np.nan]),\n+                             errors='ignore')\n+        exp = pd.Series(['2362-01-01', np.nan], dtype=object)\n+        tm.assert_series_equal(res, exp)\n+\n     def test_categorical(self):\n         s = Series(pd.Categorical(list('aaabbc')))\n         result = s.value_counts()"
+        }
+      ]
+    },
+    {
+      "sha": "ae144bb4c3587c6e2e0e0434ad64729456348857",
+      "message": "BUG: DatetimeIndex raises AttributeError on win\ncloses #13736",
+      "changes": [
+        {
+          "file": "pandas/tseries/index.py",
+          "patch": "@@ -329,9 +329,12 @@ def __new__(cls, data=None,\n                     subarr = tslib.cast_to_nanoseconds(data)\n                 else:\n                     subarr = data\n-        elif data.dtype == _INT64_DTYPE:\n+        else:\n+            # must be integer dtype otherwise\n             if isinstance(data, Int64Index):\n                 raise TypeError('cannot convert Int64Index->DatetimeIndex')\n+            if data.dtype != _INT64_DTYPE:\n+                data = data.astype(np.int64)\n             subarr = data.view(_NS_DTYPE)\n \n         if isinstance(subarr, DatetimeIndex):"
+        }
+      ]
+    },
+    {
+      "sha": "a711b4251c765c0c4b9d1c8deb985162dfaf09ae",
+      "message": "BF(TST): allow AttributeError being raised (in addition to TypeError) from mpl (#13641)\n\nCloses #13570",
+      "changes": [
+        {
+          "file": "pandas/tests/test_graphics.py",
+          "patch": "@@ -1330,7 +1330,8 @@ def test_plot(self):\n         self._check_axes_shape(axes, axes_num=4, layout=(4, 1))\n \n         df = DataFrame({'x': [1, 2], 'y': [3, 4]})\n-        with tm.assertRaises(TypeError):\n+        # mpl >= 1.5.2 (or slightly below) throw AttributError\n+        with tm.assertRaises((TypeError, AttributeError)):\n             df.plot.line(blarg=True)\n \n         df = DataFrame(np.random.rand(10, 3),"
+        }
+      ]
+    },
+    {
+      "sha": "86f68e6a48bc0219493f093e4224fe772f24ecac",
+      "message": "BUG: Sparse creation with object dtype may raise TypeError\n\ncloses #11633\ncloses #11856\n\nAuthor: sinhrks <sinhrks@gmail.com>\n\nCloses #13201 from sinhrks/sparse_isnull and squashes the following commits:\n\n443b47e [sinhrks] BUG: Sparse creation with object dtype may raise TypeError",
+      "changes": [
+        {
+          "file": "pandas/tests/test_groupby.py",
+          "patch": "@@ -4544,7 +4544,7 @@ def test_groupby_with_empty(self):\n         grouped = series.groupby(grouper)\n         assert next(iter(grouped), None) is None\n \n-    def test_aaa_groupby_with_small_elem(self):\n+    def test_groupby_with_small_elem(self):\n         # GH 8542\n         # length=2\n         df = pd.DataFrame({'event': ['start', 'start'],\n@@ -6008,7 +6008,7 @@ def test__cython_agg_general(self):\n                 exc.args += ('operation: %s' % op, )\n                 raise\n \n-    def test_aa_cython_group_transform_algos(self):\n+    def test_cython_group_transform_algos(self):\n         # GH 4095\n         dtypes = [np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint32,\n                   np.uint64, np.float32, np.float64]"
+        }
+      ]
+    },
+    {
+      "sha": "1500336b29ce71bbb4d51e34071d039f62889599",
+      "message": "BUG: Addition raises TypeError if Period is on rhs\n\nAuthor: sinhrks <sinhrks@gmail.com>\n\nCloses #13069 from sinhrks/period_radd and squashes the following commits:\n\n3935104 [sinhrks] TST: Fix assertNotIsInstance msg",
+      "changes": [
+        {
+          "file": "pandas/tseries/offsets.py",
+          "patch": "@@ -4,7 +4,7 @@\n import numpy as np\n \n from pandas.tseries.tools import to_datetime, normalize_date\n-from pandas.core.common import ABCSeries, ABCDatetimeIndex\n+from pandas.core.common import ABCSeries, ABCDatetimeIndex, ABCPeriod\n \n # import after tools, dateutil check\n from dateutil.relativedelta import relativedelta, weekday\n@@ -381,6 +381,8 @@ def __call__(self, other):\n     def __add__(self, other):\n         if isinstance(other, (ABCDatetimeIndex, ABCSeries)):\n             return other + self\n+        elif isinstance(other, ABCPeriod):\n+            return other + self\n         try:\n             return self.apply(other)\n         except ApplyTypeError:\n@@ -2489,6 +2491,8 @@ def __add__(self, other):\n                 return type(self)(self.n + other.n)\n             else:\n                 return _delta_to_tick(self.delta + other.delta)\n+        elif isinstance(other, ABCPeriod):\n+            return other + self\n         try:\n             return self.apply(other)\n         except ApplyTypeError:"
+        }
+      ]
+    },
+    {
+      "sha": "5d8a93517e883b4978cfad0b3eb7dac7bbc7faad",
+      "message": "BUG: SparseSeries.shift may raise NameError or TypeError\n\nAuthor: sinhrks <sinhrks@gmail.com>\n\nCloses #12908 from sinhrks/sparse_shift and squashes the following commits:\n\n5a0adfa [sinhrks] BUG: SparseSeries.shift may raise NameError or TypeError",
+      "changes": [
+        {
+          "file": "pandas/sparse/array.py",
+          "patch": "@@ -165,6 +165,12 @@ def __new__(cls, data, sparse_index=None, index=None, kind='integer',\n \n     @classmethod\n     def _simple_new(cls, data, sp_index, fill_value):\n+        if (com.is_integer_dtype(data) and com.is_float(fill_value) and\n+           sp_index.ngaps > 0):\n+            # if float fill_value is being included in dense repr,\n+            # convert values to float\n+            data = data.astype(float)\n+\n         result = data.view(cls)\n \n         if not isinstance(sp_index, SparseIndex):"
+        }
+      ]
+    },
+    {
+      "sha": "2486fcd9991feb9a06918b90103b5da0e977bdf4",
+      "message": "BUG: TypeError in index coercion\n\ncloses #12916\ncloses #12893",
+      "changes": [
+        {
+          "file": "pandas/indexes/multi.py",
+          "patch": "@@ -666,7 +666,7 @@ def get_level_values(self, level):\n         filled = algos.take_1d(unique.values, labels,\n                                fill_value=unique._na_value)\n         _simple_new = unique._simple_new\n-        values = _simple_new(filled, self.names[num],\n+        values = _simple_new(filled, name=self.names[num],\n                              freq=getattr(unique, 'freq', None),\n                              tz=getattr(unique, 'tz', None))\n         return values"
+        }
+      ]
+    },
+    {
+      "sha": "4c84f2dd9113bfe940bf4ddb9f0dfdcdaf466188",
+      "message": "BUG: Series.map may raise TypeError in Categorical or DatetimeTz\n\ncloses #12532\ncloses #12473",
+      "changes": [
+        {
+          "file": "pandas/core/common.py",
+          "patch": "@@ -705,7 +705,7 @@ def _maybe_upcast(values, fill_value=np.nan, dtype=None, copy=False):\n     copy : if True always make a copy even if no upcast is required\n     \"\"\"\n \n-    if is_internal_type(values):\n+    if is_extension_type(values):\n         if copy:\n             values = values.copy()\n     else:\n@@ -1714,7 +1714,7 @@ def is_datetimetz(array):\n             is_datetime64tz_dtype(array))\n \n \n-def is_internal_type(value):\n+def is_extension_type(value):\n     \"\"\"\n     if we are a klass that is preserved by the internals\n     these are internal klasses that we represent (and don't use a np.array)"
+        },
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -27,7 +27,7 @@\n     isnull, notnull, PandasError, _try_sort, _default_index, _maybe_upcast,\n     is_sequence, _infer_dtype_from_scalar, _values_from_object, is_list_like,\n     _maybe_box_datetimelike, is_categorical_dtype, is_object_dtype,\n-    is_internal_type, is_datetimetz, _possibly_infer_to_datetimelike,\n+    is_extension_type, is_datetimetz, _possibly_infer_to_datetimelike,\n     _dict_compat)\n from pandas.core.generic import NDFrame, _shared_docs\n from pandas.core.index import Index, MultiIndex, _ensure_index\n@@ -2594,7 +2594,7 @@ def reindexer(value):\n             value = com._possibly_cast_to_datetime(value, dtype)\n \n         # return internal types directly\n-        if is_internal_type(value):\n+        if is_extension_type(value):\n             return value\n \n         # broadcast across multiple columns if necessary\n@@ -4094,7 +4094,7 @@ def _apply_standard(self, func, axis, ignore_failures=False, reduce=True):\n \n             # we cannot reduce using non-numpy dtypes,\n             # as demonstrated in gh-12244\n-            if not is_internal_type(values):\n+            if not is_extension_type(values):\n                 # Create a dummy Series from an empty array\n                 index = self._get_axis(axis)\n                 empty_arr = np.empty(len(index), dtype=values.dtype)"
+        }
+      ]
+    },
+    {
+      "sha": "fded94274effa2d592e48ec2079ba3b78e5bb232",
+      "message": "COMPAT: compat with released numpy 1.11 for IndexError -> TypeError\n\nwas a revert of # https://github.com/numpy/numpy/pull/6271\ncloses #12729\ncloses #12792\n\nAuthor: Jeff Reback <jeff@reback.net>\n\nCloses #12736 from jreback/numpy_compat_111 and squashes the following commits:\n\n9a97896 [Jeff Reback] BLD: fix 3.5_OSX to numpy 1.10.4\n57c5e64 [Jeff Reback] COMPAT: fix some warnings with numpy 1.11 with pytables\nbe5ccea [Jeff Reback] COMPAT: compat with released numpy 1.11 for IndexError -> TypeError",
+      "changes": [
+        {
+          "file": "pandas/io/tests/test_pytables.py",
+          "patch": "@@ -3001,8 +3001,8 @@ def test_sparse_with_compression(self):\n         # GH 2931\n \n         # make sparse dataframe\n-        df = DataFrame(np.random.binomial(\n-            n=1, p=.01, size=(1e3, 10))).to_sparse(fill_value=0)\n+        arr = np.random.binomial(n=1, p=.01, size=(1000, 10))\n+        df = DataFrame(arr).to_sparse(fill_value=0)\n \n         # case 1: store uncompressed\n         self._check_double_roundtrip(df, tm.assert_frame_equal,\n@@ -3015,7 +3015,7 @@ def test_sparse_with_compression(self):\n                                      check_frame_type=True)\n \n         # set one series to be completely sparse\n-        df[0] = np.zeros(1e3)\n+        df[0] = np.zeros(1000)\n \n         # case 3: store df with completely sparse series uncompressed\n         self._check_double_roundtrip(df, tm.assert_frame_equal,"
+        }
+      ]
+    },
+    {
+      "sha": "eeb81f69a8fd4008fb2fb8e7a748ee1a8db38b55",
+      "message": "BUG: Concat with tz-aware and timedelta raises AttributeError\n\ncloses #12620\n\nAuthor: sinhrks <sinhrks@gmail.com>\n\nCloses #12635 from sinhrks/tz_concat_object and squashes the following commits:\n\n45d1ecd [sinhrks] BUG: Concat with tz-aware and timedelta raises AttributeError",
+      "changes": [
+        {
+          "file": "pandas/core/common.py",
+          "patch": "@@ -2713,7 +2713,7 @@ def is_nonempty(x):\n     # these are mandated to handle empties as well\n     if 'datetime' in typs or 'datetimetz' in typs or 'timedelta' in typs:\n         from pandas.tseries.common import _concat_compat\n-        return _concat_compat(to_concat, axis=axis)\n+        return _concat_compat(to_concat, axis=axis, typs=typs)\n \n     elif 'sparse' in typs:\n         from pandas.sparse.array import _concat_compat"
+        }
+      ]
+    },
+    {
+      "sha": "a8be55ca0d5b816cdc827343aafa0ce8fcde9924",
+      "message": "DEPR: removal of deprecation warnings for float indexers\n\nraise a TypeError instead, xref #4892\n\ncloses #11836\n\nsimilar to numpy in 1.11 [here](https://github.com/numpy/numpy/pull/6271)\n\nAuthor: Jeff Reback <jeff@reback.net>\n\nCloses #12246 from jreback/deprecate2 and squashes the following commits:\n\n5f7c9e9 [Jeff Reback] DEPR: removal of deprecation warnings for float indexers in a positional setting, and raise a TypeError, xref #4892",
+      "changes": [
+        {
+          "file": "pandas/tseries/period.py",
+          "patch": "@@ -678,7 +678,12 @@ def get_loc(self, key, method=None, tolerance=None):\n             except TypeError:\n                 pass\n \n-            key = Period(key, freq=self.freq)\n+            try:\n+                key = Period(key, freq=self.freq)\n+            except ValueError:\n+                # we cannot construct the Period\n+                # as we have an invalid type\n+                return self._invalid_indexer('label', key)\n             try:\n                 return Index.get_loc(self, key.ordinal, method, tolerance)\n             except KeyError:"
+        }
+      ]
+    },
+    {
+      "sha": "99873665c4fba16fe4738de37742a71d6ab282cb",
+      "message": "BUG: GH11808 subclasses of DataFrame did not propagate AttributeError",
+      "changes": [
+        {
+          "file": "pandas/core/generic.py",
+          "patch": "@@ -2356,8 +2356,7 @@ def __getattr__(self, name):\n         else:\n             if name in self._info_axis:\n                 return self[name]\n-            raise AttributeError(\"'%s' object has no attribute '%s'\" %\n-                                 (type(self).__name__, name))\n+            return object.__getattribute__(self, name)\n \n     def __setattr__(self, name, value):\n         \"\"\"After regular attribute access, try setting the name"
+        }
+      ]
+    },
+    {
+      "sha": "d78266eb396143438d187eb8d5a8cb750c2ba737",
+      "message": "BUG: df.join(df2, how='right') TypeError: Argument 'left' has incorrect type (issue #11519)",
+      "changes": [
+        {
+          "file": "pandas/core/index.py",
+          "patch": "@@ -2490,7 +2490,7 @@ def _join_monotonic(self, other, how='left', return_indexers=False):\n             if how == 'left':\n                 join_index, lidx, ridx = self._left_indexer(sv, ov)\n             elif how == 'right':\n-                join_index, ridx, lidx = self._left_indexer(other, self)\n+                join_index, ridx, lidx = self._left_indexer(ov, sv)\n             elif how == 'inner':\n                 join_index, lidx, ridx = self._inner_indexer(sv, ov)\n             elif how == 'outer':"
+        }
+      ]
+    },
+    {
+      "sha": "07d673f0df7a56073574ad4a4fb33e3ce5cfb434",
+      "message": "API: indexing with a null key will raise a TypeError rather than a ValueError, #11356",
+      "changes": [
+        {
+          "file": "pandas/core/indexing.py",
+          "patch": "@@ -1285,7 +1285,7 @@ def _has_valid_type(self, key, axis):\n \n             def error():\n                 if isnull(key):\n-                    raise ValueError(\n+                    raise TypeError(\n                         \"cannot use label indexing with a null key\")\n                 raise KeyError(\"the label [%s] is not in the [%s]\" %\n                                (key, self.obj._get_axis_name(axis)))"
+        },
+        {
+          "file": "pandas/core/internals.py",
+          "patch": "@@ -3217,7 +3217,7 @@ def get(self, item, fastpath=True):\n         else:\n \n             if isnull(item):\n-                raise ValueError(\"cannot label index with a null key\")\n+                raise TypeError(\"cannot label index with a null key\")\n \n             indexer = self.items.get_indexer_for([item])\n             return self.reindex_indexer(new_axis=self.items[indexer],"
+        },
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -5839,7 +5839,7 @@ def check(df):\n \n                 def f():\n                     df.loc[:,np.nan]\n-                self.assertRaises(ValueError, f)\n+                self.assertRaises(TypeError, f)\n \n \n         df = DataFrame([[1,2,3],[4,5,6]], index=[1,np.nan])"
+        }
+      ]
+    },
+    {
+      "sha": "a7c705a99a634c69bc5e7a1af09e2445ea73300b",
+      "message": "BUG: DatetimeTZBlock.fillna raises TypeError",
+      "changes": [
+        {
+          "file": "pandas/core/dtypes.py",
+          "patch": "@@ -181,7 +181,7 @@ def construct_from_string(cls, string):\n \n     def __unicode__(self):\n         # format the tz\n-        return \"datetime64[{unit}, {tz}]\".format(unit=self.unit,tz=self.tz)\n+        return \"datetime64[{unit}, {tz}]\".format(unit=self.unit, tz=self.tz)\n \n     @property\n     def name(self):"
+        }
+      ]
+    },
+    {
+      "sha": "b59d06c7b411c10324c29be13b34886b150664d4",
+      "message": "ERR: make sure raising TypeError on invalid nanops reductions xref #10472",
+      "changes": [
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -12792,7 +12792,7 @@ def test_numeric_only_flag(self):\n \n             # df1 has all numbers, df2 has a letter inside\n             self.assertRaises(TypeError, lambda : getattr(df1, meth)(axis=1, numeric_only=False))\n-            self.assertRaises(ValueError, lambda : getattr(df2, meth)(axis=1, numeric_only=False))\n+            self.assertRaises(TypeError, lambda : getattr(df2, meth)(axis=1, numeric_only=False))\n \n     def test_sem(self):\n         alt = lambda x: np.std(x, ddof=1)/np.sqrt(len(x))"
+        },
+        {
+          "file": "pandas/tests/test_series.py",
+          "patch": "@@ -2912,6 +2912,10 @@ def testit():\n                 exp = alternate(s)\n                 self.assertEqual(res, exp)\n \n+            # check on string data\n+            if name not in ['sum','min','max']:\n+                self.assertRaises(TypeError, f, Series(list('abc')))\n+\n             # Invalid axis.\n             self.assertRaises(ValueError, f, self.series, axis=1)\n "
+        }
+      ]
+    },
+    {
+      "sha": "ba5106ec753d820c1d61b330645b40bd43c97e62",
+      "message": "BUG: Fixed bug in groupby(), and axis=1 with filter() throws IndexError, #11041",
+      "changes": [
+        {
+          "file": "pandas/core/groupby.py",
+          "patch": "@@ -1229,7 +1229,7 @@ def _apply_filter(self, indices, dropna):\n         else:\n             indices = np.sort(np.concatenate(indices))\n         if dropna:\n-            filtered = self._selected_obj.take(indices)\n+            filtered = self._selected_obj.take(indices, axis=self.axis)\n         else:\n             mask = np.empty(len(self._selected_obj.index), dtype=bool)\n             mask.fill(False)"
+        }
+      ]
+    },
+    {
+      "sha": "7a6e3b124ecce6f647d2d0058759f47683bbb7c5",
+      "message": "BUG: Fixed bug in len(DataFrame.groupby) causing IndexError when there's a NaN-only column (issue11016)",
+      "changes": [
+        {
+          "file": "pandas/core/groupby.py",
+          "patch": "@@ -400,7 +400,7 @@ def __init__(self, obj, keys=None, axis=0, level=None,\n         self.exclusions = set(exclusions) if exclusions else set()\n \n     def __len__(self):\n-        return len(self.indices)\n+        return len(self.groups)\n \n     def __unicode__(self):\n         # TODO: Better unicode/repr for GroupBy object"
+        },
+        {
+          "file": "pandas/tests/test_groupby.py",
+          "patch": "@@ -837,6 +837,12 @@ def test_len(self):\n         expected = len(set([(x.year, x.month) for x in df.index]))\n         self.assertEqual(len(grouped), expected)\n \n+        # issue 11016\n+        df = pd.DataFrame(dict(a=[np.nan]*3, b=[1,2,3]))\n+        self.assertEqual(len(df.groupby(('a'))), 0)\n+        self.assertEqual(len(df.groupby(('b'))), 3)\n+        self.assertEqual(len(df.groupby(('a', 'b'))), 3)\n+\n     def test_groups(self):\n         grouped = self.df.groupby(['A'])\n         groups = grouped.groups"
+        }
+      ]
+    },
+    {
+      "sha": "4fe7c68728da2174f7ccd290a43e358f16a1a6f9",
+      "message": "ERR: Boolean comparisons of a Series vs None will now be equivalent of to null comparisions, rather than raise TypeError, xref, #1079",
+      "changes": [
+        {
+          "file": "pandas/tests/test_series.py",
+          "patch": "@@ -504,11 +504,6 @@ def test_comparisons(self):\n         s == s2\n         s2 == s\n \n-    def test_none_comparison(self):\n-        # bug brought up by #1079\n-        s = Series(np.random.randn(10), index=lrange(0, 20, 2))\n-        self.assertRaises(TypeError, s.__eq__, None)\n-\n     def test_sum_zero(self):\n         arr = np.array([])\n         self.assertEqual(nanops.nansum(arr), 0)"
+        }
+      ]
+    },
+    {
+      "sha": "762d6807e04c1290d76d77602f9b83a8f98a9b57",
+      "message": "BUG: Series.map using categorical Series raises AttributeError",
+      "changes": [
+        {
+          "file": "pandas/core/common.py",
+          "patch": "@@ -782,6 +782,11 @@ def take_nd(arr, indexer, axis=0, out=None, fill_value=np.nan,\n         will be done.  This short-circuits computation of a mask.  Result is\n         undefined if allow_fill == False and -1 is present in indexer.\n     \"\"\"\n+\n+    if is_categorical(arr):\n+        return arr.take_nd(indexer, fill_value=fill_value,\n+                           allow_fill=allow_fill)\n+\n     if indexer is None:\n         indexer = np.arange(arr.shape[axis], dtype=np.int64)\n         dtype, fill_value = arr.dtype, arr.dtype.type()"
+        }
+      ]
+    },
+    {
+      "sha": "f8e7c93938eca1fa59c74131dfe3a137cc2a4d13",
+      "message": "BUG: Raise TypeError only if key DataFrame is not empty #10126",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -2151,7 +2151,7 @@ def _setitem_array(self, key, value):\n     def _setitem_frame(self, key, value):\n         # support boolean setting with DataFrame input, e.g.\n         # df[df > df2] = 0\n-        if key.values.dtype != np.bool_:\n+        if key.values.size and not com.is_bool_dtype(key.values):\n             raise TypeError('Must pass DataFrame with boolean values only')\n \n         self._check_inplace_setting(value)"
+        }
+      ]
+    },
+    {
+      "sha": "3858db52a76e5e3ab0792f6fc1f3e7f6598b81d9",
+      "message": "BUG: plot(kind=hist) results in TypeError for non-numeric data",
+      "changes": [
+        {
+          "file": "pandas/tools/plotting.py",
+          "patch": "@@ -1948,7 +1948,8 @@ def __init__(self, data, bins=10, bottom=0, **kwargs):\n     def _args_adjust(self):\n         if com.is_integer(self.bins):\n             # create common bin edge\n-            values = np.ravel(self.data.values)\n+            values = self.data.convert_objects()._get_numeric_data()\n+            values = np.ravel(values)\n             values = values[~com.isnull(values)]\n \n             hist, self.bins = np.histogram(values, bins=self.bins,"
+        }
+      ]
+    },
+    {
+      "sha": "d6774a7cc711c229f260513a77cb9388cc6c158f",
+      "message": "API: consistency with .ix and .loc for getitem operations (GH8613)\n\nraise TypeError rather than KeyError on invalid scalar/slice indexing with that index type",
+      "changes": [
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -536,7 +536,7 @@ def __getitem__(self, key):\n             else:\n \n                 # we can try to coerce the indexer (or this will raise)\n-                new_key = self.index._convert_scalar_indexer(key)\n+                new_key = self.index._convert_scalar_indexer(key,typ='getitem')\n                 if type(new_key) != type(key):\n                     return self.__getitem__(new_key)\n                 raise"
+        }
+      ]
+    },
+    {
+      "sha": "89b36839667f023e97aceecbd1991359077d6970",
+      "message": "BUG: Adding nano offset raises TypeError",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -590,6 +590,9 @@ def pxd(name):\n                                   'tests/data/legacy_pickle/0.12.0/*.pickle',\n                                   'tests/data/legacy_pickle/0.13.0/*.pickle',\n                                   'tests/data/legacy_pickle/0.14.0/*.pickle',\n+                                  'tests/data/legacy_pickle/0.14.1/*.pickle',\n+                                  'tests/data/legacy_pickle/0.15.0/*.pickle',\n+                                  'tests/data/legacy_pickle/0.15.2/*.pickle',\n                                   'tests/data/*.csv',\n                                   'tests/data/*.dta',\n                                   'tests/data/*.txt',"
+        }
+      ]
+    },
+    {
+      "sha": "d3bb77e815f6aea20fd47c4c1fdd971605725a52",
+      "message": "API: Allow equality comparisons of Series with a categorical dtype and object dtype are allowed (previously would raise TypeError) (GH8938)",
+      "changes": [
+        {
+          "file": "pandas/core/categorical.py",
+          "patch": "@@ -64,6 +64,12 @@ def f(self, other):\n             else:\n                 return np.repeat(False, len(self))\n         else:\n+\n+            # allow categorical vs object dtype array comparisons for equality\n+            # these are only positional comparisons\n+            if op in ['__eq__','__ne__']:\n+                return getattr(np.array(self),op)(np.array(other))\n+\n             msg = \"Cannot compare a Categorical for op {op} with type {typ}. If you want to \\n\" \\\n                   \"compare values, use 'np.asarray(cat) <op> other'.\"\n             raise TypeError(msg.format(op=op,typ=type(other)))"
+        }
+      ]
+    },
+    {
+      "sha": "c78eb6e8c13b66411bcca95de4d73d53310ac25c",
+      "message": "BUG: scatter with errorbar raises IndexError",
+      "changes": [
+        {
+          "file": "pandas/tools/plotting.py",
+          "patch": "@@ -1394,15 +1394,13 @@ def _make_plot(self):\n             label = None\n         scatter = ax.scatter(data[x].values, data[y].values, label=label,\n                              **self.kwds)\n-\n         self._add_legend_handle(scatter, label)\n \n         errors_x = self._get_errorbars(label=x, index=0, yerr=False)\n-        errors_y = self._get_errorbars(label=y, index=1, xerr=False)\n+        errors_y = self._get_errorbars(label=y, index=0, xerr=False)\n         if len(errors_x) > 0 or len(errors_y) > 0:\n             err_kwds = dict(errors_x, **errors_y)\n-            if 'color' in self.kwds:\n-                err_kwds['color'] = self.kwds['color']\n+            err_kwds['ecolor'] = scatter.get_facecolor()[0]\n             ax.errorbar(data[x].values, data[y].values, linestyle='none', **err_kwds)\n \n     def _post_plot_logic(self):"
+        }
+      ]
+    },
+    {
+      "sha": "27c187d81cc1e259c14c2d312f3ae57c12e20f85",
+      "message": "BUG/COMPAT: pickled dtindex with freq raises AttributeError in normalize related ops",
+      "changes": [
+        {
+          "file": "pandas/tseries/offsets.py",
+          "patch": "@@ -130,6 +130,9 @@ def __add__(date):\n     _cacheable = False\n     _normalize_cache = True\n \n+    # default for prior pickles\n+    normalize = False\n+\n     def __init__(self, n=1, normalize=False, **kwds):\n         self.n = int(n)\n         self.normalize = normalize"
+        },
+        {
+          "file": "setup.py",
+          "patch": "@@ -578,6 +578,7 @@ def pxd(name):\n                                   'tests/data/legacy_pickle/0.11.0/*.pickle',\n                                   'tests/data/legacy_pickle/0.12.0/*.pickle',\n                                   'tests/data/legacy_pickle/0.13.0/*.pickle',\n+                                  'tests/data/legacy_pickle/0.14.0/*.pickle',\n                                   'tests/data/*.csv',\n                                   'tests/data/*.dta',\n                                   'tests/data/*.txt',"
+        }
+      ]
+    },
+    {
+      "sha": "32d0d1b908796e334a9a00bd1e7db0e440b9999e",
+      "message": "BUG: allow get default value upon IndexError, GH #7725",
+      "changes": [
+        {
+          "file": "pandas/core/generic.py",
+          "patch": "@@ -1038,7 +1038,7 @@ def get(self, key, default=None):\n         \"\"\"\n         try:\n             return self[key]\n-        except (KeyError, ValueError):\n+        except (KeyError, ValueError, IndexError):\n             return default\n \n     def __getitem__(self, item):"
+        }
+      ]
+    },
+    {
+      "sha": "4b27023daacd49c599dfc3b59c7f07b37169e535",
+      "message": "BUG: DTI.freqstr raises AttributeError when freq is None",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -4311,12 +4311,8 @@ def to_period(self, freq=None, axis=0, copy=True):\n \n         axis = self._get_axis_number(axis)\n         if axis == 0:\n-            if freq is None:\n-                freq = self.index.freqstr or self.index.inferred_freq\n             new_data.set_axis(1, self.index.to_period(freq=freq))\n         elif axis == 1:\n-            if freq is None:\n-                freq = self.columns.freqstr or self.columns.inferred_freq\n             new_data.set_axis(0, self.columns.to_period(freq=freq))\n         else:  # pragma: no cover\n             raise AssertionError('Axis must be 0 or 1. Got %s' % str(axis))"
+        },
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -2374,8 +2374,6 @@ def to_period(self, freq=None, copy=True):\n         if copy:\n             new_values = new_values.copy()\n \n-        if freq is None:\n-            freq = self.index.freqstr or self.index.inferred_freq\n         new_index = self.index.to_period(freq=freq)\n         return self._constructor(new_values,\n                                  index=new_index).__finalize__(self)"
+        }
+      ]
+    },
+    {
+      "sha": "55b05e7f7864d374266910a8b21ab11af4ce4971",
+      "message": "BUG: CustomBusinessDay apply raises NameError when np.datetime64 is passed",
+      "changes": [
+        {
+          "file": "pandas/tseries/offsets.py",
+          "patch": "@@ -528,7 +528,6 @@ def apply(self, other):\n \n         # Distinguish input cases to enhance performance\n         if isinstance(other, datetime):\n-            dtype = type(other)\n             date_in = other\n             np_dt = np.datetime64(date_in.date())\n \n@@ -547,7 +546,6 @@ def apply(self, other):\n             return as_timestamp(result)\n \n         elif isinstance(other, np.datetime64):\n-            dtype = other.dtype\n             date_in = other\n             np_day = date_in.astype('datetime64[D]')\n             np_time = date_in - np_day\n@@ -556,7 +554,7 @@ def apply(self, other):\n                                   busdaycal=self.busdaycalendar)\n \n             if not self.normalize:\n-                result = np_day_incr + np_time\n+                result = np_incr_dt + np_time\n             else:\n                 result = np_incr_dt\n "
+        },
+        {
+          "file": "pandas/tseries/tests/test_offsets.py",
+          "patch": "@@ -382,6 +382,7 @@ class TestCustomBusinessDay(Base):\n \n     def setUp(self):\n         self.d = datetime(2008, 1, 1)\n+        self.nd = np.datetime64('2008-01-01 00:00:00Z')\n \n         _skip_if_no_cday()\n         self.offset = CDay()\n@@ -417,6 +418,7 @@ def test_hash(self):\n \n     def testCall(self):\n         self.assertEqual(self.offset2(self.d), datetime(2008, 1, 3))\n+        self.assertEqual(self.offset2(self.nd), datetime(2008, 1, 3))\n \n     def testRAdd(self):\n         self.assertEqual(self.d + self.offset2, self.offset2 + self.d)"
+        }
+      ]
+    },
+    {
+      "sha": "fa0f78fd9989d4f68b0a52ed505a4c7a7df08f55",
+      "message": "BUG: hist raises TypeError when df contains non numeric column",
+      "changes": [
+        {
+          "file": "pandas/tools/plotting.py",
+          "patch": "@@ -2545,6 +2545,7 @@ def hist_frame(data, column=None, by=None, grid=True, xlabelsize=None,\n         if not isinstance(column, (list, np.ndarray)):\n             column = [column]\n         data = data[column]\n+    data = data._get_numeric_data()\n     naxes = len(data.columns)\n \n     nrows, ncols = _get_layout(naxes, layout=layout)"
+        }
+      ]
+    },
+    {
+      "sha": "8545aee0d05ba5c2313c8966825644ec4ffbceff",
+      "message": "TST Fix AttributeError: 'iterator' object has no attribute 'next' on Python 3",
+      "changes": [
+        {
+          "file": "pandas/tests/test_graphics.py",
+          "patch": "@@ -481,7 +481,7 @@ def test_pie_series(self):\n                                autopct='%.2f', fontsize=7)\n         pcts = ['{0:.2f}'.format(s * 100) for s in series.values / float(series.sum())]\n         iters = [iter(series.index), iter(pcts)]\n-        expected_texts = list(it.next() for it in itertools.cycle(iters))\n+        expected_texts = list(next(it) for it in itertools.cycle(iters))\n         self._check_text_labels(ax.texts, expected_texts)\n         for t in ax.texts:\n             self.assertEqual(t.get_fontsize(), 7)"
+        }
+      ]
+    },
+    {
+      "sha": "3a78a305186ae7dc15b998403db7e1aa4b491caa",
+      "message": "BUG/TST: iloc will now raise IndexError on out-of-bounds list indexers to promotoe\n         consistency with python/numpy syntax. The out-of-bounds for slice indexers\n         will continue to work (again for consistency) (GH6296 / GH6299)",
+      "changes": [
+        {
+          "file": "pandas/core/indexing.py",
+          "patch": "@@ -1376,7 +1376,7 @@ def _getitem_axis(self, key, axis=0, validate_iterable=False):\n                 arr = np.array(key)\n                 l = len(ax)\n                 if len(arr) and (arr.max() >= l or arr.min() <= -l):\n-                    key = arr[(arr>-l) & (arr<l)]\n+                    raise IndexError(\"positional indexers are out-of-bounds\")\n \n                 # force an actual list\n                 key = list(key)\n@@ -1389,7 +1389,7 @@ def _getitem_axis(self, key, axis=0, validate_iterable=False):\n                                     \"non-integer key\")\n \n                 if key > len(ax):\n-                    raise IndexError(\"single indexer is out-of-bounds\")\n+                    raise IndexError(\"single positional indexer is out-of-bounds\")\n \n             return self._get_loc(key, axis=axis)\n "
+        }
+      ]
+    },
+    {
+      "sha": "9f0dc3befbeb55df0faae50b875399040ae83dcc",
+      "message": "API: allow the iloc indexer to run off the end and not raise IndexError (GH6296)",
+      "changes": [
+        {
+          "file": "pandas/core/internals.py",
+          "patch": "@@ -3246,7 +3246,7 @@ def reindex_indexer(self, new_axis, indexer, axis=1, fill_value=None,\n         pandas-indexer with -1's only.\n         \"\"\"\n         # trying to reindex on an axis with duplicates\n-        if not allow_dups and not self.axes[axis].is_unique:\n+        if not allow_dups and not self.axes[axis].is_unique and len(indexer):\n             raise ValueError(\"cannot reindex from a duplicate axis\")\n \n         if not self.is_consolidated():"
+        }
+      ]
+    },
+    {
+      "sha": "986d7d189bba10b6371e6bccccb37dbbf7552014",
+      "message": "BUG: Series.sort will raise a ValueError (rather than a TypeError) on sorting an\n     object that is a view of another (GH5856`, GH5853)\n\nAPI: DataFrame._ixs will properly record a cache change (similar to _get_item_cache)",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -1604,10 +1604,15 @@ def _ixs(self, i, axis=0, copy=False):\n                 values = self._data.iget(i)\n                 if not len(values):\n                     values = np.array([np.nan] * len(self.index), dtype=object)\n-                return self._constructor_sliced.from_array(\n+                result = self._constructor_sliced.from_array(\n                     values, index=self.index,\n                     name=label, fastpath=True)\n \n+                # this is a cached value, mark it so\n+                result._set_as_cached(i, self)\n+\n+                return result\n+\n     def iget_value(self, i, j):\n         return self.iat[i, j]\n "
+        },
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -9547,7 +9547,7 @@ def test_sort_datetimes(self):\n \n     def test_frame_column_inplace_sort_exception(self):\n         s = self.frame['A']\n-        with assertRaisesRegexp(TypeError, \"This Series is a view\"):\n+        with assertRaisesRegexp(ValueError, \"This Series is a view\"):\n             s.sort()\n \n         cp = s.copy()"
+        }
+      ]
+    },
+    {
+      "sha": "c9847ad1537bc5c3e617ebf776355b8cc52193c4",
+      "message": "BUG: fix incorrect TypeError raise\n\nTypeError was being raised when a ValueError was raised because the\nValueError's message wasn't being converted to a string.",
+      "changes": [
+        {
+          "file": "pandas/io/pytables.py",
+          "patch": "@@ -3033,7 +3033,9 @@ def create_axes(self, axes, obj, validate=True, nan_rep=None,\n                     new_blocks.append(b)\n                 except:\n                     raise ValueError(\n-                        \"cannot match existing table structure for [%s] on appending data\" % ','.join(items))\n+                        \"cannot match existing table structure for [%s] on \"\n+                        \"appending data\" % ','.join(com.pprint_thing(item) for\n+                                                    item in items))\n             blocks = new_blocks\n \n         # add my values"
+        }
+      ]
+    },
+    {
+      "sha": "500fad8b464eedca38b63647511f93ed1a25f797",
+      "message": "API: raise a TypeError when isin is passed a string",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -4609,6 +4609,11 @@ def isin(self, values, iloc=False):\n \n \n         else:\n+            if not com.is_list_like(values):\n+                raise TypeError(\"only list-like or dict-like objects are\"\n+                                \" allowed to be passed to DataFrame.isin(), \"\n+                                \"you passed a \"\n+                                \"{0!r}\".format(type(values).__name__))\n             return DataFrame(lib.ismember(self.values.ravel(),\n                                           set(values)).reshape(self.shape),\n                              self.index,"
+        }
+      ]
+    },
+    {
+      "sha": "d312a377fc0b48e3e57b045ee95705b3c5715605",
+      "message": "BUG: Fix DataFrame.from_records w/ normal ndarray.\n\nPreviously, was causing a TypeError about None not being iterable when\narr.dtype.names was None. Now goes to 'last ditch' parsing instead.",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -4876,7 +4876,9 @@ def _to_arrays(data, columns, coerce_float=False, dtype=None):\n         return _list_of_series_to_arrays(data, columns,\n                                          coerce_float=coerce_float,\n                                          dtype=dtype)\n-    elif isinstance(data, (np.ndarray, Series)):\n+    elif (isinstance(data, (np.ndarray, Series))\n+          and data.dtype.names is not None):\n+\n         columns = list(data.dtype.names)\n         arrays = [data[k] for k in columns]\n         return arrays, columns"
+        },
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -3468,12 +3468,15 @@ def test_from_records_to_records(self):\n         indexed_frame = DataFrame.from_records(arr, index=index)\n         self.assert_(np.array_equal(indexed_frame.index, index))\n \n+        # without names, it should go to last ditch\n+        arr2 = np.zeros((2,3))\n+        tm.assert_frame_equal(DataFrame.from_records(arr2), DataFrame(arr2))\n+\n         # wrong length\n         self.assertRaises(Exception, DataFrame.from_records, arr,\n                           index=index[:-1])\n \n         indexed_frame = DataFrame.from_records(arr, index='f1')\n-        self.assertRaises(Exception, DataFrame.from_records, np.zeros((2, 3)))\n \n         # what to do?\n         records = indexed_frame.to_records()"
+        }
+      ]
+    },
+    {
+      "sha": "e76258f77df34a946929f1bfc5afbc51f8d1d957",
+      "message": "ER:  HDFStore raising an invalid ``TypeError`` rather than ValueError when appending with\n     different block ordering (GH4096) related",
+      "changes": [
+        {
+          "file": "pandas/io/pytables.py",
+          "patch": "@@ -2672,7 +2672,7 @@ def create_axes(self, axes, obj, validate=True, nan_rep=None, data_columns=None,\n                     b = by_items.pop(items)\n                     new_blocks.append(b)\n                 except:\n-                    raise ValueError(\"cannot match existing table structure for [%s] on appending data\" % items)\n+                    raise ValueError(\"cannot match existing table structure for [%s] on appending data\" % ','.join(items))\n             blocks = new_blocks\n \n         # add my values"
+        }
+      ]
+    },
+    {
+      "sha": "be9e2c98ccc8afd27581de406f26626284f57903",
+      "message": "CLN: Make aware vs. naive always a TypeError",
+      "changes": [
+        {
+          "file": "pandas/tseries/index.py",
+          "patch": "@@ -1507,7 +1507,7 @@ def tz_localize(self, tz):\n         localized : DatetimeIndex\n         \"\"\"\n         if self.tz is not None:\n-            raise ValueError(\"Already tz-aware, use tz_convert to convert.\")\n+            raise TypeError(\"Already tz-aware, use tz_convert to convert.\")\n         tz = tools._maybe_get_tz(tz)\n \n         # Convert to UTC"
+        }
+      ]
+    },
+    {
+      "sha": "8f8b1775ee53ac39a7a57674ae16873fe3176a97",
+      "message": "BUG: not processing TypeError on reading some json (so was failing rather than trying not-numpy for dtypes)",
+      "changes": [
+        {
+          "file": "pandas/io/json.py",
+          "patch": "@@ -246,7 +246,7 @@ def _parse(self):\n                                              labelled=True))\n                 else:\n                     self.obj = Series(loads(json, dtype=dtype, numpy=True))\n-            except ValueError:\n+            except (ValueError,TypeError):\n                 numpy = False\n \n         if not numpy:\n@@ -296,7 +296,7 @@ def _parse(self):\n                 else:\n                     self.obj = DataFrame(*loads(json, dtype=dtype, numpy=True,\n                                          labelled=True))\n-            except ValueError:\n+            except (ValueError,TypeError):\n                 numpy = False\n \n         if not numpy:"
+        }
+      ]
+    },
+    {
+      "sha": "98ecede16ef227538aba542a4ec10b0ddabdfc09",
+      "message": "FIX hash of NDFrame raises TypeError",
+      "changes": [
+        {
+          "file": "pandas/core/generic.py",
+          "patch": "@@ -594,6 +594,10 @@ def axes(self):\n     def __repr__(self):\n         return 'NDFrame'\n \n+    def __hash__(self):\n+        raise TypeError('{0!r} objects are mutable, thus they cannot be'\n+                              ' hashed'.format(self.__class__.__name__))\n+\n     @property\n     def values(self):\n         return self._data.as_matrix()"
+        },
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -528,7 +528,8 @@ def _can_hold_na(self):\n         return not is_integer_dtype(self.dtype)\n \n     def __hash__(self):\n-        raise TypeError('unhashable type')\n+        raise TypeError('{0!r} objects are mutable, thus they cannot be'\n+                              ' hashed'.format(self.__class__.__name__))\n \n     _index = None\n     index = lib.SeriesIndex()"
+        },
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -3109,6 +3109,11 @@ def test_constructor_for_list_with_dtypes(self):\n         expected.sort()\n         assert_series_equal(result, expected)\n \n+    def test_not_hashable(self):\n+        df = pd.DataFrame([1])\n+        self.assertRaises(TypeError, hash, df)\n+        self.assertRaises(TypeError, hash, self.empty)\n+\n     def test_timedeltas(self):\n \n         df = DataFrame(dict(A = Series(date_range('2012-1-1', periods=3, freq='D')),"
+        },
+        {
+          "file": "pandas/tests/test_panel.py",
+          "patch": "@@ -46,6 +46,12 @@ def test_cumsum(self):\n         cumsum = self.panel.cumsum()\n         assert_frame_equal(cumsum['ItemA'], self.panel['ItemA'].cumsum())\n \n+    def not_hashable(self):\n+        c_empty = Panel()\n+        c = Panel(pd.Panel([[[1]]]))\n+        self.assertRaises(TypeError, hash, c_empty)\n+        self.assertRaises(TypeError, hash, c)\n+\n \n class SafeForLongAndSparse(object):\n     _multiprocess_can_split_ = True"
+        },
+        {
+          "file": "pandas/tests/test_panel4d.py",
+          "patch": "@@ -785,6 +785,11 @@ def test_reindex(self):\n             major=self.panel4d.major_axis, copy=False)\n         self.assert_(result is self.panel4d)\n \n+    def test_not_hashable(self):\n+        p4D_empty = Panel4D()\n+        self.assertRaises(TypeError, hash, p4D_empty)\n+        self.assertRaises(TypeError, hash, self.panel4d)\n+\n     def test_reindex_like(self):\n         # reindex_like\n         smaller = self.panel4d.reindex(labels=self.panel4d.labels[:-1],"
+        },
+        {
+          "file": "pandas/tests/test_series.py",
+          "patch": "@@ -579,6 +579,12 @@ def test_setindex(self):\n     def test_array_finalize(self):\n         pass\n \n+    def test_not_hashable(self):\n+        s_empty = Series()\n+        s = Series([1])\n+        self.assertRaises(TypeError, hash, s_empty)\n+        self.assertRaises(TypeError, hash, s)\n+\n     def test_fromValue(self):\n \n         nans = Series(np.NaN, index=self.ts.index)"
+        }
+      ]
+    },
+    {
+      "sha": "85a7ebd776a44c8ecd9f03b0467f94ab1862fd20",
+      "message": "BUG: fix typeerror caused by spurious call to len on frame multiindex",
+      "changes": [
+        {
+          "file": "pandas/core/format.py",
+          "patch": "@@ -736,7 +736,7 @@ def _write_hierarchical_rows(self, fmt_values, indent):\n                 row.extend(idx_values[i])\n                 row.extend(fmt_values[j][i] for j in range(ncols))\n                 self.write_tr(row, indent, self.indent_delta, tags=None,\n-                              nindex_levels=len(frame.index.nlevels))\n+                              nindex_levels=frame.index.nlevels)\n \n \n def _get_level_lengths(levels):"
+        }
+      ]
+    },
+    {
+      "sha": "0329d96fb8b130a40009a396b2367e2129d333cc",
+      "message": "BUG: Creating DatetimeIndex from empty array with datetime64 dtype raises IndexError",
+      "changes": [
+        {
+          "file": "pandas/tests/test_common.py",
+          "patch": "@@ -106,6 +106,10 @@ def test_isnull_datetime():\n     assert(mask[0])\n     assert(not mask[1:].any())\n \n+def test_datetimeindex_from_empty_datetime64_array():\n+    for unit in [ 'ms', 'us', 'ns' ]:\n+        idx = DatetimeIndex(np.array([], dtype='datetime64[%s]' % unit))\n+        assert(len(idx) == 0)\n \n def test_any_none():\n     assert(com._any_none(1, 2, 3, None))"
+        },
+        {
+          "file": "pandas/tseries/index.py",
+          "patch": "@@ -228,7 +228,7 @@ def __new__(cls, data=None,\n                     offset = data.offset\n                     verify_integrity = False\n             else:\n-                if data.dtype != _NS_DTYPE:\n+                if data.dtype != _NS_DTYPE and data.size:\n                     subarr = tslib.cast_to_nanoseconds(data)\n                 else:\n                     subarr = data"
+        }
+      ]
+    },
+    {
+      "sha": "53cf5a9fbeccca89c450b158ac20f28755645656",
+      "message": "ENH: also catch UnboundLocalError. close #2068",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -3854,7 +3854,7 @@ def _apply_standard(self, func, axis, ignore_failures=False):\n                     if hasattr(e, 'args'):\n                         k = res_index[i]\n                         e.args = e.args + ('occurred at index %s' % str(k),)\n-                except NameError:  # pragma: no cover\n+                except (NameError, UnboundLocalError):  # pragma: no cover\n                     # no k defined yet\n                     pass\n                 raise"
+        }
+      ]
+    },
+    {
+      "sha": "852a99459c2a7d47fc7fb0574cdad8359a42fade",
+      "message": "API: default empty DataFrame to dtype=object to prevent certain class of TypeError, e.g. out of empty SQL query. closes #1783",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -4994,7 +4994,12 @@ def _homogenize(data, index, columns, dtype=None):\n             if dtype is not None and issubclass(dtype.type, np.integer):\n                 continue\n \n-            v = np.empty(len(index), dtype=dtype)\n+            if dtype is None:\n+                # #1783\n+                v = np.empty(len(index), dtype=object)\n+            else:\n+                v = np.empty(len(index), dtype=dtype)\n+\n             v.fill(nan)\n         else:\n             v = data[k]"
+        },
+        {
+          "file": "pandas/core/internals.py",
+          "patch": "@@ -951,7 +951,7 @@ def reindex_axis(self, new_axis, method=None, axis=0, copy=True):\n                 result.axes[axis] = new_axis\n \n                 if axis == 0:\n-                    # patch ref_items\n+                    # patch ref_items, #1823\n                     for blk in result.blocks:\n                         blk.ref_items = new_axis\n \n@@ -1290,7 +1290,10 @@ def form_blocks(data, axes):\n \n     if len(extra_items):\n         shape = (len(extra_items),) + tuple(len(x) for x in axes[1:])\n-        block_values = np.empty(shape, dtype=float)\n+\n+        # empty items -> dtype object\n+        block_values = np.empty(shape, dtype=object)\n+\n         block_values.fill(nan)\n \n         na_block = make_block(block_values, extra_items, items,"
+        }
+      ]
+    },
+    {
+      "sha": "815256a284e6a2c32e69e5d04028d09b096b9152",
+      "message": "BUG: raise TypeError when appending to HDFStore table with different index_kind, close #1881",
+      "changes": [
+        {
+          "file": "pandas/io/pytables.py",
+          "patch": "@@ -769,6 +769,13 @@ def _write_table(self, group, items=None, index=None, columns=None,\n             # the table must already exist\n             table = getattr(group, 'table', None)\n \n+        # check for backwards incompatibility\n+        if append:\n+            existing_kind = table._v_attrs.index_kind\n+            if existing_kind != index_kind:\n+                raise TypeError(\"incompatible kind in index [%s - %s]\" %\n+                                (existing_kind, index_kind))\n+\n         # add kinds\n         table._v_attrs.index_kind = index_kind\n         table._v_attrs.columns_kind = cols_kind"
+        }
+      ]
+    },
+    {
+      "sha": "92e500e345257d088fc729bd36ea9ae5ade830b1",
+      "message": "BUG: TypeError when passing set to Series ctor, close #1913",
+      "changes": [
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -327,6 +327,8 @@ def __new__(cls, data=None, index=None, dtype=None, name=None,\n                 data = [data.get(i, nan) for i in index]\n         elif isinstance(data, types.GeneratorType):\n             data = list(data)\n+        elif isinstance(data, set):\n+            raise TypeError('Set value is unordered')\n \n         if dtype is not None:\n             dtype = np.dtype(dtype)"
+        },
+        {
+          "file": "pandas/tests/test_series.py",
+          "patch": "@@ -365,6 +365,11 @@ def test_constructor_tuple_of_tuples(self):\n         s = Series(data)\n         self.assertEqual(tuple(s), data)\n \n+    def test_constructor_set(self):\n+        values = set([1, 2, 3, 4, 5])\n+\n+        self.assertRaises(TypeError, Series, values)\n+\n     def test_fromDict(self):\n         data = {'a' : 0, 'b' : 1, 'c' : 2, 'd' : 3}\n "
+        }
+      ]
+    },
+    {
+      "sha": "5fba03bda35e906d73b74853da31e02c93a71798",
+      "message": "BUG: no unboundlocalerror in Panel.__setitem__ close #1826",
+      "changes": [
+        {
+          "file": "pandas/core/panel.py",
+          "patch": "@@ -588,6 +588,8 @@ def __setitem__(self, key, value):\n             dtype = _infer_dtype(value)\n             mat = np.empty((N, K), dtype=dtype)\n             mat.fill(value)\n+        else:\n+            raise TypeError('Cannot set item of type: %s' % str(type(value)))\n \n         mat = mat.reshape((1, N, K))\n         NDFrame._set_item(self, key, mat)"
+        },
+        {
+          "file": "pandas/tests/test_panel.py",
+          "patch": "@@ -408,6 +408,9 @@ def test_setitem(self):\n         self.panel['ItemP'] = self.panel['ItemA'] > 0\n         self.assert_(self.panel['ItemP'].values.dtype == np.bool_)\n \n+        self.assertRaises(TypeError, self.panel.__setitem__, 'foo',\n+                          self.panel.ix[['ItemP']])\n+\n     def test_setitem_ndarray(self):\n         from pandas import date_range, datetools\n "
+        }
+      ]
+    },
+    {
+      "sha": "5c4acabd74c571fd144aa7da7ef2479aac233977",
+      "message": "BUG: temporary hack around TypeError in PyObjectHashTable",
+      "changes": [
+        {
+          "file": "pandas/core/index.py",
+          "patch": "@@ -251,6 +251,8 @@ def __deepcopy__(self, memo={}):\n         return self\n \n     def __contains__(self, key):\n+        hash(key)\n+        # work around some kind of odd cython bug\n         try:\n             return key in self._engine\n         except TypeError:\n@@ -1653,14 +1655,13 @@ def get_value(self, series, key):\n         try:\n             return Index.get_value(self, series, key)\n         except KeyError:\n+\n             try:\n                 asdt, parsed, reso = datetools.parse_time_string(key)\n                 key = asdt\n                 loc = self._partial_date_slice(reso, parsed)\n                 return series[loc]\n-            except TypeError:\n-                pass\n-            except KeyError:\n+            except (TypeError, ValueError, KeyError):\n                 pass\n \n             return self._engine.get_value(series, to_timestamp(key))"
+        },
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -1191,6 +1191,12 @@ def test_set_columns(self):\n         self.assertRaises(Exception, setattr, self.mixed_frame, 'columns',\n                           cols[::2])\n \n+    def test_column_contains_typeerror(self):\n+        try:\n+            self.frame.columns in self.frame\n+        except TypeError:\n+            pass\n+\n     def test_constructor(self):\n         df = DataFrame()\n         self.assert_(len(df.index) == 0)"
+        }
+      ]
+    },
+    {
+      "sha": "330c088e2272b505e5448685b30c5cda10dd0c5e",
+      "message": "ENH: raise TypeError when comparing numeric frame values with non-numeric value, close #943",
+      "changes": [
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -2601,8 +2601,13 @@ def _combine_match_columns(self, other, func, fill_value=None):\n     def _combine_const(self, other, func):\n         if not self:\n             return self\n+        result_values = func(self.values, other)\n \n-        return self._constructor(func(self.values, other), index=self.index,\n+        if not isinstance(result_values, np.ndarray):\n+            raise TypeError('Could not compare %s with DataFrame values'\n+                            % repr(other))\n+\n+        return self._constructor(result_values, index=self.index,\n                                  columns=self.columns, copy=False)\n \n     def _compare_frame(self, other, func):"
+        }
+      ]
+    },
+    {
+      "sha": "57159d7b2a6e0642643e9b2fa38a109dacfacb30",
+      "message": "BUG: catch AttributeError instead of NameError for bottleneck",
+      "changes": [
+        {
+          "file": "pandas/core/nanops.py",
+          "patch": "@@ -15,7 +15,7 @@\n def _bottleneck_switch(bn_name, alt, **kwargs):\n     try:\n         bn_func = getattr(bn, bn_name)\n-    except NameError:  # pragma: no cover\n+    except AttributeError:  # pragma: no cover\n         bn_func = None\n     def f(values, axis=None, skipna=True):\n         try:"
+        }
+      ]
+    },
+    {
+      "sha": "ae92cf821e683e6e0d9897c9f594433f953710c6",
+      "message": "BUG: workaround datetime.datetime TypeError #742",
+      "changes": [
+        {
+          "file": "pandas/tests/test_frame.py",
+          "patch": "@@ -4186,6 +4186,7 @@ def test_rank2(self):\n         result = df.rank(0, numeric_only=False)\n         assert_frame_equal(result, expected)\n \n+        # f7u12, this does not work without extensive workaround\n         data = [[datetime(2001, 1, 5), nan, datetime(2001, 1, 2)],\n                 [datetime(2000, 1, 2), datetime(2000, 1, 3),\n                  datetime(2000, 1, 1)]]"
+        }
+      ]
+    },
+    {
+      "sha": "c52dd879fc4f846afa15a318bee3747a7b8d5edf",
+      "message": "BUG: #680 fix TypeError failure on sys.stdin.encoding access",
+      "changes": [
+        {
+          "file": "pandas/core/common.py",
+          "patch": "@@ -821,5 +821,5 @@ def console_encode(value):\n     try:\n         import sys\n         return value.encode(sys.stdin.encoding, 'replace')\n-    except AttributeError:\n+    except (AttributeError, TypeError):\n         return value.encode('ascii', 'replace')"
+        }
+      ]
+    },
+    {
+      "sha": "f3ca67dc371ce46589e6a1598168cddcc1b8cb6b",
+      "message": "ENH: raise AmbiguousIndexError when location not found in iteger-indexed Series. Start of #328 API changes",
+      "changes": [
+        {
+          "file": "pandas/core/common.py",
+          "patch": "@@ -27,6 +27,9 @@\n class PandasError(Exception):\n     pass\n \n+class AmbiguousIndexError(PandasError, KeyError):\n+    pass\n+\n def isnull(obj):\n     '''\n     Replacement for numpy.isnan / -numpy.isfinite which is suitable"
+        },
+        {
+          "file": "pandas/core/frame.py",
+          "patch": "@@ -1368,7 +1368,7 @@ def _sanitize_column(self, value):\n         else:\n             value = np.repeat(value, len(self.index))\n \n-        return value\n+        return np.asarray(value)\n \n     def pop(self, item):\n         \"\"\"\n@@ -1729,7 +1729,9 @@ def reset_index(self):\n \n                 # to ndarray and maybe infer different dtype\n                 level_values = lev.values\n-                level_values = lib.maybe_convert_objects(level_values)\n+                if level_values.dtype == np.object_:\n+                    level_values = lib.maybe_convert_objects(level_values)\n+\n                 new_obj.insert(0, col_name, level_values.take(lab))\n         else:\n             name = self.index.name"
+        }
+      ]
+    },
+    {
+      "sha": "36851c7cc974dfe8cb9f9829319b7e034bc0f283",
+      "message": "BUG: catch Exception instead of TypeError in multi-groupby code, surfaced due to # of args in DataFrame.mean changing in PR #313",
+      "changes": [
+        {
+          "file": "pandas/core/groupby.py",
+          "patch": "@@ -388,7 +388,9 @@ def _doit(reschunk, ctchunk, gen, shape_axis=0):\n             mask = counts.ravel() > 0\n             output = output.reshape((np.prod(group_shape),) + stride_shape)\n             output = output[mask]\n-        except TypeError:\n+        except Exception:\n+            # we failed, try to go slice-by-slice / column-by-column\n+\n             result = np.empty(group_shape, dtype=float)\n             result.fill(np.nan)\n             # iterate through \"columns\" ex exclusions to populate output dict"
+        }
+      ]
+    },
+    {
+      "sha": "0f5972938a229b4ebf92ba00dcc26ba123398293",
+      "message": "ENH: AmbiguousIndexError not raised anymore, prefer label-based indexing, other multi-lev compat",
+      "changes": [
+        {
+          "file": "pandas/core/common.py",
+          "patch": "@@ -200,6 +200,13 @@ def _pfixed(s, space, nanRep=None, float_format=None):\n     else:\n         return (' %s' % s)[:space].ljust(space)\n \n+def _stringify(col):\n+    # unicode workaround\n+    if isinstance(col, tuple):\n+        return str(col)\n+    else:\n+        return '%s' % col\n+\n def _format(s, nanRep=None, float_format=None):\n     if isinstance(s, float):\n         if nanRep is not None and isnull(s):"
+        },
+        {
+          "file": "pandas/core/series.py",
+          "patch": "@@ -309,12 +309,7 @@ def _multilevel_index(self, key):\n             if isinstance(loc, slice):\n                 # TODO: what if a level contains tuples??\n                 new_index = self.index[loc]\n-                if isinstance(key, tuple):\n-                    for _ in key:\n-                        new_index = new_index.droplevel(0)\n-                else:\n-                    new_index = new_index.droplevel(0)\n-\n+                new_index = _maybe_droplevels(new_index, key)\n                 return Series(values[loc], index=new_index)\n             else:\n                 return values[loc]"
+        },
+        {
+          "file": "pandas/tests/test_index.py",
+          "patch": "@@ -634,6 +634,6 @@ def test_factor_agg(self):\n \n if __name__ == '__main__':\n     import nose\n-    nose.runmodule(argv=[__file__,'-vvs','-x','--pdb', '--pdb-failure',#]\n-                         '--with-coverage', '--cover-package=pandas.core'],\n+    nose.runmodule(argv=[__file__,'-vvs','-x','--pdb', '--pdb-failure'],\n+                         # '--with-coverage', '--cover-package=pandas.core'],\n                    exit=False)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+.env
+.DS_store
+*/target/**
+src/venv
+data-mining/src/venv
+data-mining/venv
+__pycache__
+*.classified.json

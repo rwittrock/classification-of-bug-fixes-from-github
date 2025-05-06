@@ -1,0 +1,15 @@
+{
+  "repo_name": "Delgan/loguru",
+  "commits": [
+    {
+      "sha": "02ccf59b05e25336aae351914180fac5225bbcbb",
+      "message": "Expect an AttributeError on os.getxattr / os.setxattr (#158)\n\nSome distributions (notably alpine) don't have these functions implemented, and calling them causes an attribute error.",
+      "changes": [
+        {
+          "file": "loguru/_ctime_functions.py",
+          "patch": "@@ -25,11 +25,11 @@ def set_ctime(filepath, timestamp):\n     def get_ctime(filepath):\n         try:\n             return float(os.getxattr(filepath, b\"user.loguru_crtime\"))\n-        except OSError:\n+        except (OSError, AttributeError):\n             return os.stat(filepath).st_mtime\n \n     def set_ctime(filepath, timestamp):\n         try:\n             os.setxattr(filepath, b\"user.loguru_crtime\", str(timestamp).encode(\"ascii\"))\n-        except OSError:\n+        except (OSError, AttributeError):\n             pass"
+        }
+      ]
+    }
+  ]
+}

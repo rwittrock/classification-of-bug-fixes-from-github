@@ -1,0 +1,15 @@
+{
+  "repo_name": "hugsy/gef",
+  "commits": [
+    {
+      "sha": "d52d933fd47a672973cb79e48cea6a85f1474e3c",
+      "message": "Fix crash on Old GDB warning\n\nOn a system with gdb 7.6 and python 2.7, I get this nice traceback trying to install Gef:\r\n```\r\nTraceback (most recent call last):\r\n  File \"~/.gdbinit-gef.py\", line 9473, in <module>\r\nTypeError: sequence item 0: expected string, int found\r\n```\r\n\r\nOf course it's because `str.join('.', (7,7) )` doesn't work -- it needs the ints stringified. The fix is trivial, see diff.\r\n\r\nIn such a good project, having implemented the version check, you certainly don't want it to crash!",
+      "changes": [
+        {
+          "file": "gef.py",
+          "patch": "@@ -9686,7 +9686,7 @@ def __gef_prompt__(current_prompt):\n \n     if GDB_VERSION < GDB_MIN_VERSION:\n         err(\"You're using an old version of GDB. GEF will not work correctly. \"\n-            \"Consider updating to GDB {} or higher.\".format(\".\".join(GDB_MIN_VERSION)))\n+            \"Consider updating to GDB {} or higher.\".format(\".\".join(map(str, GDB_MIN_VERSION))))\n \n     else:\n         try:"
+        }
+      ]
+    }
+  ]
+}

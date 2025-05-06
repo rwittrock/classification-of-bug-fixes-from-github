@@ -1,0 +1,55 @@
+{
+  "repo_name": "borgbackup/borg",
+  "commits": [
+    {
+      "sha": "6395126d3478fe9416095e025817c217314b660b",
+      "message": "--prefix / -P: fix processing, avoid argparse issue, fixes #4769\n\nchanges:\n\n- changed --prefix default to None (was: ''), so we can check using\n\"is not None\" to determine when --prefix has been given.\n\n- the previous check for --prefix being used was just for a truthy\nvalue, so using --prefix='' was not really supported, but happened to\nbehave the same as the default processing anyway.\n\n- argparse python stdlib code seems to have a bug when processing an\noption like --prefix='--', args.prefix will be [] in that case (should\nbe '--'). With previous code this behaved like no prefix given ([] value\nis not truthy). Now, as we check for \"is not None\", it will try to\nprocess that value but blow up with a TypeError as it can't do [] + '*'.\nThis is a bit unpretty end, but at least borg prune won't delete all\nyour archives and it will be a reminder that argparse is broken.\n- for borg check --repository-only, we also check for --glob-archives\nnot being used and give the warning otherwise.",
+      "changes": [
+        {
+          "file": "src/borg/helpers/manifest.py",
+          "patch": "@@ -103,7 +103,7 @@ def list_considering(self, args):\n         \"\"\"\n         if args.location.archive:\n             raise Error('The options --first, --last, --prefix and --glob-archives can only be used on repository targets.')\n-        if args.prefix:\n+        if args.prefix is not None:\n             args.glob_archives = args.prefix + '*'\n         return self.list(sort_by=args.sort_by.split(','), glob=args.glob_archives, first=args.first, last=args.last)\n "
+        }
+      ]
+    },
+    {
+      "sha": "c5e3f3b4d4a1f86894e6a5413c5f8b03c43b073a",
+      "message": "acl_get() and acl_set() should accept a fd. Related to #4403\n\nFixes:\n\nself = <borg.archive.MetadataCollector object at 0x14ffb70b28d0>\nst = os.stat_result(st_mode=16895, st_ino=246007, st_dev=65280, st_nlink=3, st_uid=100\n0, st_gid=0, st_size=512, st_atime=1551123978, st_mtime=1551123979, st_ctime=155112397\n9)\npath = 'input', fd = 16\n\n    def stat_ext_attrs(self, st, path, fd=None):\n        attrs = {}\n        bsdflags = 0\n        with backup_io('extended stat'):\n            if not self.nobsdflags:\n                bsdflags = get_flags(path, st, fd=fd)\n            xattrs = xattr.get_all(fd or path, follow_symlinks=False)\n>           acl_get(path, attrs, st, self.numeric_owner, fd=fd)\nE           TypeError: acl_get() got an unexpected keyword argument 'fd'\n\nsrc/borg/archive.py:1023: TypeError",
+      "changes": [
+        {
+          "file": "src/borg/platform/base.py",
+          "patch": "@@ -61,15 +61,15 @@ def setxattr(path, name, value, *, follow_symlinks=False):\n     \"\"\"\n \n \n-def acl_get(path, item, st, numeric_owner=False):\n+def acl_get(path, item, st, numeric_owner=False, fd=None):\n     \"\"\"\n     Saves ACL Entries\n \n     If `numeric_owner` is True the user/group field is not preserved only uid/gid\n     \"\"\"\n \n \n-def acl_set(path, item, numeric_owner=False):\n+def acl_set(path, item, numeric_owner=False, fd=None):\n     \"\"\"\n     Restore ACL Entries\n "
+        }
+      ]
+    },
+    {
+      "sha": "989b2286ff171ecae4ed3b821acb4a1a14090766",
+      "message": "fix TypeError in errorhandler, fixes #1903",
+      "changes": [
+        {
+          "file": "borg/key.py",
+          "patch": "@@ -143,11 +143,13 @@ def encrypt(self, data):\n     def decrypt(self, id, data):\n         if not (data[0] == self.TYPE or\n             data[0] == PassphraseKey.TYPE and isinstance(self, RepoKey)):\n-            raise IntegrityError('Chunk %s: Invalid encryption envelope' % bin_to_hex(id))\n+            id_str = bin_to_hex(id) if id is not None else '(unknown)'\n+            raise IntegrityError('Chunk %s: Invalid encryption envelope' % id_str)\n         hmac_given = memoryview(data)[1:33]\n         hmac_computed = memoryview(HMAC(self.enc_hmac_key, memoryview(data)[33:], sha256).digest())\n         if not compare_digest(hmac_computed, hmac_given):\n-            raise IntegrityError('Chunk %s: Encryption envelope checksum mismatch' % bin_to_hex(id))\n+            id_str = bin_to_hex(id) if id is not None else '(unknown)'\n+            raise IntegrityError('Chunk %s: Encryption envelope checksum mismatch' % id_str)\n         self.dec_cipher.reset(iv=PREFIX + data[33:41])\n         data = self.compressor.decompress(self.dec_cipher.decrypt(data[41:]))\n         if id:"
+        }
+      ]
+    },
+    {
+      "sha": "a44e131661525c9f17eab7db046129073defb61c",
+      "message": "prune: fix IndexError\n\nif giving --prefix resulted in an empty archives_checkpoints list, it crashed with an IndexError.",
+      "changes": [
+        {
+          "file": "borg/archiver.py",
+          "patch": "@@ -789,9 +789,8 @@ def do_prune(self, args, repository, manifest, key):\n         is_checkpoint = re.compile(r'\\.checkpoint(\\.\\d+)?$').search\n         checkpoints = [arch for arch in archives_checkpoints if is_checkpoint(arch.name)]\n         # keep the latest checkpoint, if there is no later non-checkpoint archive\n-        latest_checkpoint = checkpoints[0] if checkpoints else None\n-        if archives_checkpoints[0] is latest_checkpoint:\n-            keep_checkpoints = [latest_checkpoint, ]\n+        if archives_checkpoints and checkpoints and archives_checkpoints[0] is checkpoints[0]:\n+            keep_checkpoints = checkpoints[:1]\n         else:\n             keep_checkpoints = []\n         checkpoints = set(checkpoints)"
+        }
+      ]
+    },
+    {
+      "sha": "954b26f64c903638bd2c195b595ad08a832ef1fa",
+      "message": "RPCError: include the exception args we get from remote\n\nWithout this, you just got \"RCPError: AttributeError\", now you get (e.g.):\n\nRPCError: AttributeError(b\"'Repository' object has no attribute 'segments'\",)",
+      "changes": [
+        {
+          "file": "attic/remote.py",
+          "patch": "@@ -157,7 +157,7 @@ def fetch_from_cache(args):\n                             raise PathNotAllowed(*res)\n                         if error == b'ObjectNotFound':\n                             raise Repository.ObjectNotFound(res[0], self.location.orig)\n-                        raise self.RPCError(error)\n+                        raise self.RPCError(\"%s%r\" % (error.decode('ascii'), res))\n                     else:\n                         yield res\n                         if not waiting_for and not calls:\n@@ -312,4 +312,4 @@ def get_many(self, keys):\n def cache_if_remote(repository):\n     if isinstance(repository, RemoteRepository):\n         return RepositoryCache(repository)\n-    return repository\n\\ No newline at end of file\n+    return repository"
+        }
+      ]
+    }
+  ]
+}

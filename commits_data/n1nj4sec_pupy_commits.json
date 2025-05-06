@@ -1,0 +1,15 @@
+{
+  "repo_name": "n1nj4sec/pupy",
+  "commits": [
+    {
+      "sha": "9e302c866bd2fceba4b51cd6c21dffd88e305562",
+      "message": "Avoid TypeError in picodns server",
+      "changes": [
+        {
+          "file": "pupy/network/lib/picocmd/server.py",
+          "patch": "@@ -357,6 +357,11 @@ def resolve(self, request, handler):\n             reply.header.rcode = RCODE.NXDOMAIN\n             return reply\n \n+        except TypeError:\n+            # Usually - invalid padding\n+            reply.header.rcode = RCODE.NXDOMAIN\n+            return reply\n+\n         except Exception as e:\n             logging.exception(e)\n             reply.header.rcode = RCODE.NXDOMAIN"
+        }
+      ]
+    }
+  ]
+}

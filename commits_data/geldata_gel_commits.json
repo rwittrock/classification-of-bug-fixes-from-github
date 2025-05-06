@@ -1,0 +1,55 @@
+{
+  "repo_name": "geldata/gel",
+  "commits": [
+    {
+      "sha": "d3e9ac81b2b6d74a7981f604f075f44a39a9ab83",
+      "message": "caos.backends.pgsql.transformer: Replace dubious assertion with LookupError\n\nMany errors in transformer pipeline would eventually lead to the\ninability of resolving an atomic ref into a table field reference, which\ncurrently raises a very cryptic AssertionError.  Replace it with a\nproperly worded LookupError.",
+      "changes": [
+        {
+          "file": "edgedb/server/pgsql/transformer.py",
+          "patch": "@@ -991,7 +991,10 @@ def get_cte_fieldref_for_set(self, context, caos_node, link_name, meta=False, ma\n                 ref = pgsql.ast.FieldRefNode(table=ref_table, field=field_name,\n                                              origin=ref_table, origin_field=field_name)\n \n-        assert ref, 'Reference to an inaccessible table node {}'.format(ref_key)\n+        if ref is None:\n+            msg = 'could not resolve \"{}\".\"{}\" as table field'.format(caos_node.concept.name,\n+                                                                      ref_key)\n+            raise LookupError(msg)\n \n         if isinstance(ref, pgsql.ast.SelectExprNode):\n             ref = ref.expr"
+        }
+      ]
+    },
+    {
+      "sha": "2fc0b8b46b325da4541748398d0244695931950f",
+      "message": "caos.backends.pgsql: Handle unrecognized constraint violations properly\n\nRaise UninterpretedStorageError on unknown constraint violations instead\nof raising TypeError.",
+      "changes": [
+        {
+          "file": "edgedb/server/pgsql/backend.py",
+          "patch": "@@ -864,7 +864,11 @@ def _interpret_db_error(self, err, source, pointer=None):\n                 return errcls(err, source=source, pointer=pointer)\n \n             elif error_type == 'ptr_constraint':\n-                constraint, pointer_name, source_table = self.constraint_from_pg_name(error_data)\n+                constraint = self.constraint_from_pg_name(error_data)\n+                if constraint is None:\n+                    return caos.error.UninterpretedStorageError(err.message)\n+\n+                constraint, pointer_name, source_table = constraint\n \n                 msg = 'unique link constraint violation'\n "
+        }
+      ]
+    },
+    {
+      "sha": "099035da8243a6e23ffd77352b1ffd27e02b2206",
+      "message": "caos.backends.pgsql: Catch proper exception when handling generic exceptions\n\nThe handler should catch IndexError instead of KeyError because we're\ntrying a list there.",
+      "changes": [
+        {
+          "file": "edgedb/server/pgsql/transformer.py",
+          "patch": "@@ -357,7 +357,7 @@ def transform(self, query, realm):\n         except Exception as e:\n             try:\n                 args = [e.args[0]]\n-            except (AttributeError, KeyError):\n+            except (AttributeError, IndexError):\n                 args = []\n             err = tree.transformer.InternalTreeTransformerError(*args)\n             err.tree_context = tree.transformer.TreeTransformerExceptionContext(tree=query)"
+        }
+      ]
+    },
+    {
+      "sha": "201809d9bb1e5cf73d02b3157c5fde8539283397",
+      "message": "caos: Fix computables and search interference\n\nFix AttributeError when trying to search concepts with computables.",
+      "changes": [
+        {
+          "file": "edgedb/server/pgsql/delta.py",
+          "patch": "@@ -592,7 +592,7 @@ def apply(self, meta, context):\n \n             for link_name in names:\n                 for link in self.host.pointers[link_name]:\n-                    if link.search:\n+                    if getattr(link, 'search', None):\n                         column_name = common.caos_name_to_pg_name(link_name)\n                         columns.append(TextSearchIndexColumn(column_name, link.search.weight,\n                                                              'english'))"
+        }
+      ]
+    },
+    {
+      "sha": "1b83f85d26e181c53f687b2016823660aaf77e95",
+      "message": "rendering.css: Add source_position to AST nodes\n\nEvery AST node is inherited from LanguageAST and guaranteed to contain\n(at least) the line number in the source code. This change allows to\nraise SymbolLookupErrors with a context information.\n\nutils.ast: Override LanguageAST.__deepcopy__() to handle source_position",
+      "changes": [
+        {
+          "file": "edgedb/lang/common/ast/base.py",
+          "patch": "@@ -170,6 +170,10 @@ def __init__(self, **kwargs):\n \n         super().__init__(**kwargs)\n \n+    def __deepcopy__(self, memo):\n+        copied = super().__deepcopy__(memo)\n+        copied.source_position = copy.deepcopy(self.source_position)\n+        return copied\n \n class ASTBlockNode(AST):\n     __fields = [('body', list)]"
+        }
+      ]
+    }
+  ]
+}

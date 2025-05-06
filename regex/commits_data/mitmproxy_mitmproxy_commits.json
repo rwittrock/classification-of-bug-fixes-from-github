@@ -1,0 +1,73 @@
+{
+  "repo_name": "mitmproxy/mitmproxy",
+  "commits": [
+    {
+      "sha": "770936f1f9b56010011c2af7f5f854d88f1c1d4f",
+      "message": "raise TypeError on invalid header assignment, fix #1562",
+      "changes": [
+        {
+          "file": "netlib/http/headers.py",
+          "patch": "@@ -14,6 +14,7 @@ def _native(x):\n         return x\n \n     def _always_bytes(x):\n+        strutils.always_bytes(x, \"utf-8\", \"replace\")  # raises a TypeError if x != str/bytes/None.\n         return x\n else:\n     # While headers _should_ be ASCII, it's not uncommon for certain headers to be utf-8 encoded."
+        },
+        {
+          "file": "netlib/strutils.py",
+          "patch": "@@ -8,7 +8,10 @@\n def always_bytes(unicode_or_bytes, *encode_args):\n     if isinstance(unicode_or_bytes, six.text_type):\n         return unicode_or_bytes.encode(*encode_args)\n-    return unicode_or_bytes\n+    elif isinstance(unicode_or_bytes, bytes) or unicode_or_bytes is None:\n+        return unicode_or_bytes\n+    else:\n+        raise TypeError(\"Expected str or bytes, but got {}.\".format(type(unicode_or_bytes).__name__))\n \n \n def native(s, *encoding_opts):"
+        },
+        {
+          "file": "test/netlib/test_strutils.py",
+          "patch": "@@ -8,6 +8,8 @@ def test_always_bytes():\n     assert strutils.always_bytes(\"foo\") == b\"foo\"\n     with tutils.raises(ValueError):\n         strutils.always_bytes(u\"\\u2605\", \"ascii\")\n+    with tutils.raises(TypeError):\n+        strutils.always_bytes(42, \"ascii\")\n \n \n def test_native():"
+        }
+      ]
+    },
+    {
+      "sha": "077850bd107d7ffe1cf3d4a8667bb04ea47beb96",
+      "message": "Raise AttributeError from Options.__getattr__",
+      "changes": [
+        {
+          "file": "mitmproxy/options.py",
+          "patch": "@@ -42,7 +42,10 @@ def __copy__(self):\n         return self.__class__(**self._opts)\n \n     def __getattr__(self, attr):\n-        return self._opts[attr]\n+        if attr in self._opts:\n+            return self._opts[attr]\n+        else:\n+            raise AttributeError()\n \n     def __setattr__(self, attr, value):\n         if attr not in self._opts:"
+        }
+      ]
+    },
+    {
+      "sha": "fa007a7707bc6761083dfda151fd800ae79f2761",
+      "message": "fixed TypeError: ask_save_overwrite() takes exactly 2 arguments (xxxxx given)",
+      "changes": [
+        {
+          "file": "libmproxy/console/common.py",
+          "patch": "@@ -242,7 +242,7 @@ def ask_save_path(prompt, data):\n     signals.status_prompt_path.send(\n         prompt = prompt,\n         callback = ask_save_overwrite,\n-        args = (data)\n+        args =  (data, ) \n     )\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "66da73d8a9ad8f7a137375ce392c68729c385347",
+      "message": "fixing bug: AttributeError: DumpMaster instance has no attribute 'unload_script'",
+      "changes": [
+        {
+          "file": "libmproxy/dump.py",
+          "patch": "@@ -223,8 +223,7 @@ def shutdown(self):  # pragma: no cover\n \n     def run(self):  # pragma: no cover\n         if self.o.rfile and not self.o.keepserving:\n-            for script in self.scripts:\n-                self.unload_script(script)\n+            self.unload_scripts()\n             return\n         try:\n             return flow.FlowMaster.run(self)"
+        }
+      ]
+    },
+    {
+      "sha": "525a8f6a160425dfe7a65dab015865add247b362",
+      "message": "Fixed a bug causing an AttributeError when request is set to false but response not None in ProxyHandler.handle_request",
+      "changes": [
+        {
+          "file": "libmproxy/proxy.py",
+          "patch": "@@ -192,7 +192,7 @@ def handle_request(self, cc):\n                 if response is None:\n                     return\n                 self.send_response(response)\n-                if http.request_connection_close(request.httpversion, request.headers):\n+                if request and http.request_connection_close(request.httpversion, request.headers):\n                     return\n                 # We could keep the client connection when the server\n                 # connection needs to go away.  However, we want to mimic"
+        }
+      ]
+    },
+    {
+      "sha": "08d6da2941347d672d69ddc1786da875ab6b5287",
+      "message": "Fix AttributeError when shutting down a writing mitmdump.",
+      "changes": [
+        {
+          "file": "libmproxy/dump.py",
+          "patch": "@@ -217,7 +217,7 @@ def handle_error(self, msg):\n # begin nocover\n     def shutdown(self):\n         if self.o.wfile:\n-            self.wfile.fo.close()\n+            self.fwriter.fo.close()\n         return flow.FlowMaster.shutdown(self)\n \n     def run(self):"
+        }
+      ]
+    }
+  ]
+}

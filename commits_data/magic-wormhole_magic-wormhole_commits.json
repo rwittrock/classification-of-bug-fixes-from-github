@@ -1,0 +1,25 @@
+{
+  "repo_name": "magic-wormhole/magic-wormhole",
+  "commits": [
+    {
+      "sha": "a489f5da2b2be771ce148902432300b6f0230e91",
+      "message": "suppress misleading DNSLookupError on cancelled connections\n\nThis should be removed after Twisted's ticket\nhttps://twistedmatrix.com/trac/ticket/9696 is fixed (and we increase our\ndependency to require a version with the fix).\n\nrefs #347",
+      "changes": [
+        {
+          "file": "src/wormhole/_dilation/connector.py",
+          "patch": "@@ -10,7 +10,7 @@\n from twisted.internet.endpoints import serverFromString\n from twisted.internet.protocol import ClientFactory, ServerFactory\n from twisted.internet.address import HostnameAddress, IPv4Address, IPv6Address\n-from twisted.internet.error import ConnectingCancelledError\n+from twisted.internet.error import ConnectingCancelledError, DNSLookupError\n from twisted.python import log\n from .. import ipaddrs  # TODO: move into _dilation/\n from .._interfaces import IDilationConnector, IDilationManager\n@@ -313,6 +313,10 @@ def _schedule_connection(self, delay, h, is_relay):\n                        self._connect, ep, desc, is_relay)\n         d.addErrback(lambda f: f.trap(ConnectingCancelledError,\n                                       CancelledError))\n+        # TODO: HostnameEndpoint.connect catches CancelledError and replaces\n+        # it with DNSLookupError. Remove this workaround when\n+        # https://twistedmatrix.com/trac/ticket/9696 is fixed.\n+        d.addErrback(lambda f: f.trap(DNSLookupError))\n         d.addErrback(log.err)\n         self._pending_connectors.add(d)\n "
+        }
+      ]
+    },
+    {
+      "sha": "45315136021b9cdfdfa77eb85bfaaf9677e9f256",
+      "message": "cmd_send/receive: work around python3.7.0 bug\n\nSee https://bugs.python.org/issue26175 . tempfile.SpooledTemporaryFile\ndoesn't fully implement the IOBase abstract class, which breaks because\npy3.7.0's new zipfile module tries to delegate .seekable down to the wrapped\nfile and causes an AttributeError.\n\nrefs #306",
+      "changes": [
+        {
+          "file": "src/wormhole/cli/cmd_send.py",
+          "patch": "@@ -314,6 +314,12 @@ def _build_offer(self):\n             # We're sending a directory. Create a zipfile in a tempdir and\n             # send that.\n             fd_to_send = tempfile.SpooledTemporaryFile()\n+            # workaround for https://bugs.python.org/issue26175 (STF doesn't\n+            # fully implement IOBase abstract class), which breaks the new\n+            # zipfile in py3.7.0 that expects .seekable\n+            if not hasattr(fd_to_send, \"seekable\"):\n+                # AFAICT all the filetypes that STF wraps can seek\n+                fd_to_send.seekable = lambda: True\n             num_files = 0\n             num_bytes = 0\n             tostrip = len(what.split(os.sep))"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "repo_name": "piskvorky/gensim",
+  "commits": [
+    {
+      "sha": "16a44818a0979b35111f389b761f5973f345bd3e",
+      "message": "added integer division in ldamallet to avoid py3 TypeErrors",
+      "changes": [
+        {
+          "file": "gensim/models/ldamallet.py",
+          "patch": "@@ -216,7 +216,7 @@ def show_topics(self, topics=10, topn=10, log=False, formatted=True):\n             topics = min(topics, self.num_topics)\n             sort_alpha = self.alpha + 0.0001 * numpy.random.rand(len(self.alpha)) # add a little random jitter, to randomize results around the same alpha\n             sorted_topics = list(numpy.argsort(sort_alpha))\n-            chosen_topics = sorted_topics[ : topics/2] + sorted_topics[-topics/2 : ]\n+            chosen_topics = sorted_topics[ : topics//2] + sorted_topics[-topics//2 : ]\n         shown = []\n         for i in chosen_topics:\n             if formatted:"
+        }
+      ]
+    },
+    {
+      "sha": "ad2208c3b0d0ffd07116694dda7a1da9a907359e",
+      "message": "Update gensim/models/rpmodel.py\n\n\"scipy.linalg.blas.fblas\" has been replaced by \"scipy.linalg.blas\"\r\n\r\nFixes the following error when running the rpmodel.py:\r\nERROR: AttributeError: 'module' object has no attribute 'fblas'\r\n\r\nOthers have experience this error: https://github.com/Theano/Theano/issues/1144\r\n\r\nChanging as shown in the above in the .py and recompiling the .pyc worked for me!\r\n\r\nThanks for a great package!\r\n\r\nAndrew",
+      "changes": [
+        {
+          "file": "gensim/models/rpmodel.py",
+          "patch": "@@ -83,7 +83,7 @@ def __getitem__(self, bow):\n \n         vec = matutils.sparse2full(bow, self.num_terms).reshape(self.num_terms, 1) / numpy.sqrt(self.num_topics)\n         vec = numpy.asfortranarray(vec, dtype=numpy.float32)\n-        topic_dist = scipy.linalg.fblas.sgemv(1.0, self.projection, vec)  # (k, d) * (d, 1) = (k, 1)\n+        topic_dist = scipy.linalg.blas.sgemv(1.0, self.projection, vec)  # (k, d) * (d, 1) = (k, 1)\n         return [(topicid, float(topicvalue)) for topicid, topicvalue in enumerate(topic_dist.flat)\n                 if numpy.isfinite(topicvalue) and not numpy.allclose(topicvalue, 0.0)]\n "
+        }
+      ]
+    }
+  ]
+}

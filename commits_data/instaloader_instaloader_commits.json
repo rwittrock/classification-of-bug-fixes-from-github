@@ -1,0 +1,55 @@
+{
+  "repo_name": "instaloader/instaloader",
+  "commits": [
+    {
+      "sha": "94df60292e60c54c37e02267b17c950980d9a7c4",
+      "message": "Fix bug about 429 handling\n\nIt caused Instaloader to fail with a TypeError on 429 Too Many Requests.",
+      "changes": [
+        {
+          "file": "instaloader.py",
+          "patch": "@@ -663,7 +663,8 @@ def graphql_query_waittime(query_id: Union[int, str], untracked_queries: bool =\n                 if isinstance(err, TooManyRequests):\n                     print(textwrap.fill(text_for_429), file=sys.stderr)\n                     if is_graphql_query:\n-                        waittime = graphql_query_waittime(query_id=params['query_id'], untracked_queries=True)\n+                        query_id = params['query_id'] if 'query_id' in params else params['query_hash']\n+                        waittime = graphql_query_waittime(query_id, untracked_queries=True)\n                         if waittime > 0:\n                             self._log('The request will be retried in {} seconds.'.format(waittime))\n                             time.sleep(waittime)"
+        }
+      ]
+    },
+    {
+      "sha": "90a1b73d21bdb12a836120a299efd4413defccef",
+      "message": "Fix format_string_contains_key()\n\nAttributeError occured if no parsable field was found in the specified\npattern.\nReported in #84.",
+      "changes": [
+        {
+          "file": "instaloader.py",
+          "patch": "@@ -130,7 +130,7 @@ def mediaid_to_shortcode(mediaid: int) -> str:\n def format_string_contains_key(format_string: str, key: str) -> bool:\n     # pylint:disable=unused-variable\n     for literal_text, field_name, format_spec, conversion in string.Formatter().parse(format_string):\n-        if field_name == key or field_name.startswith(key + '.'):\n+        if field_name and (field_name == key or field_name.startswith(key + '.')):\n             return True\n     return False\n "
+        }
+      ]
+    },
+    {
+      "sha": "1a26d7336c2b9c74b98568f8aa7d99ae4909b473",
+      "message": "Fix TypeError on retry in get_json()",
+      "changes": [
+        {
+          "file": "instaloader.py",
+          "patch": "@@ -506,7 +506,7 @@ def graphql_query_waittime(query_id: int, untracked_queries: bool = False) -> in\n                         self._log('The request will be retried in {} seconds.'.format(waittime))\n                         time.sleep(waittime)\n             self._sleep()\n-            self.get_json(url, params, sess, tries - 1)\n+            return self.get_json(url, params, sess, tries - 1)\n \n     def _default_http_header(self, empty_session_only: bool = False) -> Dict[str, str]:\n         \"\"\"Returns default HTTP header we use for requests.\"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "42864997b3d609d26074f53409166fb4195e62db",
+      "message": "get_node_metadata() now also catches TypeError\n\nConcerns #26",
+      "changes": [
+        {
+          "file": "instaloader.py",
+          "patch": "@@ -547,7 +547,7 @@ def get_node_metadata(self, node_code: str, tries: int = 3) -> Dict[str, Any]:\n             media = pic_json[\"entry_data\"][\"PostPage\"][0][\"graphql\"][\"shortcode_media\"] \\\n                 if \"graphql\" in pic_json[\"entry_data\"][\"PostPage\"][0] \\\n                 else pic_json[\"entry_data\"][\"PostPage\"][0][\"media\"]\n-        except KeyError as err:\n+        except (KeyError, TypeError) as err:\n             print(err, file=sys.stderr)\n             print(json.dumps(pic_json, indent=4), file=sys.stderr)\n             if tries <= 1:"
+        }
+      ]
+    },
+    {
+      "sha": "46ac119a10a3fcae62a6f489ceeffdc70268feae",
+      "message": "Fix AttributeError when not logging in\n\nMentioned in #26. Bug was introduced in 0ad50c1.",
+      "changes": [
+        {
+          "file": "instaloader.py",
+          "patch": "@@ -1157,7 +1157,8 @@ def main():\n         loader = Instaloader(sleep=not args.no_sleep, quiet=args.quiet, shorter_output=args.shorter_output,\n                              user_agent=args.user_agent,\n                              dirname_pattern=args.dirname_pattern, filename_pattern=args.filename_pattern)\n-        loader.download_profiles(args.profile, args.login.lower(), args.password, args.sessionfile,\n+        loader.download_profiles(args.profile, args.login.lower() if args.login is not None else None, args.password,\n+                                 args.sessionfile,\n                                  int(args.count) if args.count is not None else None,\n                                  args.profile_pic_only, not args.skip_videos, args.geotags, args.comments,\n                                  args.fast_update, args.stories, args.stories_only)"
+        }
+      ]
+    }
+  ]
+}

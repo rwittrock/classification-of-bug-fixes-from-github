@@ -1,0 +1,15 @@
+{
+  "repo_name": "pydantic/pydantic",
+  "commits": [
+    {
+      "sha": "6d5c48e3fde0862395448a0257be9648b4485e79",
+      "message": "Fix Cython compiled check in ipython (#573)\n\n* Update main.py\r\n\r\nAddresses the issue raised in #548 related to running non-compiled in IPython\r\n\r\n* except AttributeError\r\n\r\n* update HISTORY.rst",
+      "changes": [
+        {
+          "file": "pydantic/main.py",
+          "patch": "@@ -65,7 +65,10 @@\n except ImportError:\n     compiled: bool = False\n else:  # pragma: no cover\n-    compiled = cython.compiled\n+    try:\n+        compiled = cython.compiled\n+    except AttributeError:\n+        compiled = False\n \n \n class Extra(str, Enum):"
+        }
+      ]
+    }
+  ]
+}

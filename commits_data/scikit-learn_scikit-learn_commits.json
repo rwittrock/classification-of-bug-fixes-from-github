@@ -1,0 +1,135 @@
+{
+  "repo_name": "scikit-learn/scikit-learn",
+  "commits": [
+    {
+      "sha": "67130a583206f0ccf2f5a224129bdf90b2c5ece7",
+      "message": "FIX IndexError due to imprecision in KMeans++ (#11756)",
+      "changes": [
+        {
+          "file": "sklearn/cluster/k_means_.py",
+          "patch": "@@ -107,6 +107,9 @@ def _k_init(X, n_clusters, x_squared_norms, random_state, n_local_trials=None):\n         rand_vals = random_state.random_sample(n_local_trials) * current_pot\n         candidate_ids = np.searchsorted(stable_cumsum(closest_dist_sq),\n                                         rand_vals)\n+        # XXX: numerical imprecision can result in a candidate_id out of range\n+        np.clip(candidate_ids, None, closest_dist_sq.size - 1,\n+                out=candidate_ids)\n \n         # Compute distances to center candidates\n         distance_to_candidates = euclidean_distances("
+        }
+      ]
+    },
+    {
+      "sha": "52e9cc5add6ffe6398fed529f5f110f0961ad28a",
+      "message": "EXA Avoiding TypeError when using --all_categories in plot_document_classification_20newsgroups.py (#12770)",
+      "changes": [
+        {
+          "file": "examples/text/plot_document_classification_20newsgroups.py",
+          "patch": "@@ -145,7 +145,7 @@ def size_mb(docs):\n     len(data_train.data), data_train_size_mb))\n print(\"%d documents - %0.3fMB (test set)\" % (\n     len(data_test.data), data_test_size_mb))\n-print(\"%d categories\" % len(categories))\n+print(\"%d categories\" % len(target_names))\n print()\n \n # split a training set and a test set"
+        }
+      ]
+    },
+    {
+      "sha": "1557cb8a1910bce6dc33cd5cd3a08c380bdec566",
+      "message": "EXA Fix plot tomography l1 reconstruction (#11100)\n\n* Ensure that the number of angles is integer\r\n\r\n* Fix plot_tomography_l1_reconstruction.py\r\n\r\nError was: TypeError: 'numpy.float64' object cannot be interpreted as an integer.\r\n\r\n[doc build]",
+      "changes": [
+        {
+          "file": "examples/applications/plot_tomography_l1_reconstruction.py",
+          "patch": "@@ -34,6 +34,7 @@ class :class:`sklearn.linear_model.Lasso`, that uses the coordinate descent\n the circular artifact separating the pixels in the corners, that have\n contributed to fewer projections than the central disk.\n \"\"\"\n+from __future__ import division\n \n print(__doc__)\n \n@@ -50,7 +51,7 @@ class :class:`sklearn.linear_model.Lasso`, that uses the coordinate descent\n \n def _weights(x, dx=1, orig=0):\n     x = np.ravel(x)\n-    floor_x = np.floor((x - orig) / dx)\n+    floor_x = np.floor((x - orig) / dx).astype(np.int64)\n     alpha = (x - orig - floor_x * dx) / dx\n     return np.hstack((floor_x, floor_x + 1)), np.hstack((1 - alpha, alpha))\n \n@@ -112,7 +113,7 @@ def generate_synthetic_data():\n \n # Generate synthetic images, and projections\n l = 128\n-proj_operator = build_projection_operator(l, l / 7.)\n+proj_operator = build_projection_operator(l, l // 7)\n data = generate_synthetic_data()\n proj = proj_operator * data.ravel()[:, np.newaxis]\n proj += 0.15 * np.random.randn(*proj.shape)"
+        }
+      ]
+    },
+    {
+      "sha": "8c3e028608b4527466798ee361b1a7829d42059c",
+      "message": "FIX bench_plot_lasso_path.py error.\n\nTypeError: numpy.float64 object cannot be interpreted as an integer.",
+      "changes": [
+        {
+          "file": "benchmarks/bench_plot_lasso_path.py",
+          "patch": "@@ -32,7 +32,7 @@ def compute_bench(samples_range, features_range):\n             dataset_kwargs = {\n                 'n_samples': n_samples,\n                 'n_features': n_features,\n-                'n_informative': n_features / 10,\n+                'n_informative': n_features // 10,\n                 'effective_rank': min(n_samples, n_features) / 10,\n                 #'effective_rank': None,\n                 'bias': 0.0,"
+        }
+      ]
+    },
+    {
+      "sha": "cceb9b22ac1c36341779aff59de8e6130671c19a",
+      "message": "Fix plot_out_of_core_classification.py. (#9815)\n\nStarting from empty ~/scikit_learn_data got AttributeError: module\r\n'sklearn.externals.six.moves.urllib_request' has no attribute\r\n'urlretrieve'.",
+      "changes": [
+        {
+          "file": "examples/applications/plot_out_of_core_classification.py",
+          "patch": "@@ -41,7 +41,7 @@\n from matplotlib import rcParams\n \n from sklearn.externals.six.moves import html_parser\n-from sklearn.externals.six.moves import urllib\n+from sklearn.externals.six.moves.urllib.request import urlretrieve\n from sklearn.datasets import get_data_home\n from sklearn.feature_extraction.text import HashingVectorizer\n from sklearn.linear_model import SGDClassifier\n@@ -172,8 +172,8 @@ def progress(blocknum, bs, size):\n                       end='')\n \n         archive_path = os.path.join(data_path, ARCHIVE_FILENAME)\n-        urllib.request.urlretrieve(DOWNLOAD_URL, filename=archive_path,\n-                                   reporthook=progress)\n+        urlretrieve(DOWNLOAD_URL, filename=archive_path,\n+                    reporthook=progress)\n         if _not_in_sphinx():\n             print('\\r', end='')\n         print(\"untarring Reuters dataset...\")"
+        }
+      ]
+    },
+    {
+      "sha": "549474de2eda3c308d353ae01df08037f380ff65",
+      "message": "[gardening] Fix NameError (\"estimator\" not defined). Remove unused var \"ind\".",
+      "changes": [
+        {
+          "file": "sklearn/multiclass.py",
+          "patch": "@@ -242,7 +242,7 @@ def partial_fit(self, X, y, classes=None):\n         if _check_partial_fit_first_call(self, classes):\n             if (not hasattr(self.estimator, \"partial_fit\")):\n                 raise ValueError(\"Base estimator {0}, doesn't have partial_fit\"\n-                                 \"method\".format(estimator))\n+                                 \"method\".format(self.estimator))\n             self.estimators_ = [clone(self.estimator) for _ in range\n                                 (self.n_classes_)]\n         \n@@ -410,7 +410,6 @@ def _partial_fit_ovo_binary(estimator, X, y, i, j):\n     y = y[cond]\n     y_binary = np.zeros_like(y)\n     y_binary[y == j] = 1\n-    ind = np.arange(X.shape[0])\n     return _partial_fit_binary(estimator, X[cond], y_binary)\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "414cda9b94e020642a9e1e697ca9dc9ca613be71",
+      "message": "FIX TypeError not ValueError in is_fitted",
+      "changes": [
+        {
+          "file": "sklearn/utils/validation.py",
+          "patch": "@@ -549,7 +549,7 @@ def check_is_fitted(estimator, attributes, msg=None, all_or_any=all):\n                \"appropriate arguments before using this method.\")\n \n     if not hasattr(estimator, 'fit'):\n-        raise ValueError(\"%s is not an estimator instance.\" % (estimator))\n+        raise TypeError(\"%s is not an estimator instance.\" % (estimator))\n \n     if not isinstance(attributes, (list, tuple)):\n         attributes = [attributes]"
+        }
+      ]
+    },
+    {
+      "sha": "fe6b9ea1a02764170acf305b844a7c535b6dccd0",
+      "message": "fix defaultdict call\n\nIn Python 2.7, the current version fails with:\n\n$ python -c 'from collections import defaultdict; defaultdict(None)'\nTraceback (most recent call last):\n  File \"<string>\", line 1, in <module>\nTypeError: first argument must be callable",
+      "changes": [
+        {
+          "file": "sklearn/feature_extraction/text.py",
+          "patch": "@@ -726,7 +726,7 @@ def _count_vocab(self, raw_documents, fixed_vocab):\n             vocabulary = self.vocabulary_\n         else:\n             # Add a new value when a new vocabulary item is seen\n-            vocabulary = defaultdict(None)\n+            vocabulary = defaultdict()\n             vocabulary.default_factory = vocabulary.__len__\n \n         analyze = self.build_analyzer()"
+        }
+      ]
+    },
+    {
+      "sha": "ae700081a61994c0ad18b06aadb4eaa0ef9b963b",
+      "message": "ENH allow additional kernels on KernelPCA\n\nAlso changed pairwise_kernels to raise ValueError instead of\nAttributeError, as the latter is easy to mix up with a bug.",
+      "changes": [
+        {
+          "file": "sklearn/metrics/pairwise.py",
+          "patch": "@@ -736,7 +736,7 @@ def kernel_metrics():\n \n def pairwise_kernels(X, Y=None, metric=\"linear\", filter_params=False,\n                      n_jobs=1, **kwds):\n-    \"\"\" Compute the kernel between arrays X and optional array Y.\n+    \"\"\"Compute the kernel between arrays X and optional array Y.\n \n     This method takes either a vector array or a kernel matrix, and returns\n     a kernel matrix. If the input is a vector array, the kernels are\n@@ -828,4 +828,4 @@ def pairwise_kernels(X, Y=None, metric=\"linear\", filter_params=False,\n                     K[j][i] = K[i][j]\n         return K\n     else:\n-        raise AttributeError(\"Unknown metric %s\" % metric)\n+        raise ValueError(\"Unknown kernel %r\" % metric)"
+        }
+      ]
+    },
+    {
+      "sha": "fcca1dfdae88be5a0bc95d024e1df2eab01428ef",
+      "message": "raise ValueError for unfitted idf vector\n\nCatches an obscure AttributeError raised by calling .transform on a TfidfTransformer (with use_idf=True) that has not learned an idf vector.",
+      "changes": [
+        {
+          "file": "sklearn/feature_extraction/text.py",
+          "patch": "@@ -915,6 +915,8 @@ def transform(self, X, copy=True):\n             X.data += 1\n \n         if self.use_idf:\n+            if not hasattr(self, \"_idf_diag\"):\n+                raise ValueError(\"idf vector not fitted\")  \n             expected_n_features = self._idf_diag.shape[0]\n             if n_features != expected_n_features:\n                 raise ValueError(\"Input has n_features=%d while the model\""
+        }
+      ]
+    },
+    {
+      "sha": "e421c01ba1262679e24584d779bc42a7ae588f13",
+      "message": "FIX: TypeError message if base_estimator does not support class probabilities",
+      "changes": [
+        {
+          "file": "sklearn/ensemble/weight_boosting.py",
+          "patch": "@@ -359,8 +359,11 @@ def fit(self, X, y, sample_weight=None):\n         if self.algorithm == \"SAMME.R\":\n             if not hasattr(self.base_estimator, \"predict_proba\"):\n                 raise TypeError(\n-                    \"The real AdaBoost algorithm requires that the weak\"\n-                    \"learner supports the calculation of class probabilities\")\n+                    \"AdaBoostClassifier with ``algorithm='SAMME.R'`` requires \"\n+                    \"that the weak learner supports the calculation of class \"\n+                    \"probabilities with a ``predict_proba`` method.\\n\"\n+                    \"Please change the base estimator or set \"\n+                    \"``algorithm='SAMME'`` instead.\")\n \n         return super(AdaBoostClassifier, self).fit(X, y, sample_weight)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e1a76d49fb140a5836081ec07e784baf2bc5fbd5",
+      "message": "FIX: TypeError for regressor",
+      "changes": [
+        {
+          "file": "sklearn/ensemble/weight_boosting.py",
+          "patch": "@@ -37,7 +37,7 @@\n \n \n class BaseWeightBoosting(BaseEnsemble):\n-    \"\"\"Abstract base class for weight boosting.\n+    \"\"\"Base class for weight boosting.\n \n     Parameters\n     ----------\n@@ -91,7 +91,7 @@ def __init__(self, base_estimator=None,\n         elif (isinstance(self, RegressorMixin)\n               and not isinstance(base_estimator, RegressorMixin)):\n             raise TypeError(\"base_estimator must be a \"\n-                            \"subclass of ClassifierMixin\")\n+                            \"subclass of RegressorMixin\")\n \n         super(BaseWeightBoosting, self).__init__(\n             base_estimator=base_estimator,"
+        }
+      ]
+    },
+    {
+      "sha": "b2cba9f90b21f5cd58b1cf1b02ceb2e7f9a87e22",
+      "message": "ENH intercept_ on linear OvR clf + change exception to AttributeError",
+      "changes": [
+        {
+          "file": "sklearn/tests/test_multiclass.py",
+          "patch": "@@ -141,7 +141,7 @@ def test_ovr_coef_exceptions():\n     # Doesn't have coef_ exception!\n     ovr = OneVsRestClassifier(DecisionTreeClassifier())\n     ovr.fit(iris.data, iris.target)\n-    assert_raises(ValueError, lambda x: ovr.coef_, None)\n+    assert_raises(AttributeError, lambda x: ovr.coef_, None)\n \n \n def test_ovo_exceptions():"
+        }
+      ]
+    }
+  ]
+}

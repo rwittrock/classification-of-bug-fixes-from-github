@@ -1,0 +1,25 @@
+{
+  "repo_name": "great-expectations/great_expectations",
+  "commits": [
+    {
+      "sha": "93e1874d5480d881837c7b4fd211e86d9ad4234e",
+      "message": "manual generator batch kwargs for notebook (#935)\n\n* * edit-suite now looks for ManualGenerator batch_kwargs\r\n* new AmbiguousDataAssetNameError\r\n\r\n* * tweaked error message",
+      "changes": [
+        {
+          "file": "great_expectations/exceptions.py",
+          "patch": "@@ -65,6 +65,12 @@ def __init__(self, message):\n         self.message = message\n \n \n+class AmbiguousDataAssetNameError(DataContextError):\n+    def __init__(self, message, candidates=None):\n+        self.message = message\n+        self.candidates = candidates\n+\n+\n class StoreConfigurationError(DataContextError):\n     pass\n "
+        }
+      ]
+    },
+    {
+      "sha": "b901a32217106beb94721e2363e18abecd2acf82",
+      "message": "reduced a TypeError in expect_column_mean_to_be_between",
+      "changes": [
+        {
+          "file": "tests/test_pandas_dataset.py",
+          "patch": "@@ -751,7 +751,6 @@ def test_expect_column_mean_to_be_between(self):\n             'y' : [5.0, 5],\n             'z' : [0, 10],\n             'n' : [0, None],\n-            's' : ['s', np.nan],\n             'b' : [True, False],\n         })\n \n@@ -802,10 +801,13 @@ def test_expect_column_mean_to_be_between(self):\n                     'out':{'success':True, 'true_value':0.5}}\n         ]\n \n-        for t in T:\n+        for t in T[1:]:\n             out = typedf.expect_column_mean_to_be_between(**t['in'])\n             self.assertEqual(out, t['out'])\n \n+        with self.assertRaises(TypeError):\n+            typedf.expect_column_mean_to_be_between(T[0]['in'])\n+\n \n \n     def test_expect_column_stdev_to_be_between(self):"
+        }
+      ]
+    }
+  ]
+}

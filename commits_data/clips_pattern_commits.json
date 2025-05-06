@@ -1,0 +1,15 @@
+{
+  "repo_name": "clips/pattern",
+  "commits": [
+    {
+      "sha": "ddb46a3e62e531f05225f1e65e75c7ea59f6e89b",
+      "message": "Check length to prevent IndexErrors",
+      "changes": [
+        {
+          "file": "pattern/text/de/inflect.py",
+          "patch": "@@ -376,7 +376,7 @@ def find_lemma(self, verb):\n         b = b.replace(\"eeiss\", \"eiss\")\n         b = b.replace(\"eeid\", \"eit\")\n         # Subjunctive: wechselte => wechseln\n-        if not b.endswith((\"e\", \"l\")) and not (b.endswith(\"er\") and not b[-3] in VOWELS):\n+        if not b.endswith((\"e\", \"l\")) and not (b.endswith(\"er\") and len(b) >= 3 and not b[-3] in VOWELS):\n             b = b + \"e\"\n         # abknallst != abknalln => abknallen\n         if b.endswith((\"hl\", \"ll\", \"ul\", \"eil\")):\n@@ -564,4 +564,4 @@ def superlative(adjective):\n \n #print comparative(u\"sch\u00f6nes\")\n #print superlative(u\"sch\u00f6nes\")\n-#print superlative(u\"gro\u00dfe\")\n\\ No newline at end of file\n+#print superlative(u\"gro\u00dfe\")"
+        }
+      ]
+    }
+  ]
+}

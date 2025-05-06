@@ -1,0 +1,35 @@
+{
+  "repo_name": "python-telegram-bot/python-telegram-bot",
+  "commits": [
+    {
+      "sha": "d2059ed184cbcb01d92194b9fa299fe643e2ecef",
+      "message": "Fix ProcessLookupError if process finishes before we kill it (#1126)",
+      "changes": [
+        {
+          "file": "tests/test_inputfile.py",
+          "patch": "@@ -40,4 +40,9 @@ def test_subprocess_pipe(self):\n         assert in_file.mimetype == 'image/png'\n         assert in_file.filename == 'image.png'\n \n-        proc.kill()\n+        try:\n+            proc.kill()\n+        except ProcessLookupError:\n+            # This exception may be thrown if the process has finished before we had the chance\n+            # to kill it.\n+            pass"
+        }
+      ]
+    },
+    {
+      "sha": "2ba7505eaf7d0555db66f28c740467f9fd7fa1cf",
+      "message": "Fix TypeError exception in RegexHandler (#751)\n\nfixes #750",
+      "changes": [
+        {
+          "file": "telegram/ext/regexhandler.py",
+          "patch": "@@ -142,11 +142,12 @@ def check_update(self, update):\n         Returns:\n             :obj:`bool`\n         \"\"\"\n-\n+        if not isinstance(update, Update) and not update.effective_message:\n+            return False\n         if any([(self.message_updates and update.message),\n                 (self.edited_updates and update.edited_message),\n-                (self.channel_post_updates and update.channel_post)]) and (\n-                isinstance(update, Update)):\n+                (self.channel_post_updates and update.channel_post)]) and \\\n+                update.effective_message.text:\n             match = re.match(self.pattern, update.effective_message.text)\n             return bool(match)\n         return False"
+        }
+      ]
+    },
+    {
+      "sha": "bd1f171f517417186451c135246d002a1f71972b",
+      "message": "Remove `.encode('utf-8')` from echobot\n\nThis was making the bot throw TypeError on py3.\r\n\r\nCloses #86",
+      "changes": [
+        {
+          "file": "examples/echobot.py",
+          "patch": "@@ -51,12 +51,12 @@ def echo(bot):\n     for update in bot.getUpdates(offset=LAST_UPDATE_ID, timeout=10):\n         # chat_id is required to reply any message\n         chat_id = update.message.chat_id\n-        message = update.message.text.encode('utf-8')\n+        reply_text = update.message.text\n \n-        if (message):\n+        if (reply_text):\n             # Reply the message\n             bot.sendMessage(chat_id=chat_id,\n-                            text=message)\n+                            text=reply_text)\n \n             # Updates global offset to get the new updates\n             LAST_UPDATE_ID = update.update_id + 1"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "repo_name": "pypa/pipenv",
+  "commits": [
+    {
+      "sha": "9e82de6f108402287811f8dded0c3f80c209f059",
+      "message": "Handle TypeError from int()",
+      "changes": [
+        {
+          "file": "pipenv/environments.py",
+          "patch": "@@ -231,7 +231,7 @@\n PIPENV_VERBOSITY = os.environ.get(\"PIPENV_VERBOSITY\", \"\")\n try:\n     PIPENV_VERBOSITY = int(PIPENV_VERBOSITY)\n-except ValueError:\n+except (ValueError, TypeError):\n     if PIPENV_VERBOSE:\n         PIPENV_VERBOSITY = 1\n     elif PIPENV_QUIET:"
+        }
+      ]
+    },
+    {
+      "sha": "499558e7bcb2ec6be80b93ee5b83f7490bf6f0a4",
+      "message": "Update requirementslib\n\n- Fix a bug which raised `UnboundLocalError` when parsing malformed urls\n- Fixes #2614\n\nSigned-off-by: Dan Ryan <dan@danryan.co>",
+      "changes": [
+        {
+          "file": "pipenv/vendor/requirementslib/__init__.py",
+          "patch": "@@ -1,5 +1,5 @@\n # -*- coding=utf-8 -*-\n-__version__ = \"1.0.10\"\n+__version__ = \"1.0.11\"\n \n \n from .exceptions import RequirementError"
+        },
+        {
+          "file": "pipenv/vendor/requirementslib/models/requirements.py",
+          "patch": "@@ -176,10 +176,10 @@ def get_link_from_line(cls, line):\n         # This is an URI. We'll need to perform some elaborated parsing.\n \n         parsed_url = urllib_parse.urlsplit(fixed_line)\n+        original_url = parsed_url._replace()\n         if added_ssh_scheme and ':' in parsed_url.netloc:\n             original_netloc, original_path_start = parsed_url.netloc.rsplit(':', 1)\n             uri_path = '/{0}{1}'.format(original_path_start, parsed_url.path)\n-            original_url = parsed_url\n             parsed_url = original_url._replace(netloc=original_netloc, path=uri_path)\n \n         # Split the VCS part out if needed."
+        }
+      ]
+    },
+    {
+      "sha": "15bcf36467c9f490315d79bc0ee5d96412606422",
+      "message": "Catch `AttributeErrors` when resolving sdists\n\nSigned-off-by: Dan Ryan <dan@danryan.co>",
+      "changes": [
+        {
+          "file": "pipenv/patched/piptools/repositories/pypi.py",
+          "patch": "@@ -282,7 +282,7 @@ def get_legacy_dependencies(self, ireq):\n                         setup_requires = self.finder.get_extras_links(\n                             dist.get_metadata_lines('requires.txt')\n                         )\n-                except (TypeError, ValueError):\n+                except (TypeError, ValueError, AttributeError):\n                     pass\n \n             try:\n@@ -339,7 +339,7 @@ def get_legacy_dependencies(self, ireq):\n                 try:\n                     dist = ireq.get_dist() if not dist else None\n                     ireq.version = ireq.get_dist().version\n-                except (ValueError, OSError, TypeError) as e:\n+                except (ValueError, OSError, TypeError, AttributeError) as e:\n                     pass\n             if not getattr(ireq, 'project_name', None):\n                 try:"
+        }
+      ]
+    },
+    {
+      "sha": "ebb07002d2399f8c22e703be05a4ee9b3108d886",
+      "message": "Fix empty indexes in cli param\nAdd extra check for -i option for fix `AttributeError: 'NoneType'`\n\nTo reproduce this bug `pipenv install <module> -i`",
+      "changes": [
+        {
+          "file": "pipenv/core.py",
+          "patch": "@@ -1897,6 +1897,8 @@ def do_install(\n     index_indicators = ['-i', '--index', '--extra-index-url']\n     index, extra_indexes = None, None\n     if more_packages and any(more_packages[0].startswith(s) for s in index_indicators):\n+        if len(more_packages) < 2:\n+            raise click.BadArgumentUsage('Please provide index value')\n         line, index = split_argument(' '.join(line), short='i', long_='index', num=1)\n         line, extra_indexes = split_argument(line, long_='extra-index-url')\n         package_names = line.split()"
+        }
+      ]
+    },
+    {
+      "sha": "252be3257823fd13e722c8aa8c944be898fc37bb",
+      "message": "Fix cli option usage error\nFix IndexError exception when `more_packages` is empty and add the more\ninformal message for argument usage.\n\nTo reproduce this issue `pipenv install -e`",
+      "changes": [
+        {
+          "file": "pipenv/core.py",
+          "patch": "@@ -1889,6 +1889,8 @@ def do_install(\n     # Capture -e argument and assign it to following package_name.\n     more_packages = list(more_packages)\n     if package_name == '-e':\n+        if not more_packages:\n+            raise click.BadArgumentUsage('Please provide path to setup.py')\n         package_name = ' '.join([package_name, more_packages.pop(0)])\n     # capture indexes and extra indexes\n     line = [package_name] + more_packages"
+        }
+      ]
+    },
+    {
+      "sha": "a94018f8377ad82324c02de90996315c91d5af1e",
+      "message": "pipenv update fails if freeze output contains comments\n\nIf the output of ``pip freeze`` contains comments (e. g. a line like ``## !! Could not determine repository location``), then the ``pipenv update`` command fails when it tries to parse the requirements:\r\n\r\n``python\r\n(project-cIS5-zzV) bash-3.2$ pipenv update -d\r\nUpdating all dependencies from Pipfile\u2026\r\nTraceback (most recent call last):\r\n  File \"/.local/bin/pipenv\", line 11, in <module>\r\n    sys.exit(cli())\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/vendor/click/core.py\", line 722, in __call__\r\n    return self.main(*args, **kwargs)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/vendor/click/core.py\", line 697, in main\r\n    rv = self.invoke(ctx)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/vendor/click/core.py\", line 1066, in invoke\r\n    return _process_result(sub_ctx.command.invoke(sub_ctx))\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/vendor/click/core.py\", line 895, in invoke\r\n    return ctx.invoke(self.callback, **ctx.params)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/vendor/click/core.py\", line 535, in invoke\r\n    return callback(*args, **kwargs)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/vendor/click/decorators.py\", line 17, in new_func\r\n    return f(get_current_context(), *args, **kwargs)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/cli.py\", line 2559, in update\r\n    do_purge()\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/cli.py\", line 1230, in do_purge\r\n    dep = convert_deps_from_pip(package)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/utils.py\", line 624, in convert_deps_from_pip\r\n    req = get_requirement(dep)\r\n  File \"/.local/venvs/pipenv/lib/python3.6/site-packages/pipenv/utils.py\", line 311, in get_requirement\r\n    req = [r for r in requirements.parse(dep)][0]\r\nIndexError: list index out of range\r\n``\r\n\r\nIt tries to make sense of the ``##`` \"requirement\", which fails.\r\n\r\nThis commit adds a simple fix to ignore comments in the ``pip freeze`` output.",
+      "changes": [
+        {
+          "file": "pipenv/cli.py",
+          "patch": "@@ -1212,7 +1212,9 @@ def do_purge(bare=False, downloads=False, allow_global=False, verbose=False):\n         return\n \n     freeze = delegator.run('\"{0}\" freeze'.format(which_pip(allow_global=allow_global))).out\n-    installed = freeze.split()\n+    \n+    # Remove comments from the output, if any.\n+    installed = [line for line in freeze.splitlines() if not line.lstrip().startswith('#')]\n \n     # Remove setuptools and friends from installed, if present.\n     for package_name in BAD_PACKAGES:"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "repo_name": "facebookresearch/detectron2",
+  "commits": [
+    {
+      "sha": "a4f6fc08c6ee45e2ca22328622342ee33c6c31e8",
+      "message": "catch and ignore potential exif transpose bug (#361)\n\nSummary:\nThere is a bug in Pillow not yet fixed when exif-transposing images:\n\nhttps://github.com/python-pillow/Pillow/issues/3973\n\nand this can crash the whole training, this PR is to catch the bug and ignore and use the image as is\n\nI believe that if the exif data was valuable for the user, he will check before hand that they are correct, so this PR should not impact anything meaniningfull\n\nerror to be fixed:\n\n```\nOriginal Traceback (most recent call last):\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/torch/utils/data/_utils/worker.py\", line 178, in _worker_loop\n    data = fetcher.fetch(index)\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/torch/utils/data/_utils/fetch.py\", line 44, in fetch\n    data = [self.dataset[idx] for idx in possibly_batched_index]\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/torch/utils/data/_utils/fetch.py\", line 44, in <listcomp>\n    data = [self.dataset[idx] for idx in possibly_batched_index]\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/detectron2/data/common.py\", line 39, in __getitem__\n    data = self._map_func(self._dataset[cur_idx])\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/detectron2/data/dataset_mapper.py\", line 74, in __call__\n    image = utils.read_image(dataset_dict[\"file_name\"], format=self.img_format)\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/detectron2/data/detection_utils.py\", line 49, in read_image\n    image = ImageOps.exif_transpose(image)\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/PIL/ImageOps.py\", line 549, in exif_transpose\n    transposed_image.info[\"exif\"] = exif.tobytes()\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/PIL/Image.py\", line 3213, in tobytes\n    return b\"Exif\\x00\\x00\" + head + ifd.tobytes(offset)\n  File \"/miniconda/envs/sterblue/lib/python3.7/site-packages/PIL/TiffImagePlugin.py\", line 837, in tobytes\n    count = len(data)\nTypeError: object of type 'int' has no len()\n```\nPull Request resolved: https://github.com/facebookresearch/detectron2/pull/361\n\nDifferential Revision: D18630767\n\nPulled By: ppwwyyxx\n\nfbshipit-source-id: 79ec76454ee853a2dbd82c750071b69ff535df53",
+      "changes": [
+        {
+          "file": "detectron2/data/detection_utils.py",
+          "patch": "@@ -46,7 +46,11 @@ def read_image(file_name, format=None):\n     with PathManager.open(file_name, \"rb\") as f:\n         image = Image.open(f)\n \n-        image = ImageOps.exif_transpose(image)\n+        # capture and ignore this bug: https://github.com/python-pillow/Pillow/issues/3973\n+        try:\n+            image = ImageOps.exif_transpose(image)\n+        except Exception:\n+            pass\n \n         if format is not None:\n             # PIL only supports RGB, so convert to RGB and flip channels over below"
+        },
+        {
+          "file": "tools/plain_train_net.py",
+          "patch": "@@ -101,7 +101,7 @@ def get_evaluator(cfg, dataset_name, output_folder=None):\n \n def do_test(cfg, model):\n     results = OrderedDict()\n-    for idx, dataset_name in enumerate(cfg.DATASETS.TEST):\n+    for dataset_name in cfg.DATASETS.TEST:\n         data_loader = build_detection_test_loader(cfg, dataset_name)\n         evaluator = get_evaluator(\n             cfg, dataset_name, os.path.join(cfg.OUTPUT_DIR, \"inference\", dataset_name)"
+        }
+      ]
+    },
+    {
+      "sha": "bf8bb37cbee8e39df9dccaaeefdd0e83b53bdea4",
+      "message": "fix problem of + between int and str (#116)\n\nSummary:\nOtherwise I will get `TypeError: unsupported operand type(s) for +: 'int' and 'str'`.\nPull Request resolved: https://github.com/facebookresearch/detectron2/pull/116\n\nDifferential Revision: D18008910\n\nPulled By: ppwwyyxx\n\nfbshipit-source-id: 801e12dc80f5a19c7e136c8b86d3cc62c8fe23ce",
+      "changes": [
+        {
+          "file": "detectron2/utils/visualizer.py",
+          "patch": "@@ -482,7 +482,10 @@ def draw_dataset_dict(self, dic):\n             names = self.metadata.get(\"thing_classes\", None)\n             if names:\n                 labels = [names[i] for i in labels]\n-            labels = [i + (\"|crowd\" if a.get(\"iscrowd\", 0) else \"\") for i, a in zip(labels, annos)]\n+            labels = [\n+                \"{}\".format(i) + (\"|crowd\" if a.get(\"iscrowd\", 0) else \"\")\n+                for i, a in zip(labels, annos)\n+            ]\n             self.overlay_instances(labels=labels, boxes=boxes, masks=masks, keypoints=keypts)\n \n         sem_seg = dic.get(\"sem_seg\", None)"
+        }
+      ]
+    }
+  ]
+}

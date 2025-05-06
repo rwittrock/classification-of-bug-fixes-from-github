@@ -1,0 +1,15 @@
+{
+  "repo_name": "freqtrade/freqtrade",
+  "commits": [
+    {
+      "sha": "0203a48f3e02c691628c00d827857d57cac54d7b",
+      "message": "use local config-object for check_exchange\n\nfix AttributeError: 'NoneType' object has no attribute 'get' when\nstarting the bot.",
+      "changes": [
+        {
+          "file": "freqtrade/configuration.py",
+          "patch": "@@ -102,7 +102,7 @@ def _load_common_config(self, config: Dict[str, Any]) -> Dict[str, Any]:\n                 self.logger.info('Dry run is disabled. (--dry_run_db ignored)')\n \n         # Check if the exchange set by the user is supported\n-        self.check_exchange()\n+        self.check_exchange(config)\n \n         return config\n \n@@ -203,12 +203,12 @@ def get_config(self) -> Dict[str, Any]:\n \n         return self.config\n \n-    def check_exchange(self) -> bool:\n+    def check_exchange(self, config: Dict[str, Any]) -> bool:\n         \"\"\"\n         Check if the exchange name in the config file is supported by Freqtrade\n         :return: True or raised an exception if the exchange if not supported\n         \"\"\"\n-        exchange = self.config.get('exchange', {}).get('name').lower()\n+        exchange = config.get('exchange', {}).get('name').lower()\n         if exchange not in ccxt.exchanges:\n \n             exception_msg = 'Exchange \"{}\" not supported.\\n' \\"
+        }
+      ]
+    }
+  ]
+}

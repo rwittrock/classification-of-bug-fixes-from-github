@@ -1,0 +1,25 @@
+{
+  "repo_name": "jazzband/pip-tools",
+  "commits": [
+    {
+      "sha": "7db82e8adbec6fca4ba6d92131af68fad21813d0",
+      "message": "Fix NameError (no such thing as `logger`)",
+      "changes": [
+        {
+          "file": "piptools/repositories/pypi.py",
+          "patch": "@@ -37,7 +37,6 @@ def __init__(self, pip_options):\n \n         index_urls = [pip_options.index_url] + pip_options.extra_index_urls\n         if pip_options.no_index:\n-            logger.info('Ignoring indexes: %s', ','.join(index_urls))\n             index_urls = []\n \n         self.finder = PackageFinder("
+        }
+      ]
+    },
+    {
+      "sha": "6e3a76a77eb655709675ba3a15bee12e34ec251a",
+      "message": "Fix AttributeError\n\nFixes #156.",
+      "changes": [
+        {
+          "file": "piptools/resolver.py",
+          "patch": "@@ -86,7 +86,7 @@ def resolve(self, max_rounds=10):\n         return best_matches\n \n     def _check_constraints(self):\n-        for constraint in self.constraints:\n+        for constraint in chain(self.our_constraints, self.their_constraints):\n             if constraint.link is not None and not constraint.editable:\n                 msg = ('pip-compile does not support URLs as packages, unless they are editable '\n                        '(perhaps add -e option?)')"
+        }
+      ]
+    }
+  ]
+}

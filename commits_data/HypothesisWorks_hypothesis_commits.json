@@ -1,0 +1,35 @@
+{
+  "repo_name": "HypothesisWorks/hypothesis",
+  "commits": [
+    {
+      "sha": "5ae159741889a4af1eeca7c7cc96aeb785a3e6f4",
+      "message": "Fix spurious TypeError with a composite having keyword-only arguments. (#2000)\n\nFix spurious TypeError with a composite having keyword-only arguments.",
+      "changes": [
+        {
+          "file": "hypothesis-python/src/hypothesis/internal/reflection.py",
+          "patch": "@@ -182,7 +182,7 @@ def convert_keyword_arguments(function, args, kwargs):\n             else:\n                 raise TypeError(\"No value provided for argument %r\" % (arg_name))\n \n-    if kwargs and not argspec.varkw:\n+    if kwargs and not (argspec.varkw or argspec.kwonlyargs):\n         if len(kwargs) > 1:\n             raise TypeError(\n                 \"%s() got unexpected keyword arguments %s\""
+        }
+      ]
+    },
+    {
+      "sha": "f977ea19d6a9431007d1ba46a7798e12a3e5ebff",
+      "message": "Fix spurious TypeError with a composite having keyword-only arguments.\n\nFixes issue #1999.",
+      "changes": [
+        {
+          "file": "hypothesis-python/src/hypothesis/internal/reflection.py",
+          "patch": "@@ -182,7 +182,7 @@ def convert_keyword_arguments(function, args, kwargs):\n             else:\n                 raise TypeError(\"No value provided for argument %r\" % (arg_name))\n \n-    if kwargs and not argspec.varkw:\n+    if kwargs and not (argspec.varkw or argspec.kwonlyargs):\n         if len(kwargs) > 1:\n             raise TypeError(\n                 \"%s() got unexpected keyword arguments %s\""
+        }
+      ]
+    },
+    {
+      "sha": "328111f2576c25233dedc78d9c9a87dfc4b54986",
+      "message": "Fix occasional IndexError",
+      "changes": [
+        {
+          "file": "hypothesis-python/src/hypothesis/internal/conjecture/shrinker.py",
+          "patch": "@@ -805,6 +805,9 @@ def try_shrinking_blocks(self, blocks, b):\n             n = min(self.blocks[block].length, len(b))\n             initial_attempt[v - n : v] = b[-n:]\n \n+        if not blocks:\n+            return False\n+\n         start = self.shrink_target.blocks[blocks[0]].start\n         end = self.shrink_target.blocks[blocks[-1]].end\n "
+        }
+      ]
+    }
+  ]
+}

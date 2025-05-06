@@ -1,0 +1,25 @@
+{
+  "repo_name": "dbcli/pgcli",
+  "commits": [
+    {
+      "sha": "12242dc7486fa9740a495641752e97150e0d3ab2",
+      "message": "Catch AttributeError in extend_tables to prevent similar bugs from occurring in the future",
+      "changes": [
+        {
+          "file": "pgcli/pgcompleter.py",
+          "patch": "@@ -96,7 +96,11 @@ def extend_tables(self, table_data):\n         # dbmetadata['schema_name']['table_name'] should be a list of column\n         # names. Default to an asterisk\n         for schema, table in table_data:\n-            self.dbmetadata[schema][table] = ['*']\n+            try:\n+                self.dbmetadata[schema][table] = ['*']\n+            except AttributeError:\n+                _logger.error('Table %r listed in unrecognized schema %r',\n+                              table, schema)\n \n         self.all_completions.update(t[1] for t in table_data)\n "
+        }
+      ]
+    },
+    {
+      "sha": "1e263f1a03eaba0b305ae8c05053abe4d803430f",
+      "message": "don't try to spilt None - fixes AttributeError: 'NoneType' object has no attribute 'split' on special commands like \\?",
+      "changes": [
+        {
+          "file": "pgcli/main.py",
+          "patch": "@@ -283,6 +283,9 @@ def need_completion_refresh(sql):\n         return False\n \n def is_mutating(status):\n+    if not status:\n+        return False\n+    \n     mutating = ['insert', 'update', 'delete', 'alter', 'create', 'drop']\n     return status.split(None, 1)[0].lower() in mutating\n "
+        }
+      ]
+    }
+  ]
+}

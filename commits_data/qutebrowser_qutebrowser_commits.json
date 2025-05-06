@@ -1,0 +1,145 @@
+{
+  "repo_name": "qutebrowser/qutebrowser",
+  "commits": [
+    {
+      "sha": "b6d8d867e150019569f36ca503b98a4280d412ec",
+      "message": "Use string annotations for typing.Type\n\nWith Python 3.5.2 (which is shipped with Ubuntu 16.04), placing a typing.Type\ninto Union/Optional causes:\n\n     TypeError: descriptor '__subclasses__' of 'type' object needs an argument\n\nThis was fixed in Python 3.5.3 via:\nhttps://github.com/python/typing/issues/266\n\nFixes #5099",
+      "changes": [
+        {
+          "file": "qutebrowser/utils/debug.py",
+          "patch": "@@ -272,7 +272,11 @@ def __init__(self, logger: typing.Union[logging.Logger, str],\n     def __enter__(self) -> None:\n         self._started = datetime.datetime.now()\n \n-    def __exit__(self, _exc_type: typing.Optional[typing.Type[BaseException]],\n+    # The string annotation is a WORKAROUND for a Python 3.5.2 bug:\n+    # https://github.com/python/typing/issues/266\n+\n+    def __exit__(self,\n+                 _exc_type: 'typing.Optional[typing.Type[BaseException]]',\n                  _exc_val: typing.Optional[BaseException],\n                  _exc_tb: typing.Optional[types.TracebackType]) -> None:\n         assert self._started is not None"
+        }
+      ]
+    },
+    {
+      "sha": "033aa34404aca042b81ef5aa500c479b11a0dc6a",
+      "message": "run_profile: Set default profile file for --profile-tool=none\n\nFixes \"TypeError: join() argument must be str or bytes, not 'NoneType'\".",
+      "changes": [
+        {
+          "file": "scripts/dev/run_profile.py",
+          "patch": "@@ -49,6 +49,7 @@ def parse_args():\n                         default='snakeviz',\n                         help=\"The tool to use to view the profiling data\")\n     parser.add_argument('--profile-file', metavar='FILE', action='store',\n+                        default=\"profile_data\",\n                         help=\"The filename to use with --profile-tool=none\")\n     parser.add_argument('--profile-test', action='store_true',\n                         help=\"Run pytest instead of qutebrowser\")"
+        }
+      ]
+    },
+    {
+      "sha": "4a4624317997ff1bfe7ff3452ef46c70c7d393d3",
+      "message": "Exclude coverage for AttributeError\n\nOn Qt 5.13, all those keys are defined, so this line never gets hit.\n\n(For some reason, this wasn't a problem before moving _SPECIAL_NAMES out of the\nfunction it was in - not sure why...)",
+      "changes": [
+        {
+          "file": "qutebrowser/keyinput/keyutils.py",
+          "patch": "@@ -140,7 +140,7 @@ def _build_special_names():\n     for k, v in special_names_str.items():\n         try:\n             _SPECIAL_NAMES[getattr(Qt, 'Key_' + k)] = v\n-        except AttributeError:\n+        except AttributeError:  # pragma: no cover\n             pass\n         _SPECIAL_NAMES[0x0] = 'nil'\n "
+        }
+      ]
+    },
+    {
+      "sha": "d97a186992fee93e137820e8e942ca3993680e37",
+      "message": "Use qtutils.version_check to check for signal availability\n\nWith Qt 5.12 but an older PyQt, it looks like the attributes are available, but\nconnecting fails with:\n\n    TypeError: C++ type 'QWebEngineClientCertificateSelection' is not supported\n    as a signal argument type\n\nLet's ensure we require both a new Qt and PyQt instead.",
+      "changes": [
+        {
+          "file": "qutebrowser/browser/webengine/webenginetab.py",
+          "patch": "@@ -1505,13 +1505,11 @@ def _connect_signals(self):\n             self._on_proxy_authentication_required)\n         page.contentsSizeChanged.connect(self.contents_size_changed)\n         page.navigation_request.connect(self._on_navigation_request)\n-        try:\n+\n+        if qtutils.version_check('5.12'):\n             page.printRequested.connect(self._on_print_requested)\n             page.selectClientCertificate.connect(\n                 self._on_select_client_certificate)\n-        except AttributeError:\n-            # Added in Qt 5.12\n-            pass\n \n         view.titleChanged.connect(self.title_changed)\n         view.urlChanged.connect(self._on_url_changed)"
+        }
+      ]
+    },
+    {
+      "sha": "a6b314ae91fc56de279d6bb9a63671f69909df85",
+      "message": "Don't connect Qt 5.11 signals on PyQt 5.10\n\nApparently the signal attributes already exist with PyQt 5.10 (*sigh*) but PyQt\ndoesn't know what to do with the arguments, causing this to happen:\n\nTypeError: unable to convert a C++ 'QWebEngineRegisterProtocolHandlerRequest'\ninstance to a Python object",
+      "changes": [
+        {
+          "file": "qutebrowser/browser/webengine/webenginetab.py",
+          "patch": "@@ -660,14 +660,12 @@ def connect_signals(self):\n             self._on_fullscreen_requested)\n         page.featurePermissionRequested.connect(\n             self._on_feature_permission_requested)\n-        try:\n+\n+        if qtutils.version_check('5.11'):\n             page.quotaRequested.connect(\n                 self._on_quota_requested)\n             page.registerProtocolHandlerRequested.connect(\n                 self._on_register_protocol_handler_requested)\n-        except AttributeError:\n-            # Added in Qt 5.11\n-            pass\n \n         self._tab.shutting_down.connect(self._abort_questions)\n         self._tab.load_started.connect(self._abort_questions)"
+        }
+      ]
+    },
+    {
+      "sha": "67253726fa82471abb0ac4e2e5ae5168b2f6575c",
+      "message": "Handle empty messages in qt_message_handler\n\nI can't reproduce this, but someone on KDE reported always getting a crash (as\nmsg.splitlines()[0] gives an IndexError) when trying to select a file with\nQt 5.9.3.",
+      "changes": [
+        {
+          "file": "qutebrowser/utils/log.py",
+          "patch": "@@ -422,6 +422,9 @@ def qt_message_handler(msg_type, context, msg):\n                 'with: -9805',  # flake8: disable=E131\n         ]\n \n+    if not msg:\n+        msg = \"Logged empty message!\"\n+\n     if any(msg.strip().startswith(pattern) for pattern in suppressed_msgs):\n         level = logging.DEBUG\n     else:"
+        }
+      ]
+    },
+    {
+      "sha": "3adcfddfff12fe1429d965a9467de49655e5dabb",
+      "message": "Handle LookupError when reading adblock zips",
+      "changes": [
+        {
+          "file": "qutebrowser/browser/adblock.py",
+          "patch": "@@ -219,7 +219,7 @@ def _merge_file(self, byte_io):\n         try:\n             f = get_fileobj(byte_io)\n         except (OSError, UnicodeDecodeError, zipfile.BadZipFile,\n-                zipfile.LargeZipFile) as e:\n+                zipfile.LargeZipFile, LookupError) as e:\n             message.error(\"adblock: Error while reading {}: {} - {}\".format(\n                 byte_io.name, e.__class__.__name__, e))\n             return"
+        }
+      ]
+    },
+    {
+      "sha": "378976db299fe46d02beb79f0cae45e5e8d30379",
+      "message": "Make log.stub work when inspect.stack fails\n\nI got this during shutdown once:\n\nTraceback (most recent call last):\n  File \".../qutebrowser/mainwindow/mainwindow.py\", line 552, in closeEvent\n  File \".../qutebrowser/mainwindow/mainwindow.py\", line 538, in _do_close\n  File \".../qutebrowser/mainwindow/tabbedbrowser.py\", line 218, in shutdown\n    self._remove_tab(tab)\n  File \".../qutebrowser/mainwindow/tabbedbrowser.py\", line 280, in _remove_tab\n    tab.shutdown()\n  File \".../qutebrowser/browser/webengine/webenginetab.py\", line 536, in shutdown\n    log.stub()\n  File \".../qutebrowser/utils/log.py\", line 151, in stub\n    function = inspect.stack()[1][3]\n  File \"/usr/lib64/python3.5/inspect.py\", line 1464, in stack\n    return getouterframes(sys._getframe(1), context)\n  File \"/usr/lib64/python3.5/inspect.py\", line 1441, in getouterframes\n    frameinfo = (frame,) + getframeinfo(frame, context)\n  File \"/usr/lib64/python3.5/inspect.py\", line 1414, in getframeinfo\n    lines, lnum = findsource(frame)\n  File \"/usr/lib64/python3.5/inspect.py\", line 804, in findsource\n    if pat.match(lines[lnum]): break\nIndexError: list index out of range",
+      "changes": [
+        {
+          "file": "qutebrowser/utils/log.py",
+          "patch": "@@ -148,7 +148,11 @@ def vdebug(self, msg, *args, **kwargs):\n \n def stub(suffix=''):\n     \"\"\"Show a STUB: message for the calling function.\"\"\"\n-    function = inspect.stack()[1][3]\n+    try:\n+        function = inspect.stack()[1][3]\n+    except IndexError:  # pragma: no cover\n+        misc.exception(\"Failed to get stack\")\n+        function = '<unknown>'\n     text = \"STUB: {}\".format(function)\n     if suffix:\n         text = '{} ({})'.format(text, suffix)"
+        }
+      ]
+    },
+    {
+      "sha": "2fb186efcd5270f29239af62eaa98cbafd0d6768",
+      "message": "Fix UnboundLocalError in :unbind",
+      "changes": [
+        {
+          "file": "qutebrowser/config/parsers/keyconf.py",
+          "patch": "@@ -201,7 +201,7 @@ def unbind(self, key, mode=None):\n             sect = self.keybindings[mode]\n         except KeyError:\n             raise cmdexc.CommandError(\"Can't find mode section '{}'!\".format(\n-                sect))\n+                mode))\n         try:\n             del sect[key]\n         except KeyError:"
+        }
+      ]
+    },
+    {
+      "sha": "7160a89cb91ff6965861ca085e9a39a63f5dcb9c",
+      "message": "Fix NameError in hints.py.",
+      "changes": [
+        {
+          "file": "qutebrowser/browser/hints.py",
+          "patch": "@@ -523,8 +523,8 @@ def _call_userscript(self, elem, context):\n             'QUTE_MODE': 'hints',\n             'QUTE_SELECTED_TEXT': str(elem),\n             'QUTE_SELECTED_HTML': elem.toOuterXml(),\n-            'QUTE_HTML': mainframe.toHtml(),\n-            'QUTE_TEXT': mainframe.toPlainText(),\n+            'QUTE_HTML': frame.toHtml(),\n+            'QUTE_TEXT': frame.toPlainText(),\n         }\n         url = self._resolve_url(elem, context.baseurl)\n         if url is not None:"
+        }
+      ]
+    },
+    {
+      "sha": "bfd0a3fbc29986dc07255d35fab52baa457a1ebf",
+      "message": "Fix AttributeError when doing extended hinting.",
+      "changes": [
+        {
+          "file": "qutebrowser/browser/webpage.py",
+          "patch": "@@ -417,7 +417,9 @@ def on_start_hinting(self, hint_target):\n         Args:\n             hint_target: A string to set self._hint_target to.\n         \"\"\"\n-        t = getattr(usertypes.ClickTarget, hint_target)\n+        t = getattr(usertypes.ClickTarget, hint_target, None)\n+        if t is None:\n+            return\n         log.webview.debug(\"Setting force target to {}/{}\".format(\n             hint_target, t))\n         self._hint_target = t"
+        }
+      ]
+    },
+    {
+      "sha": "319ea242da815c0a2d13009f455f281fcfea68d4",
+      "message": "cmdutils: raise TypeError instead of ValueError.",
+      "changes": [
+        {
+          "file": "qutebrowser/commands/cmdutils.py",
+          "patch": "@@ -222,8 +222,8 @@ def _inspect_func(self):\n         type_conv = {}\n         signature = inspect.signature(self.func)\n         if 'self' in signature.parameters and self.instance is None:\n-            raise ValueError(\"{} is a class method, but instance was not \"\n-                             \"given!\".format(self.name[0]))\n+            raise TypeError(\"{} is a class method, but instance was not \"\n+                            \"given!\".format(self.name[0]))\n         has_count = 'count' in signature.parameters\n         doc = inspect.getdoc(self.func)\n         if doc is not None:"
+        }
+      ]
+    },
+    {
+      "sha": "13a2506c6a9dffff3bd0c065a91ba018167de274",
+      "message": "argparser: Also catch TypeError for multitype_conv.",
+      "changes": [
+        {
+          "file": "qutebrowser/commands/argparser.py",
+          "patch": "@@ -109,7 +109,7 @@ def _convert(value):\n                     return value\n                 try:\n                     return typ(value)\n-                except ValueError:\n+                except (TypeError, ValueError):\n                     pass\n         raise cmdexc.ArgumentTypeError('Invalid value {}.'.format(value))\n "
+        }
+      ]
+    },
+    {
+      "sha": "8d8cc25344c8998858c9e266b0f6766346882107",
+      "message": "Add FIXME for cmd parsing IndexError",
+      "changes": [
+        {
+          "file": "qutebrowser/commands/keys.py",
+          "patch": "@@ -48,6 +48,7 @@ def _handle(self, e):\n             cmd = self.key_to_cmd[cmdstr]\n         except KeyError:\n             pos = len(cmdstr)\n+            # FIXME we get an IndexError here sometimes (e.g. with 'go')\n             if any([cmdstr[-1] == needle[pos-1]\n                     for needle in self.key_to_cmd]):\n                 logging.debug('No match for \"{}\" (added {})'.format("
+        }
+      ]
+    }
+  ]
+}

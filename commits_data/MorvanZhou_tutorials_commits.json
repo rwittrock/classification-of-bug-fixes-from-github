@@ -1,0 +1,15 @@
+{
+  "repo_name": "MorvanZhou/tutorials",
+  "commits": [
+    {
+      "sha": "577cb2cee9ff843f2059516c8291a801c909da8a",
+      "message": "Resolve Error: \"AttributeError\"\n\nfix: tk11_msgbox.py\r\n\r\nAdd a line to resolve \"AttributeError\" : \r\nimport tkinter.messagebox",
+      "changes": [
+        {
+          "file": "tkinterTUT/tk11_msgbox.py",
+          "patch": "@@ -4,6 +4,7 @@\n # Youku video tutorial: http://i.youku.com/pythontutorial\n \n import tkinter as tk\n+import tkinter.messagebox\n \n window = tk.Tk()\n window.title('my window')"
+        }
+      ]
+    }
+  ]
+}

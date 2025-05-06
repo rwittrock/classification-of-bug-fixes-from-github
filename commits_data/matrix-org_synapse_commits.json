@@ -1,0 +1,135 @@
+{
+  "repo_name": "matrix-org/synapse",
+  "commits": [
+    {
+      "sha": "9d94313209fdb2141189c927cb1f81fea6feb5e4",
+      "message": "Fix exception when resetting retry timings\n\nFixes:\n> TypeError: set_destination_retry_timings() missing 1 required positional\nargument: 'retry_interval'\n\nIntroduced in #6016.",
+      "changes": [
+        {
+          "file": "synapse/federation/transport/server.py",
+          "patch": "@@ -165,7 +165,7 @@ async def authenticate_request(self, request, content):\n     async def _reset_retry_timings(self, origin):\n         try:\n             logger.info(\"Marking origin %r as up\", origin)\n-            await self.store.set_destination_retry_timings(origin, 0, 0)\n+            await self.store.set_destination_retry_timings(origin, None, 0, 0)\n         except Exception:\n             logger.exception(\"Error resetting retry timings on %s\", origin)\n "
+        }
+      ]
+    },
+    {
+      "sha": "f31101882391aa37bc6fdeb71d1559d5dcdfd4e7",
+      "message": "Fix errors in acme provisioning (#4648)\n\n* Better logging for errors on startup\r\n\r\n* Fix \"TypeError: '>' not supported\" when starting without an existing\r\n  certificate\r\n* Fix a bug where an existing certificate would be reprovisoned every day",
+      "changes": [
+        {
+          "file": "synapse/config/logger.py",
+          "patch": "@@ -242,3 +242,5 @@ def _log(event):\n         [_log],\n         redirectStandardIO=not config.no_redirect_stdio,\n     )\n+    if not config.no_redirect_stdio:\n+        print(\"Redirected stdout/stderr to logs\")"
+        }
+      ]
+    },
+    {
+      "sha": "f4697b5ec1071905b1177fd473e20df0b1455a4c",
+      "message": "Fix UnboundLocalError in post_urlencoded_get_json (#4460)\n\nThis could cause exceptions if the id server returned 4xx responses.",
+      "changes": [
+        {
+          "file": "synapse/http/client.py",
+          "patch": "@@ -333,9 +333,10 @@ def post_urlencoded_get_json(self, uri, args={}, headers=None):\n             \"POST\", uri, headers=Headers(actual_headers), data=query_bytes\n         )\n \n+        body = yield make_deferred_yieldable(readBody(response))\n+\n         if 200 <= response.code < 300:\n-            body = yield make_deferred_yieldable(treq.json_content(response))\n-            defer.returnValue(body)\n+            defer.returnValue(json.loads(body))\n         else:\n             raise HttpResponseException(response.code, response.phrase, body)\n "
+        }
+      ]
+    },
+    {
+      "sha": "0c9db26260210bd2066048333b2644a2511b1801",
+      "message": "add comment explaining attributeerror",
+      "changes": [
+        {
+          "file": "synapse/events/__init__.py",
+          "patch": "@@ -47,6 +47,9 @@ def get_send_on_behalf_of(self):\n \n \n def _event_dict_property(key):\n+    # We want to be able to use hasattr with the event dict properties.\n+    # However, (on python3) hasattr expects AttributeError to be raised. Hence,\n+    # we need to transform the KeyError into an AttributeError\n     def getter(self):\n         try:\n             return self._event_dict[key]"
+        }
+      ]
+    },
+    {
+      "sha": "8b38096a897bc142378d8a1f01fc28c459decc7e",
+      "message": "Fix error handling on dns lookup\n\npass the right arguments to the errback handler\n\nFixes \"TypeError('eb() takes exactly 2 arguments (1 given)',)\"",
+      "changes": [
+        {
+          "file": "synapse/http/endpoint.py",
+          "patch": "@@ -362,8 +362,10 @@ def eb(res, record_type):\n         return res\n \n     # no logcontexts here, so we can safely fire these off and gatherResults\n-    d1 = dns_client.lookupAddress(host).addCallbacks(cb, eb)\n-    d2 = dns_client.lookupIPV6Address(host).addCallbacks(cb, eb)\n+    d1 = dns_client.lookupAddress(host).addCallbacks(\n+        cb, eb, errbackArgs=(\"A\", ))\n+    d2 = dns_client.lookupIPV6Address(host).addCallbacks(\n+        cb, eb, errbackArgs=(\"AAAA\", ))\n     results = yield defer.DeferredList(\n         [d1, d2], consumeErrors=True)\n "
+        }
+      ]
+    },
+    {
+      "sha": "f7f90e0c8da613a833e5dcd3fa130a986fa5475c",
+      "message": "Fix error when running synapse with no logfile\n\nFixes 'UnboundLocalError: local variable 'sighup' referenced before assignment'",
+      "changes": [
+        {
+          "file": "synapse/config/logger.py",
+          "patch": "@@ -148,8 +148,8 @@ def setup_logging(config, use_worker_options=False):\n         \"%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s\"\n         \" - %(message)s\"\n     )\n-    if log_config is None:\n \n+    if log_config is None:\n         level = logging.INFO\n         level_for_storage = logging.INFO\n         if config.verbosity:\n@@ -176,6 +176,10 @@ def sighup(signum, stack):\n                 logger.info(\"Opened new log file due to SIGHUP\")\n         else:\n             handler = logging.StreamHandler()\n+\n+            def sighup(signum, stack):\n+                pass\n+\n         handler.setFormatter(formatter)\n \n         handler.addFilter(LoggingContextFilter(request=\"\"))"
+        }
+      ]
+    },
+    {
+      "sha": "dfaf0fee317d54131f96e6f7b43ecbcab8b0a687",
+      "message": "Log the value which is observed in the first place.\n\nThe name 'result' is of bool type and has no len property,\nresulting in a TypeError. Futhermore in the flow control\nconn.response is observed and hence should be reported.\n\nSigned-off-by: Daniel Ehlers <sargon@toppoint.de>",
+      "changes": [
+        {
+          "file": "synapse/handlers/auth.py",
+          "patch": "@@ -660,7 +660,7 @@ def _check_ldap_password(self, user_id, password):\n                 else:\n                     logger.warn(\n                         \"ldap registration failed: unexpected (%d!=1) amount of results\",\n-                        len(result)\n+                        len(conn.response)\n                     )\n                     defer.returnValue(False)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e380538b594d4fa55e98818df0061efbdf3cb35b",
+      "message": "Fix AttributeError when bind_dn is not defined.\n\nIn case one does not define bind_dn in ldap configuration, filter\nattribute is not declared. Since auth code only uses ldap_filter attribute\nwhen according LDAP mode is selected, it is safe to only declare the\nattribute in that case.\n\nSigned-off-by: Daniel Ehlers <sargon@toppoint.de>",
+      "changes": [
+        {
+          "file": "synapse/handlers/auth.py",
+          "patch": "@@ -70,11 +70,11 @@ def __init__(self, hs):\n             self.ldap_uri = hs.config.ldap_uri\n             self.ldap_start_tls = hs.config.ldap_start_tls\n             self.ldap_base = hs.config.ldap_base\n-            self.ldap_filter = hs.config.ldap_filter\n             self.ldap_attributes = hs.config.ldap_attributes\n             if self.ldap_mode == LDAPMode.SEARCH:\n                 self.ldap_bind_dn = hs.config.ldap_bind_dn\n                 self.ldap_bind_password = hs.config.ldap_bind_password\n+                self.ldap_filter = hs.config.ldap_filter\n \n         self.hs = hs  # FIXME better possibility to access registrationHandler later?\n         self.device_handler = hs.get_device_handler()"
+        }
+      ]
+    },
+    {
+      "sha": "ed5f43a55accc8502a60b721871b208db704de3e",
+      "message": "Fix TypeError in call to bcrypt.hashpw\n- At the very least, this TypeError caused logins to fail on my own\n  running instance of Synapse, and the simple (explicit) UTF-8\n  conversion resolved login errors for me.\n\nSigned-off-by: Salvatore LaMendola <salvatore.lamendola@gmail.com>",
+      "changes": [
+        {
+          "file": "synapse/handlers/auth.py",
+          "patch": "@@ -626,6 +626,6 @@ def validate_hash(self, password, stored_hash):\n             Whether self.hash(password) == stored_hash (bool).\n         \"\"\"\n         if stored_hash:\n-            return bcrypt.hashpw(password, stored_hash) == stored_hash\n+            return bcrypt.hashpw(password, stored_hash.encode('utf-8')) == stored_hash\n         else:\n             return False"
+        }
+      ]
+    },
+    {
+      "sha": "c6549117a21fe11257d4475c1edd9feae6cdb685",
+      "message": "Fix AttributeError",
+      "changes": [
+        {
+          "file": "synapse/http/endpoint.py",
+          "patch": "@@ -88,7 +88,7 @@ def __init__(self, reactor, service, domain, protocol=\"tcp\",\n         self.service_name = \"_%s._%s.%s\" % (service, protocol, domain)\n \n         if default_port is not None:\n-            self.default_server = self._Server(\n+            self.default_server = _Server(\n                 host=domain,\n                 port=default_port,\n                 priority=0,"
+        }
+      ]
+    },
+    {
+      "sha": "559c51debcf5402cd5999aa1afb854b34e9de363",
+      "message": "Use TypeError instead of ValueError and give a nicer error mesasge\nwhen someone calls Cache.invalidate with the wrong type.",
+      "changes": [
+        {
+          "file": "synapse/storage/_base.py",
+          "patch": "@@ -116,7 +116,9 @@ def prefill(self, key, value):\n     def invalidate(self, key):\n         self.check_thread()\n         if not isinstance(key, tuple):\n-            raise ValueError(\"keyargs must be a tuple.\")\n+            raise TypeError(\n+                \"The cache key must be a tuple not %r\" % (type(key),)\n+            )\n \n         # Increment the sequence number so that any SELECT statements that\n         # raced with the INSERT don't update the cache (SYN-369)"
+        }
+      ]
+    },
+    {
+      "sha": "7e9d59f3b4628981d5e53ac0cc71325ad896287c",
+      "message": "Don't convert DNSLookupError to a 4xx SynapseError",
+      "changes": [
+        {
+          "file": "synapse/http/matrixfederationclient.py",
+          "patch": "@@ -144,7 +144,7 @@ def _create_request(self, destination, method, path_bytes,\n                         destination,\n                         e\n                     )\n-                    raise SynapseError(400, \"Domain specified not found.\")\n+                    raise\n \n                 logger.warn(\n                     \"Sending request failed to %s: %s %s: %s - %s\","
+        }
+      ]
+    },
+    {
+      "sha": "b1195c125fe6ff7e14743c6984623cbdcfad780a",
+      "message": "hs: Updated synapse.http.client to handle DNSLookupErrors and bail immediately.",
+      "changes": [
+        {
+          "file": "synapse/http/client.py",
+          "patch": "@@ -15,6 +15,7 @@\n \n \n from twisted.internet import defer, reactor\n+from twisted.internet.error import DNSLookupError\n from twisted.web.client import _AgentBase, _URI, readBody\n from twisted.web.http_headers import Headers\n \n@@ -23,7 +24,7 @@\n \n from syutil.jsonutil import encode_canonical_json\n \n-from synapse.api.errors import CodeMessageException\n+from synapse.api.errors import CodeMessageException, SynapseError\n \n import json\n import logging\n@@ -198,6 +199,10 @@ def _create_request(self, destination, method, path_bytes, param_bytes=b\"\",\n \n                 logger.debug(\"Got response to %s\", method)\n                 break\n+            except DNSLookupError as dns:\n+                logger.warn(\"DNS Lookup failed to %s with %s\", destination,\n+                            dns)\n+                raise SynapseError(400, \"Domain specified not found.\")\n             except Exception as e:\n                 logger.exception(\"Got error in _create_request\")\n                 _print_ex(e)"
+        }
+      ]
+    }
+  ]
+}

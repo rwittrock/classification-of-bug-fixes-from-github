@@ -1,0 +1,15 @@
+{
+  "repo_name": "google-deepmind/sonnet",
+  "commits": [
+    {
+      "sha": "b5a480c851d75ed25ea818582591ae009dee5de7",
+      "message": "Raise an error if __call__ is called before __init__.\n\nCurrently if this is attempted, an AttributeError is raised. This change provides a more explicit (and more helpful) error message.\n\nPiperOrigin-RevId: 158019730",
+      "changes": [
+        {
+          "file": "sonnet/__init__.py",
+          "patch": "@@ -43,6 +43,7 @@\n from sonnet.python.modules.base import IncompatibleShapeError\n from sonnet.python.modules.base import Module\n from sonnet.python.modules.base import NotConnectedError\n+from sonnet.python.modules.base import NotInitializedError\n from sonnet.python.modules.base import NotSupportedError\n from sonnet.python.modules.base import ParentNotBuiltError\n from sonnet.python.modules.base import Transposable"
+        }
+      ]
+    }
+  ]
+}

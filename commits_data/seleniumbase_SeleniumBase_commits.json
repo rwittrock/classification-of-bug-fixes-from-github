@@ -1,0 +1,15 @@
+{
+  "repo_name": "seleniumbase/SeleniumBase",
+  "commits": [
+    {
+      "sha": "73302312c2abd45a7ade664701ee47ee9c7fd648",
+      "message": "Handle an AttributeError when quitting a web driver",
+      "changes": [
+        {
+          "file": "seleniumbase/plugins/selenium_plugin.py",
+          "patch": "@@ -174,6 +174,8 @@ def beforeTest(self, test):\n     def afterTest(self, test):\n         try:\n             self.driver.quit()\n+        except AttributeError:\n+            pass\n         except:\n             print(\"No driver to quit.\")\n         if self.options.headless:"
+        }
+      ]
+    }
+  ]
+}

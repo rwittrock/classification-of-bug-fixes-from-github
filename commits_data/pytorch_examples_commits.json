@@ -1,0 +1,15 @@
+{
+  "repo_name": "pytorch/examples",
+  "commits": [
+    {
+      "sha": "90738a76837d04e6de1403962acd21df5fbb820c",
+      "message": "Fix error AttributeError: 'RNNModel' object has no attribute 'model_type' (#614)",
+      "changes": [
+        {
+          "file": "word_language_model/generate.py",
+          "patch": "@@ -49,14 +49,16 @@\n \n corpus = data.Corpus(args.data)\n ntokens = len(corpus.dictionary)\n-if model.model_type != 'Transformer':\n+\n+is_transformer_model = hasattr(model, 'model_type') and model.model_type == 'Transformer'\n+if not is_transformer_model:\n     hidden = model.init_hidden(1)\n input = torch.randint(ntokens, (1, 1), dtype=torch.long).to(device)\n \n with open(args.outf, 'w') as outf:\n     with torch.no_grad():  # no tracking history\n         for i in range(args.words):\n-            if model.model_type == 'Transformer':\n+            if is_transformer_model:\n                 output = model(input, False)\n                 word_weights = output[-1].squeeze().div(args.temperature).exp().cpu()\n                 word_idx = torch.multinomial(word_weights, 1)[0]"
+        }
+      ]
+    }
+  ]
+}

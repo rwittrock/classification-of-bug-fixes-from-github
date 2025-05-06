@@ -1,0 +1,125 @@
+{
+  "repo_name": "pyinstaller/pyinstaller",
+  "commits": [
+    {
+      "sha": "3cfce8d2dcc0548837767973621fd0603792401d",
+      "message": "Hooks: Fix pre-safe-import-module hook for 'setuptools.extern.six.moves'.\n\nThis had several issues:\n\n1. The eval'ed code failed with an import error. I added a fall back.\n\n2. Due to the eval'ed code failing, the result was a string, not a\n   dict, causing the hooks code to fail.\n\n3. Since the hook doe not fail on this error, a long backtrace is\n   output, making user to report\n     AttributeError: 'str' object has no attribute 'items'\n   This will be handled in the next commit.",
+      "changes": [
+        {
+          "file": "PyInstaller/hooks/pre_safe_import_module/hook-setuptools.extern.six.moves.py",
+          "patch": "@@ -19,7 +19,11 @@\n def pre_safe_import_module(api):\n     real_to_six_module_name = eval_statement(\n '''\n-import setuptools._vendor.six as six\n+try:\n+    import setuptools._vendor.six as six\n+except ImportError:\n+    import setuptools.extern.six as six\n+\n print('{')\n \n for moved in six._moved_attributes:"
+        }
+      ]
+    },
+    {
+      "sha": "4ea614d1ff7d4d601488c1d2ee253df3f6dcb82c",
+      "message": "Fix #1682: IndexError in hook-usb.\n\nI introduced this in 292138b75.",
+      "changes": [
+        {
+          "file": "PyInstaller/hooks/hook-usb.py",
+          "patch": "@@ -52,4 +52,4 @@\n     # `_resolveCtypesImports` returns a 3-tuple, but `binaries` are only\n     # 2-tuples, so remove the last element:\n     assert len(binaries[0]) == 3\n-    binaries.pop(2)\n+    binaries[0].pop(2)"
+        }
+      ]
+    },
+    {
+      "sha": "b283b2819abdf1ec93d39f4243597847bb9c2289",
+      "message": "Fix NameError in hook-usb.py.\n\nNameError: name 'bins' is not defined - in case of libname is None\nand not is_cygwin\n\nI introduced this in 292138b75.",
+      "changes": [
+        {
+          "file": "PyInstaller/hooks/hook-usb.py",
+          "patch": "@@ -42,9 +42,12 @@\n     # Use basename here because Python returns full library path\n     # on Mac OSX when using ctypes.util.find_library.\n     bins = [os.path.basename(libname)]\n+    binaries = _resolveCtypesImports(bins)\n elif is_cygwin:\n     bins = ['cygusb-1.0-0.dll', 'cygusb0.dll']\n-binaries = _resolveCtypesImports(bins)[:1]  # use only the first one if any\n+    binaries = _resolveCtypesImports(bins)[:1]  # use only the first one if any\n+else:\n+    binaries = []\n if binaries:\n     # `_resolveCtypesImports` returns a 3-tuple, but `binaries` are only\n     # 2-tuples, so remove the last element:"
+        }
+      ]
+    },
+    {
+      "sha": "56ba0255131fbd26494dc7bce97c827ff1252701",
+      "message": "Fix TypeError: 'map' object is not subscriptable",
+      "changes": [
+        {
+          "file": "PyInstaller/makespec.py",
+          "patch": "@@ -360,7 +360,7 @@ def main(scripts, name=None, onefile=False,\n         try:\n             import Crypto\n \n-            pycrypto_version = map(int, Crypto.__version__.split('.'))\n+            pycrypto_version = list(map(int, Crypto.__version__.split('.')))\n             is_version_acceptable = pycrypto_version[0] >= 2 and pycrypto_version[1] >= 4\n \n             if not is_version_acceptable:"
+        }
+      ]
+    },
+    {
+      "sha": "8007939ef0d4a1d72563b20b4158ac3262311b72",
+      "message": "fix NameError: name 'CONF' is not defined",
+      "changes": [
+        {
+          "file": "PyInstaller/build.py",
+          "patch": "@@ -931,6 +931,7 @@ def checkCache(fnm, strip=False, upx=False, dist_nm=None):\n                to determine level of paths for @loader_path like\n                '@loader_path/../../' for qt4 plugins.\n     \"\"\"\n+    from .config import CONF\n     # On darwin a cache is required anyway to keep the libaries\n     # with relative install names. Caching on darwin does not work\n     # since we need to modify binary headers to use relative paths"
+        }
+      ]
+    },
+    {
+      "sha": "7bbec1119a457d92dd695aae8097a3f93806e958",
+      "message": "Fix TypeError in django hook.\n\nSee #1252, #667 and #1067.",
+      "changes": [
+        {
+          "file": "PyInstaller/hooks/hookutils.py",
+          "patch": "@@ -488,6 +488,12 @@ def django_dottedstring_imports(django_root_dir):\n     PyInstaller.__pathex__.append(django_root_dir)\n \n     ret = eval_script('django-import-finder.py')\n+    if not isinstance(ret, list):\n+        # If the script fails, `ret` is not a list. Handle this here to\n+        # avoid crashes laster. See github issues #667, 1067 and #1252.\n+        logger.error('script django-import-finder.py failed')\n+        assert (not ret), ret # ensure it is an empty value\n+        ret = []\n \n     # Unset environment variables again.\n     compat.unsetenv('DJANGO_SETTINGS_MODULE')"
+        }
+      ]
+    },
+    {
+      "sha": "e2b90f6ad77c2b480c24dadcb285a2e9160379f2",
+      "message": "Fix TypeError: 'in <string>' requires string as left operand, not int.\n\nThis was introduced in commit ec603230, when changing the type\nof the struct-element from char to byte.",
+      "changes": [
+        {
+          "file": "PyInstaller/loader/pyi_carchive.py",
+          "patch": "@@ -52,6 +52,7 @@ def frombinary(self, s):\n             # nm may have up to 15 bytes of padding\n             nm = nm.rstrip(b'\\0')\n             nm = nm.decode('utf-8')\n+            typcd = chr(typcd)\n             self.data.append((dpos, dlen, ulen, flag, typcd, nm))\n \n     def tobinary(self):"
+        }
+      ]
+    },
+    {
+      "sha": "76143344d115e9f0d6895c03cbadcb3c00963099",
+      "message": "Fixes the PyQt5 hook so that it imports winutils from it's new location, PyInstaller.utils.win32.winutils\n\nFixes the need to specify \"PyQt5.Qt\" as a hidden import in the spec file by adding it to the hiddenimports in hook-PyQt5.py\n\nFixes error 'TypeError: 'str' does not support the buffer interface' in winresource.py",
+      "changes": [
+        {
+          "file": "PyInstaller/hooks/hook-PyQt5.py",
+          "patch": "@@ -10,15 +10,15 @@\n \n import os\n \n-from PyInstaller.utils.win32.winutils import qt5_menu_nib_dir\n+from PyInstaller.utils.hooks.hookutils import qt5_menu_nib_dir\n from PyInstaller.compat import getsitepackages, is_darwin, is_win\n \n \n # On Windows system PATH has to be extended to point to the PyQt4 directory.\n # The PySide directory contains Qt dlls. We need to avoid including different\n # version of Qt libraries when there is installed another application (e.g. QtCreator)\n if is_win:\n-    from PyInstaller.utils.winutils import extend_system_path\n+    from PyInstaller.utils.win32.winutils import extend_system_path\n     extend_system_path([os.path.join(x, 'PyQt4') for x in getsitepackages()])\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "faaadb1f87e4da86406ed34d85212c76a248a8e7",
+      "message": "Fix #1149: AttributeError: 'module' object has no attribute 'rstrip'.\n\nFirst, `rstrip` is a method of string/unicode-strings anyway.\nSecond, using it was useless anyway, since os.path.join takes care of it.",
+      "changes": [
+        {
+          "file": "PyInstaller/utils/hooks/hookutils.py",
+          "patch": "@@ -345,10 +345,8 @@ def qt5_qml_data(dir):\n         \n def qt5_qml_plugins_binaries(dir):\n     \"\"\"Return list of dynamic libraries formatted for mod.binaries.\"\"\"\n-    import string\n     binaries = []\n     qmldir = qt5_qml_dir()\n-    dir = string.rstrip(dir, os.sep)\n     files = misc.dlls_in_subdirs(os.path.join(qmldir, dir))\n     if files is not None:\n         for f in files:"
+        }
+      ]
+    },
+    {
+      "sha": "0c597bcb54418fdfe86e40839f0aa51ceadea5e9",
+      "message": "fix IndexError when len(VERSION) < 5",
+      "changes": [
+        {
+          "file": "PyInstaller/__init__.py",
+          "patch": "@@ -104,6 +104,6 @@ def get_version():\n     if len(VERSION) >= 4 and VERSION[3]:\n         version = '%s%s' % (version, VERSION[3])\n         # include git revision in version string\n-        if VERSION[3] == 'dev' and VERSION[4] > 0:\n+        if VERSION[3] == 'dev' and len(VERSION) == 5 and VERSION[4] > 0:\n             version = '%s-%s' % (version, VERSION[4])\n     return version"
+        }
+      ]
+    },
+    {
+      "sha": "048a8022379d19b608c41f6aa5c81cdf4068befc",
+      "message": "fix IndexError when len(VERSION) < 5",
+      "changes": [
+        {
+          "file": "PyInstaller/__init__.py",
+          "patch": "@@ -120,6 +120,6 @@ def get_version():\n     if len(VERSION) >= 4 and VERSION[3]:\n         version = '%s%s' % (version, VERSION[3])\n         # include git revision in version string\n-        if VERSION[3] == 'dev' and VERSION[4] > 0:\n+        if VERSION[3] == 'dev' and len(VERSION) == 5 and VERSION[4] > 0:\n             version = '%s-%s' % (version, VERSION[4])\n     return version"
+        }
+      ]
+    },
+    {
+      "sha": "a8c96ea362b83ee11d77386335f76977ee052efb",
+      "message": "Use module `imp` for importing hooks.\n\nThis is required really detect if a hook does not exist, by catching the\nImportError. Up to now, an AttributeErrors was catched, and I was trapped\nby this as my hook existed, but raised an AttributeError.",
+      "changes": [
+        {
+          "file": "PyInstaller/depend/imptracker.py",
+          "patch": "@@ -11,6 +11,7 @@\n import sys\n import os\n import glob\n+import imp\n import UserDict\n \n from PyInstaller import depend, hooks\n@@ -320,9 +321,9 @@ def doimport(self, nm, ctx, fqname):\n             # this (and scan_code) are instead of doing \"exec co in mod.__dict__\"\n             try:\n                 hookmodnm = 'hook-' + fqname\n-                hooks = __import__('PyInstaller.hooks', globals(), locals(), [hookmodnm])\n-                hook = getattr(hooks, hookmodnm)\n-            except AttributeError:\n+                m = imp.find_module(hookmodnm, PyInstaller.hooks.__path__)\n+                hook = imp.load_module(hookmodnm, *m)\n+            except ImportError:\n                 pass\n             else:\n                 logger.info('Processing hook %s' % hookmodnm)"
+        }
+      ]
+    }
+  ]
+}

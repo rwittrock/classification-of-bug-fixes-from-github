@@ -1,0 +1,35 @@
+{
+  "repo_name": "joke2k/faker",
+  "commits": [
+    {
+      "sha": "0165375dc25bd278b8080aebe0a4f2951c25f7df",
+      "message": "#569, fix issues in addition to the AttributeError with cx_Freeze.\n\nDetermining the directory of a module in a frozen context must be done by creating a path based on the directory of the cx_Freeze executable to the lib directory with regard to the module.",
+      "changes": [
+        {
+          "file": "faker/utils/loading.py",
+          "patch": "@@ -7,7 +7,10 @@\n def get_path(module):\n     if getattr(sys, 'frozen', False):\n         # frozen\n-        path = os.path.dirname(sys.executable)\n+        base_dir = os.path.dirname(sys.executable)\n+        lib_dir = os.path.join(base_dir, \"lib\")\n+        module_to_rel_path = os.path.join(*module.__package__.split(\".\"))\n+        path = os.path.join(lib_dir, module_to_rel_path)\n     else:\n         # unfrozen\n         path = os.path.dirname(os.path.realpath(module.__file__))"
+        }
+      ]
+    },
+    {
+      "sha": "57d3b6cad38061e205f1c6b04344a265027af98e",
+      "message": "Correct UnboundLocalError in Finnish SSN generator.\n\nSigned-off-by: Chris Lamb <chris@chris-lamb.co.uk>",
+      "changes": [
+        {
+          "file": "faker/providers/ssn/fi_FI/__init__.py",
+          "patch": "@@ -39,7 +39,7 @@ def _checksum(hetu):\n         if birthday.year < 2000:\n             separator = '-'\n         else:\n-            separator += 'A'\n+            separator = 'A'\n         suffix = str(random.randrange(2, 899)).zfill(3)\n         checksum = _checksum(hetu_date + suffix)\n         hetu = \"\".join([hetu_date, separator, suffix, checksum])"
+        }
+      ]
+    },
+    {
+      "sha": "addff7ce66e59e97c39e13487905a6b7afab46be",
+      "message": "Handle unexpected length in ean()\n\nI didn't realise ean lengths could only be 8 or 13 digits and tried to use `faker.ean(length=20)` and got `UnboundLocalError: local variable 'weights' referenced before assignment`.\r\n\r\nAdding this so that it defaults to 13 digits....",
+      "changes": [
+        {
+          "file": "faker/providers/barcode/__init__.py",
+          "patch": "@@ -9,6 +9,9 @@ class Provider(BaseProvider):\n     def ean(self, length=13):\n         code = [self.random_digit() for i in range(length - 1)]\n \n+        if length not in (8, 13):\n+            length = 13\n+\n         if length == 8:\n             weights = [3,1,3,1,3,1,3]\n         elif length == 13:"
+        }
+      ]
+    }
+  ]
+}

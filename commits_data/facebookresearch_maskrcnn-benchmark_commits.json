@@ -1,0 +1,15 @@
+{
+  "repo_name": "facebookresearch/maskrcnn-benchmark",
+  "commits": [
+    {
+      "sha": "dccf8e0732e677666e4d0edfe52455cde96b7014",
+      "message": "Fix `NameError: name 'cfg' is not defined` in roi_box_predictors.py (#407)",
+      "changes": [
+        {
+          "file": "maskrcnn_benchmark/modeling/roi_heads/box_head/roi_box_predictors.py",
+          "patch": "@@ -14,7 +14,7 @@ def __init__(self, config, pretrained=None):\n         num_classes = config.MODEL.ROI_BOX_HEAD.NUM_CLASSES\n         self.avgpool = nn.AvgPool2d(kernel_size=7, stride=7)\n         self.cls_score = nn.Linear(num_inputs, num_classes)\n-        num_bbox_reg_classes = 2 if cfg.MODEL.CLS_AGNOSTIC_BBOX_REG else num_classes\n+        num_bbox_reg_classes = 2 if config.MODEL.CLS_AGNOSTIC_BBOX_REG else num_classes\n         self.bbox_pred = nn.Linear(num_inputs, num_bbox_reg_classes * 4)\n \n         nn.init.normal_(self.cls_score.weight, mean=0, std=0.01)"
+        }
+      ]
+    }
+  ]
+}

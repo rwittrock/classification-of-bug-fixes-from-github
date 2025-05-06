@@ -1,0 +1,85 @@
+{
+  "repo_name": "ranger/ranger",
+  "commits": [
+    {
+      "sha": "8c648d917a0510425fad96bcd387fd5c01775df6",
+      "message": "Catch the right errors in addstr\n\nPython changed an error from `TypeError` to `ValueError` in version 3.5\nnow we catch both for backwards compatibility.\nRelevant issue: https://bugs.python.org/issue22215\n\nFixes #990\nFixes #1045\nFixes #1079\nFixes #1082\nFixes #1086",
+      "changes": [
+        {
+          "file": "ranger/gui/curses_shortcuts.py",
+          "patch": "@@ -35,7 +35,8 @@ def addstr(self, *args):\n \n         try:\n             self.win.addstr(*args)\n-        except (curses.error, TypeError):\n+        except (curses.error, TypeError, ValueError):\n+            # a TE changed to VE from 3.5 (github.com/python/cpython/pull/2302)\n             if len(args) > 1:\n                 self.win.move(y, x)\n "
+        }
+      ]
+    },
+    {
+      "sha": "874ef5c0125176f8a4ddef161477c0971372ebfd",
+      "message": "ext.img_display.Iterm2ImageDisplayer.draw: Fix `TypeError`\n\nFixes #807",
+      "changes": [
+        {
+          "file": "ranger/ext/img_display.py",
+          "patch": "@@ -210,7 +210,11 @@ class ITerm2ImageDisplayer(ImageDisplayer, FileManagerAware):\n \n     def draw(self, path, start_x, start_y, width, height):\n         curses.putp(curses.tigetstr(\"sc\"))\n-        sys.stdout.write(curses.tparm(curses.tigetstr(\"cup\"), start_y, start_x))\n+        tparm = curses.tparm(curses.tigetstr(\"cup\"), start_y, start_x)\n+        if sys.version_info[0] < 3:\n+            sys.stdout.write(tparm)\n+        else:\n+            sys.stdout.buffer.write(tparm)\n         sys.stdout.write(self._generate_iterm2_input(path, width, height))\n         curses.putp(curses.tigetstr(\"rc\"))\n         sys.stdout.flush()"
+        }
+      ]
+    },
+    {
+      "sha": "8414941b0a490312936799cf4679e6daf417b910",
+      "message": "Fix TitleBar ellipsis AttributeError",
+      "changes": [
+        {
+          "file": "ranger/gui/widgets/titlebar.py",
+          "patch": "@@ -1,3 +1,4 @@\n+# -*- coding: utf-8 -*-\n # This file is part of ranger, the console file manager.\n # License: GNU GPL version 3, see the file \"AUTHORS\" for details.\n \n@@ -19,6 +20,7 @@ class TitleBar(Widget):\n     throbber = ' '\n     need_redraw = False\n     tab_width = 0\n+    ellipsis = { False: '~', True: '\u2026' }\n \n     def __init__(self, *args, **keywords):\n         Widget.__init__(self, *args, **keywords)"
+        }
+      ]
+    },
+    {
+      "sha": "8061eb4c7003acdc1f2ec5ab26c2ec32913e2d09",
+      "message": "fix crash in sha encode of previews\n\nWhen opening certain filetypes, for which Ranger can't render a preview\n(they appear as 0 bytes), Ranger will crash on the sha1_encode:\n\n    Traceback (most recent call last):\n    File \"~/ranger/ranger/core/main.py\", line 139, in main\n        cacheimg = os.path.join(ranger.CACHEDIR, self.sha1_encode(path))\n    File \"~/ranger/ranger/core/actions.py\", line 821, in sha1_encode\n        sha1(path.encode('utf-8')).hexdigest()) + '.jpg'\n    AttributeError: 'NoneType' object has no attribute 'encode'\n\nThis solves that by checking at the beginning of get_preview() that\n`file.realpath` is not None, and returning early if it is None.",
+      "changes": [
+        {
+          "file": "ranger/core/actions.py",
+          "patch": "@@ -828,6 +828,9 @@ def get_preview(self, file, width, height):\n         pager = self.ui.get_pager()\n         path = file.realpath\n \n+        if not path:\n+            return None\n+\n         if self.settings.preview_images and file.image:\n             pager.set_image(path)\n             return None"
+        }
+      ]
+    },
+    {
+      "sha": "13549f1e53c7342f040b20a3f3075778b1d3302b",
+      "message": "widgets.browserview: Try to fix crash\n\nWhen running ranger with two directories and using a command with macros, this\ncrash happens.  To reproduce, run this and then type \"yp\"\n\nranger /usr/bin /var/tmp\n\nTraceback was:\n\nRanger version: 1.5.0, executed with python 3.2.2\nLocale: en_US.UTF-8\nCurrent file: /usr/lib\nTraceback (most recent call last):\n  File \"/home/common/archive/repos/ranger/ranger/core/main.py\", line 103, in main\n    fm.loop()\n  File \"/home/common/archive/repos/ranger/ranger/core/fm.py\", line 202, in loop\n    ui.handle_input()\n  File \"/home/common/archive/repos/ranger/ranger/gui/ui.py\", line 210, in handle_input\n    self.handle_key(key)\n  File \"/home/common/archive/repos/ranger/ranger/gui/ui.py\", line 146, in handle_key\n    self.press(key)\n  File \"/home/common/archive/repos/ranger/ranger/gui/ui.py\", line 161, in press\n    quantifier=keybuffer.quantifier)\n  File \"/home/common/archive/repos/ranger/ranger/core/actions.py\", line 111, in execute_console\n    string = self.substitute_macros(string, additional=macros)\n  File \"/home/common/archive/repos/ranger/ranger/core/actions.py\", line 115, in substitute_macros\n    return _MacroTemplate(string).safe_substitute(self._get_macros(),\n  File \"/home/common/archive/repos/ranger/ranger/core/actions.py\", line 153, in _get_macros\n    macros[i + 'f'] = shell_quote(tab_dir.pointed_obj.path)\nAttributeError: 'NoneType' object has no attribute 'path'",
+      "changes": [
+        {
+          "file": "ranger/gui/widgets/browserview.py",
+          "patch": "@@ -98,6 +98,11 @@ def draw(self):\n \t\t\tself.win.erase()\n \t\t\tself.need_redraw = True\n \t\t\tself.need_clear = False\n+\t\tfor path in self.fm.tabs.values():\n+\t\t\tif path is not None:\n+\t\t\t\tdirectory = self.env.get_directory(path)\n+\t\t\t\tdirectory.load_content_if_outdated()\n+\t\t\t\tdirectory.use()\n \t\tDisplayableContainer.draw(self)\n \t\tif self.settings.draw_borders:\n \t\t\tself._draw_borders()"
+        }
+      ]
+    },
+    {
+      "sha": "1dbb5ce9e0dfe2b857020290b29e2e22321985ef",
+      "message": "core.actions: Fixed indexerror in move_parent()",
+      "changes": [
+        {
+          "file": "ranger/core/actions.py",
+          "patch": "@@ -140,7 +140,10 @@ def move(self, narg=None, **kw):\n \n \tdef move_parent(self, n):\n \t\tparent = self.env.at_level(-1)\n-\t\tself.env.enter_dir(parent.files[parent.pointer+n])\n+\t\ttry:\n+\t\t\tself.env.enter_dir(parent.files[parent.pointer+n])\n+\t\texcept IndexError:\n+\t\t\tpass\n \n \tdef history_go(self, relative):\n \t\t\"\"\"Move back and forth in the history\"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "2052eb746f1d29273e873d4758742adf0584b1e0",
+      "message": "apps: catch a TypeError",
+      "changes": [
+        {
+          "file": "ranger/defaults/apps.py",
+          "patch": "@@ -31,8 +31,9 @@ def app_default(self, c):\n \t\t\tif f.extension in ('swc', 'smc'):\n \t\t\t\treturn self.app_zsnes(c)\n \n-\t\tif INTERPRETED_LANGUAGES.match(f.mimetype):\n-\t\t\treturn self.app_edit_or_run(c)\n+\t\tif f.mimetype is not None:\n+\t\t\tif INTERPRETED_LANGUAGES.match(f.mimetype):\n+\t\t\t\treturn self.app_edit_or_run(c)\n \n \t\tif f.container:\n \t\t\treturn self.app_aunpack(c)"
+        }
+      ]
+    },
+    {
+      "sha": "111fd52647f141932d2fd619fa7e2de797c14f78",
+      "message": "curses_shortcuts: catch TypeError at addstr",
+      "changes": [
+        {
+          "file": "ranger/gui/curses_shortcuts.py",
+          "patch": "@@ -15,13 +15,13 @@ class CursesShortcuts(SettingsAware):\n \tdef addstr(self, *args):\n \t\ttry:\n \t\t\tself.win.addstr(*args)\n-\t\texcept _curses.error:\n+\t\texcept (_curses.error, TypeError):\n \t\t\tpass\n \n \tdef addnstr(self, *args):\n \t\ttry:\n \t\t\tself.win.addnstr(*args)\n-\t\texcept _curses.error:\n+\t\texcept (_curses.error, TypeError):\n \t\t\tpass\n \n \tdef color(self, keylist = None, *keys):"
+        }
+      ]
+    }
+  ]
+}

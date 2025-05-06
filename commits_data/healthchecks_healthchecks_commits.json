@@ -1,0 +1,15 @@
+{
+  "repo_name": "healthchecks/healthchecks",
+  "commits": [
+    {
+      "sha": "b1ad0415da740dc10881b8d43807d6211e0ebc6c",
+      "message": "Fix AttributeError in Ping admin",
+      "changes": [
+        {
+          "file": "hc/api/admin.py",
+          "patch": "@@ -103,7 +103,7 @@ def _get_count(self):\n         Changed to use an estimate if the estimate is greater than 10,000\n         Returns the total number of objects, across all pages.\n         \"\"\"\n-        if self._count is None:\n+        if not hasattr(self, \"_count\") or self._count is None:\n             try:\n                 estimate = 0\n                 if not self.object_list.query.where:"
+        }
+      ]
+    }
+  ]
+}

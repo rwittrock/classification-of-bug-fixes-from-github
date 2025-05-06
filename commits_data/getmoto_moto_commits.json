@@ -1,0 +1,55 @@
+{
+  "repo_name": "getmoto/moto",
+  "commits": [
+    {
+      "sha": "98f33740e117d20656a4ab2557f30a0d0e481cc0",
+      "message": "fix(s3): check whether key is None or not to avoid exception.\n\n```\nAttributeError: 'NoneType' object has no attribute 'multipart'\n```",
+      "changes": [
+        {
+          "file": "moto/s3/models.py",
+          "patch": "@@ -1107,7 +1107,7 @@ def get_key(self, bucket_name, key_name, version_id=None, part_number=None):\n                         key = key_version\n                         break\n \n-            if part_number and key.multipart:\n+            if part_number and key and key.multipart:\n                 key = key.multipart.parts[part_number]\n \n         if isinstance(key, FakeKey):"
+        }
+      ]
+    },
+    {
+      "sha": "9d1c66531070774be508f17f8d8dd12429fed2e9",
+      "message": "Force receive_message_wait_time_seconds to be int\n\nWhen a queue is created with the ReceiveMessageWaitTimeSeconds\nattribute the value is never converted to an integer. When the\nReceiveMessage action is called it tries to compare the string\nReceiveMessageWaitTimeSeconds with the min and max wait times which\nraises a TypeError.\n\nThe solution is to convert this value to an integer before comparing.",
+      "changes": [
+        {
+          "file": "moto/sqs/responses.py",
+          "patch": "@@ -336,7 +336,7 @@ def receive_message(self):\n         try:\n             wait_time = int(self.querystring.get(\"WaitTimeSeconds\")[0])\n         except TypeError:\n-            wait_time = queue.receive_message_wait_time_seconds\n+            wait_time = int(queue.receive_message_wait_time_seconds)\n \n         if wait_time < 0 or wait_time > 20:\n             return self._error("
+        }
+      ]
+    },
+    {
+      "sha": "b25e80188aabacb88f4c1bdc4b7c9c549c5982d9",
+      "message": "AWSServiceSpec: Fix `TypeError` exceptions within json.load()\n\nThe load() method provided by the built-in JSON module does not accept a\nbyte-type value in Python 3.5 (or versions before), and will raise an\nexception if one is passed.\n\nFor details, please see: https://bugs.python.org/issue17909\n\nThus, for better compatibility, we'd better decode the content of the\nJSON file before passing it to the parser, instead of letting the module\nto guess the encoding.",
+      "changes": [
+        {
+          "file": "moto/core/responses.py",
+          "patch": "@@ -5,6 +5,7 @@\n import json\n import logging\n import re\n+import io\n \n import pytz\n from moto.core.exceptions import DryRunClientError\n@@ -622,7 +623,7 @@ class AWSServiceSpec(object):\n \n     def __init__(self, path):\n         self.path = resource_filename('botocore', path)\n-        with open(self.path, \"rb\") as f:\n+        with io.open(self.path, 'r', encoding='utf-8') as f:\n             spec = json.load(f)\n         self.metadata = spec['metadata']\n         self.operations = spec['operations']"
+        }
+      ]
+    },
+    {
+      "sha": "ca72707409ad33f3101f936a2998660dfe6e0ea9",
+      "message": "Fix AttributeError in filter_log_events\n\nAn AttributeError would be thrown if the `interleaved` parameter was\npassed.",
+      "changes": [
+        {
+          "file": "moto/logs/models.py",
+          "patch": "@@ -184,7 +184,7 @@ def filter_log_events(self, log_group_name, log_stream_names, start_time, end_ti\n             events += stream.filter_log_events(log_group_name, log_stream_names, start_time, end_time, limit, next_token, filter_pattern, interleaved)\n \n         if interleaved:\n-            events = sorted(events, key=lambda event: event.timestamp)\n+            events = sorted(events, key=lambda event: event['timestamp'])\n \n         if next_token is None:\n             next_token = 0"
+        }
+      ]
+    },
+    {
+      "sha": "c0b4aadd923f635f09c2f221851f66167b0fb3ea",
+      "message": "Fix python 3.x compatibility regarding json loading\n\nError on travis-ci was:\n\n    TypeError: can't use a string pattern on a bytes-like object",
+      "changes": [
+        {
+          "file": "moto/swf/responses.py",
+          "patch": "@@ -48,7 +48,7 @@ def call_action(self):\n     # SWF parameters are passed through a JSON body, so let's ease retrieval\n     @property\n     def _params(self):\n-        return json.loads(self.body)\n+        return json.loads(self.body.decode(\"utf-8\"))\n \n     def _list_types(self, kind):\n         domain_name = self._params[\"domain\"]"
+        }
+      ]
+    }
+  ]
+}

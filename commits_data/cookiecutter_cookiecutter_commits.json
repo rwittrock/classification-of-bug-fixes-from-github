@@ -1,0 +1,15 @@
+{
+  "repo_name": "cookiecutter/cookiecutter",
+  "commits": [
+    {
+      "sha": "b6b627cb4c5d6b7dc1636794de870a2bf6da262b",
+      "message": "Raise a TypeError if context is not a dict",
+      "changes": [
+        {
+          "file": "cookiecutter/replay.py",
+          "patch": "@@ -13,3 +13,6 @@\n def dump(template_name, context):\n     if not is_string(template_name):\n         raise TypeError('Template name is required to be of type str')\n+\n+    if not isinstance(context, dict):\n+        raise TypeError('Context is required to be of type dict')"
+        }
+      ]
+    }
+  ]
+}

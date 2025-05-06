@@ -1,0 +1,35 @@
+{
+  "repo_name": "coleifer/peewee",
+  "commits": [
+    {
+      "sha": "6847a8a8337fab5772de4f783959970098b4f133",
+      "message": "Fix import / nameerror.",
+      "changes": [
+        {
+          "file": "peewee.py",
+          "patch": "@@ -52,7 +52,7 @@\n     except ImportError:\n         pg_errors = None\n except ImportError:\n-    psycopg2 = None\n+    psycopg2 = pg_errors = None\n \n mysql_passwd = False\n try:"
+        }
+      ]
+    },
+    {
+      "sha": "976c9bd2a7ea8bb22ea3c31f79aa1a0848951ef0",
+      "message": "fix \"NameError: name 'hashlib' is not defined\"\n\n    hashlib is used in playhouse.migrate::make_index_name, but not\nimported",
+      "changes": [
+        {
+          "file": "playhouse/migrate.py",
+          "patch": "@@ -101,6 +101,7 @@\n \"\"\"\n from collections import namedtuple\n import functools\n+import hashlib\n import re\n \n from peewee import *"
+        }
+      ]
+    },
+    {
+      "sha": "32be50b42e80b1cced2543872110245760a45d49",
+      "message": "Add configuration check for sqlite\n\nSome operating systems don't have sqlite3 module within python3.\nwithout this commit, they will get unclear error message like this:\n\n```\nFile \"/usr/local/lib/python3.4/site-packages/peewee.py\", line 3371, in\nconnect\n    **self.connect_kwargs)\n  File \"/usr/local/lib/python3.4/site-packages/peewee.py\", line 3609, in\n_connect\n    conn = sqlite3.connect(database, **kwargs)\nAttributeError: 'NoneType' object has no attribute 'connect'\n```\n\nThose users who encounter this ImproperlyConfiguredError\nmay have to install sqlite dependencies and recompile their python3",
+      "changes": [
+        {
+          "file": "peewee.py",
+          "patch": "@@ -3651,6 +3651,8 @@ def __init__(self, database, pragmas=None, *args, **kwargs):\n         super(SqliteDatabase, self).__init__(database, *args, **kwargs)\n \n     def _connect(self, database, **kwargs):\n+        if not sqlite3:\n+            raise ImproperlyConfigured('pysqlite or sqlite3 must be installed.')\n         conn = sqlite3.connect(database, **kwargs)\n         conn.isolation_level = None\n         try:"
+        }
+      ]
+    }
+  ]
+}

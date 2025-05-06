@@ -1,0 +1,365 @@
+{
+  "repo_name": "spyder-ide/spyder",
+  "commits": [
+    {
+      "sha": "f48e6de11145e430a5eaabf95c7542f26fcb25f6",
+      "message": "Editor: Catch AttributeError when closing EditorStack",
+      "changes": [
+        {
+          "file": "spyder/plugins/editor/widgets/editor.py",
+          "patch": "@@ -2649,7 +2649,7 @@ def editorstack_closed(self):\n             self.unregister_editorstack_cb(self.editorstack)\r\n             self.editorstack = None\r\n             close_splitter = self.count() == 1\r\n-        except RuntimeError:\r\n+        except (RuntimeError, AttributeError):\r\n             # editorsplitter has been destroyed (happens when closing a\r\n             # EditorMainWindow instance)\r\n             return\r"
+        }
+      ]
+    },
+    {
+      "sha": "435e338d7719ce5367ce4ee175ccccb532925402",
+      "message": "Add check on collectionseditor Ctrl+V handler\n\nIt was raising an AttributeError when `data` was a list, and not a dict",
+      "changes": [
+        {
+          "file": "spyder/widgets/variableexplorer/collectionseditor.py",
+          "patch": "@@ -1150,6 +1150,9 @@ def copy(self):\n     def import_from_string(self, text, title=None):\r\n         \"\"\"Import data from string\"\"\"\r\n         data = self.model.get_data()\r\n+        # Check if data is a dict\r\n+        if not hasattr(data, \"keys\"):\r\n+            return\r\n         editor = ImportWizard(self, text, title=title,\r\n                               contents_title=_(\"Clipboard contents\"),\r\n                               varname=fix_reference_name(\"data\",\r"
+        }
+      ]
+    },
+    {
+      "sha": "88aaaf6e6e42b3fd3980ea73b79b4860cdfaa1d6",
+      "message": "Main window: Catch AttributeError when trying to get the active project path",
+      "changes": [
+        {
+          "file": "spyder/app/mainwindow.py",
+          "patch": "@@ -1958,8 +1958,12 @@ def show_toolbars(self):\n     # --- Other\r\n     def valid_project(self):\r\n         \"\"\"Handle an invalid active project.\"\"\"\r\n-        if bool(self.projects.get_active_project_path()):\r\n+        try:\r\n             path = self.projects.get_active_project_path()\r\n+        except AttributeError:\r\n+            return\r\n+\r\n+        if bool(path):\r\n             if not self.projects.is_valid_project(path):\r\n                 if path:\r\n                     QMessageBox.critical(\r"
+        }
+      ]
+    },
+    {
+      "sha": "3b1203d75c1f57fc6395c11252688107c3b2b059",
+      "message": "Prevent TypeError while parsing JSON",
+      "changes": [
+        {
+          "file": "spyder/utils/code_analysis/lsp_transport/consumer.py",
+          "patch": "@@ -93,7 +93,7 @@ def run(self):\n                 err = False\n                 try:\n                     body = json.loads(body)\n-                except ValueError:\n+                except (ValueError, TypeError):\n                     err = True\n                 if not err:\n                     LOGGER.debug(body)"
+        }
+      ]
+    },
+    {
+      "sha": "c2a2681e312e694d0b84bebaceca4a635d4f3625",
+      "message": "Handle AttributeError when setting color scheme in the IPython Console.",
+      "changes": [
+        {
+          "file": "spyder/widgets/ipythonconsole/client.py",
+          "patch": "@@ -436,7 +436,12 @@ def set_infowidget_font(self):\n \r\n     def set_color_scheme(self, color_scheme, reset=True):\r\n         \"\"\"Set IPython color scheme.\"\"\"\r\n-        self.shellwidget.set_color_scheme(color_scheme, reset)\r\n+        # Needed to handle not initialized kernel_client\r\n+        # See issue 6996\r\n+        try:\r\n+            self.shellwidget.set_color_scheme(color_scheme, reset)\r\n+        except AttributeError:\r\n+            pass\r\n \r\n     def shutdown(self):\r\n         \"\"\"Shutdown kernel\"\"\"\r"
+        }
+      ]
+    },
+    {
+      "sha": "02e01872bda1c093f7b650353cd4c9ac68a8ca01",
+      "message": "Catch AttributeError to fix #6728 when setting attribs in ColEdit",
+      "changes": [
+        {
+          "file": "spyder/widgets/variableexplorer/collectionseditor.py",
+          "patch": "@@ -94,9 +94,12 @@ def __getitem__(self, key):\n \r\n     def __setitem__(self, key, value):\r\n         \"\"\"Set attribute corresponding to key with value.\"\"\"\r\n+        # Catch AttributeError to gracefully handle inability to set an\r\n+        # attribute due to it not being writeable or set-table.\r\n+        # Fix issue #6728 . Also, catch NotImplementedError for safety.\r\n         try:\r\n             setattr(self.__obj__, key, value)\r\n-        except TypeError:\r\n+        except (TypeError, AttributeError, NotImplementedError):\r\n             pass\r\n \r\n \r"
+        }
+      ]
+    },
+    {
+      "sha": "4a48d6cbf39809f02f91928d84f4743a5b76affe",
+      "message": "Catch TypeError to fix #6727 crash modifying Period _typ in ColEdt",
+      "changes": [
+        {
+          "file": "spyder/widgets/variableexplorer/collectionseditor.py",
+          "patch": "@@ -81,10 +81,12 @@ def __getitem__(self, key):\n         # Catch NotImplementedError to fix #6284 in pandas MultiIndex\r\n         # due to NA checking not being supported on a multiindex.\r\n         # Catch AttributeError to fix #5642 in certain special classes like xml\r\n-        # when this method is called on certain attributes\r\n+        # when this method is called on certain attributes.\r\n+        # Catch TypeError to prevent fatal Python crash to desktop after\r\n+        # modifying certain pandas objects ( Issue #6727 ).\r\n         try:\r\n             attribute_toreturn = getattr(self.__obj__, key)\r\n-        except (NotImplementedError, AttributeError):\r\n+        except (NotImplementedError, AttributeError, TypeError):\r\n             attribute_toreturn = None\r\n         return attribute_toreturn\r\n \r"
+        }
+      ]
+    },
+    {
+      "sha": "6930a988e74e0c1d27dd16b971e7d331767dd380",
+      "message": "Fix AttributeError in jedi_plugin\n\nThis change should have been part of commit 49aa655 but I forgot\nto include it.",
+      "changes": [
+        {
+          "file": "spyder/utils/introspection/jedi_plugin.py",
+          "patch": "@@ -99,7 +99,7 @@ def get_info(self, info):\n             calltip = getsignaturefromtext(docstring, name)\n             argspec = calltip[calltip.find('('):]\n             docstring = docstring[docstring.find(')') + 3:]\n-        elif call_def.doc and '(' in call_def.doc.splitlines()[0]:\n+        elif docstring and '(' in docstring.splitlines()[0]:\n             calltip = docstring.splitlines()[0]\n             name = docstring.split('(')[0]\n             docstring = docstring[docstring.find(')') + 3:]"
+        }
+      ]
+    },
+    {
+      "sha": "64c18d1a66db81d8150250f3d4cf90e0b8b661db",
+      "message": "Fix plugin tab TypeError closer to its apparent source",
+      "changes": [
+        {
+          "file": "spyder/plugins/__init__.py",
+          "patch": "@@ -109,9 +109,9 @@ def eventFilter(self, obj, event):\n         if event_type == QEvent.MouseMove:\r\n             try:\r\n                 self.tab_moved(event)\r\n-                return True\r\n             except TypeError:\r\n                 pass\r\n+            return True\r\n         if event_type == QEvent.MouseButtonRelease:\r\n             self.tab_released(event)\r\n             return True\r\n@@ -141,11 +141,11 @@ def tab_moved(self, event):\n             QApplication.setOverrideCursor(Qt.ClosedHandCursor)\r\n             self.moving = True\r\n \r\n-        if self.to_index == -1:\r\n+        if self.to_index in (-1, None):\r\n             self.to_index = self.from_index\r\n \r\n         from_index, to_index = self.from_index, self.to_index\r\n-        if from_index != to_index and from_index != -1 and to_index != -1:\r\n+        if from_index not in (to_index, -1, None):\r\n             self.move_tab(from_index, to_index)\r\n             self._fix_cursor(from_index, to_index)\r\n             self.from_index = to_index\r"
+        }
+      ]
+    },
+    {
+      "sha": "7d838212eeddb6b3111142e6d93096eb4f5d8826",
+      "message": "Handle AttributeError when running code in the IPython Console.",
+      "changes": [
+        {
+          "file": "spyder/plugins/ipythonconsole.py",
+          "patch": "@@ -967,7 +967,12 @@ def execute_code(self, lines, current_client=True, clear_variables=False):\n                     sw.reset_namespace(warning=False, silent=True)\r\n                 elif current_client and clear_variables:\r\n                     sw.reset_namespace(warning=False, silent=True)\r\n-                sw.execute(to_text_string(lines))\r\n+                # Needed to handle an error when kernel_client is none\r\n+                # See issue 6308\r\n+                try:\r\n+                    sw.execute(to_text_string(lines))\r\n+                except AttributeError:\r\n+                    pass\r\n             self.activateWindow()\r\n             self.get_current_client().get_control().setFocus()\r\n \r"
+        }
+      ]
+    },
+    {
+      "sha": "25183e0269b1f86ea24f2472d10bb3b84603b536",
+      "message": "Fix #6115 ; DataFrameEditor catches TypeError editing complex vals",
+      "changes": [
+        {
+          "file": "spyder/widgets/variableexplorer/dataframeeditor.py",
+          "patch": "@@ -361,7 +361,7 @@ def setData(self, index, value, role=Qt.EditRole, change_type=None):\n             current_value = self.get_value(row, column-1)\r\n             if isinstance(current_value, bool):\r\n                 val = bool_false_check(val)\r\n-            supported_types = (bool,) + REAL_NUMBER_TYPES + COMPLEX_NUMBER_TYPES\r\n+            supported_types = (bool,) + REAL_NUMBER_TYPES\r\n             if (isinstance(current_value, supported_types) or\r\n                     is_text_string(current_value)):\r\n                 try:\r"
+        }
+      ]
+    },
+    {
+      "sha": "26adab62126d5ca517cd4742b2d7b5d664b09291",
+      "message": "Catch AttributeError when copying CollEdit data due to flaky deepcopy",
+      "changes": [
+        {
+          "file": "spyder/widgets/variableexplorer/collectionseditor.py",
+          "patch": "@@ -1318,7 +1318,7 @@ def setup(self, data, title='', readonly=False, width=650, remote=False,\n                 self.data_copy = copy.deepcopy(data)\r\n             except NotImplementedError:\r\n                 self.data_copy = copy.copy(data)\r\n-            except TypeError:\r\n+            except (TypeError, AttributeError):\r\n                 readonly = True\r\n                 self.data_copy = data\r\n             datalen = len(get_object_attrs(data))\r"
+        }
+      ]
+    },
+    {
+      "sha": "01de31e677f52b45ba04c6aaaed7190857f8eb15",
+      "message": "Catch TypeError while executing code instructions in the IPython console.",
+      "changes": [
+        {
+          "file": "spyder/plugins/ipythonconsole.py",
+          "patch": "@@ -945,7 +945,11 @@ def execute_code(self, lines, current_client=True, clear_variables=False):\n                 if not current_client:\r\n                     # Clear console and reset namespace for\r\n                     # dedicated clients\r\n-                    sw.sig_prompt_ready.disconnect()\r\n+                    # See issue 5748\r\n+                    try:\r\n+                        sw.sig_prompt_ready.disconnect()\r\n+                    except TypeError:\r\n+                        pass\r\n                     sw.silent_execute(\r\n                         'get_ipython().kernel.close_all_mpl_figures()')\r\n                     sw.reset_namespace(warning=False, silent=True)\r"
+        }
+      ]
+    },
+    {
+      "sha": "cc9ffd4439d3df664a56a875b1d3770e3331558f",
+      "message": "Add catch for NameError in isdefined method.",
+      "changes": [
+        {
+          "file": "spyder/utils/dochelpers.py",
+          "patch": "@@ -306,7 +306,7 @@ def isdefined(obj, force_import=False, namespace=None):\n                 if base not in globals():\r\n                     globals()[base] = module\r\n                 namespace[base] = module\r\n-            except (ImportError, SyntaxError, SystemExit):\r\n+            except (ImportError, NameError, SyntaxError, SystemExit):\r\n                 return False\r\n         else:\r\n             return False\r"
+        }
+      ]
+    },
+    {
+      "sha": "98e8022fd0cf7d7d7574fb90cbbe4b0fed4e64c7",
+      "message": "Adds handling for IndexError.",
+      "changes": [
+        {
+          "file": "spyder/widgets/editor.py",
+          "patch": "@@ -1703,8 +1703,13 @@ def current_changed(self, index):\n \r\n         self.update_plugin_title.emit()\r\n         if editor is not None:\r\n-            self.current_file_changed.emit(self.data[index].filename,\r\n+            # Needed in order to handle the close of files open in a directory\r\n+            # that has been renamed. See issue 5157\r\n+            try:\r\n+                self.current_file_changed.emit(self.data[index].filename,\r\n                                            editor.get_position('cursor'))\r\n+            except IndexError:\r\n+                pass\r\n \r\n     def _get_previous_file_index(self):\r\n         if len(self.stack_history) > 1:\r"
+        }
+      ]
+    },
+    {
+      "sha": "29b3764e356e5ff6df3be4c05a2f0ca25d6c7246",
+      "message": "Removes TypeError and AttributeError.",
+      "changes": [
+        {
+          "file": "spyder/utils/ipython/spyder_kernel.py",
+          "patch": "@@ -320,7 +320,7 @@ def _get_len(self, var):\n         \"\"\"Return sequence length\"\"\"\n         try:\n             return len(var)\n-        except TypeError:\n+        except:\n             return None\n \n     def _is_array(self, var):\n@@ -362,7 +362,7 @@ def _get_array_shape(self, var):\n                 return var.shape\n             else:\n                 return None\n-        except AttributeError:\n+        except:\n             return None\n \n     def _get_array_ndim(self, var):\n@@ -372,7 +372,7 @@ def _get_array_ndim(self, var):\n                 return var.ndim\n             else:\n                 return None\n-        except AttributeError:\n+        except:\n             return None\n \n     # --- For Pdb"
+        }
+      ]
+    },
+    {
+      "sha": "b7394d282ae7ceeacc9a17b1df75913fd532b814",
+      "message": "Python 2.7 compatibility: '%d' % NaN yields TypeError",
+      "changes": [
+        {
+          "file": "spyder/widgets/variableexplorer/dataframeeditor.py",
+          "patch": "@@ -279,7 +279,7 @@ def data(self, index, role=Qt.DisplayRole):\n                 if isinstance(value, float):\r\n                     try:\r\n                         return to_qvariant(self._format % value)\r\n-                    except ValueError:\r\n+                    except (ValueError, TypeError):\r\n                         # may happen if format = '%d' and value = NaN;\r\n                         # see issue 4139\r\n                         return to_qvariant(DEFAULT_FORMAT % value)\r"
+        }
+      ]
+    },
+    {
+      "sha": "aae6360c9732e11d95606a49100900faeff4b057",
+      "message": "Catch LookupError when encoding in encode() function",
+      "changes": [
+        {
+          "file": "spyder/utils/encoding.py",
+          "patch": "@@ -175,7 +175,7 @@ def encode(text, orig_coding):\n     if orig_coding:\r\n         try:\r\n             return text.encode(orig_coding), orig_coding\r\n-        except UnicodeError:\r\n+        except (UnicodeError, LookupError):\r\n             pass\r\n \r\n     # Try declared coding spec\r"
+        }
+      ]
+    },
+    {
+      "sha": "335a05a6f941f64d0715b934c5f80a678b1aa0e3",
+      "message": "FIxes TypeError: got multiple values for argument\n\nself.profiler.analyze should not take self as otherwise filename=self, wdir=filename and wdir=wdir",
+      "changes": [
+        {
+          "file": "spyder_profiler/profiler.py",
+          "patch": "@@ -151,5 +151,5 @@ def analyze(self, filename):\n                 wdir = runconf.wdir\n             if runconf.args_enabled:\n                 args = runconf.args\n-        self.profiler.analyze(self, filename, wdir=wdir, args=args,\n+        self.profiler.analyze(filename, wdir=wdir, args=args,\n                               pythonpath=pythonpath)"
+        }
+      ]
+    },
+    {
+      "sha": "15f25ec56cc34ec41a7a75b392160e5094084b0e",
+      "message": "Preferences: Fix lambda TypeError's when pressing on checkboxes",
+      "changes": [
+        {
+          "file": "spyderlib/plugins/configdialog.py",
+          "patch": "@@ -270,7 +270,7 @@ def load_from_conf(self):\n         \"\"\"Load settings from configuration file\"\"\"\r\n         for checkbox, (option, default) in list(self.checkboxes.items()):\r\n             checkbox.setChecked(self.get_option(option, default))\r\n-            checkbox.clicked.connect(lambda _foo, opt=option:\r\n+            checkbox.clicked.connect(lambda opt=option: \r\n                                      self.has_been_modified(opt))\r\n         for radiobutton, (option, default) in list(self.radiobuttons.items()):\r\n             radiobutton.setChecked(self.get_option(option, default))\r\n@@ -327,9 +327,9 @@ def load_from_conf(self):\n             btn.clicked.connect(lambda opt=option: self.has_been_modified(opt))\r\n             edit.textChanged.connect(lambda _foo, opt=option:\r\n                                      self.has_been_modified(opt))\r\n-            cb_bold.clicked.connect(lambda _foo, opt=option:\r\n+            cb_bold.clicked.connect(lambda opt=option: \r\n                                     self.has_been_modified(opt))\r\n-            cb_italic.clicked.connect(lambda _foo, opt=option:\r\n+            cb_italic.clicked.connect(lambda opt=option:\r\n                                       self.has_been_modified(opt))\r\n     \r\n     def save_to_conf(self):\r"
+        }
+      ]
+    },
+    {
+      "sha": "9af68a80d5b349d03ab02df04470e58468176854",
+      "message": "Executing script in current Python/IPython interpreter while no interpreter is\nrunning was raising a TypeError exception:\n\nTraceback (most recent call last):\n  File \"[...]\\spyderlib\\plugins\\externalconsole.py\", line 722, in run_script_in_current_shell\n    \"and try again.\") % osp.basename(filename), QMessageBox.Ok)\n  File \"[...]\\python-2.7.5.amd64\\lib\\ntpath.py\", line 198, in basename\n    return split(p)[1]\n  File \"[...]\\python-2.7.5.amd64\\lib\\ntpath.py\", line 173, in split\n    while i and p[i-1] not in '/\\\\':\nTypeError: 'in <string>' requires string as left operand, not QString\n\nUpdate Issue 1540\nStatus: Fixed",
+      "changes": [
+        {
+          "file": "spyderlib/plugins/externalconsole.py",
+          "patch": "@@ -719,7 +719,8 @@ def run_script_in_current_shell(self, filename, wdir, args, debug):\n             QMessageBox.warning(self, _('Warning'),\r\n                 _(\"No Python shell is currently selected to run <b>%s</b>.\"\r\n                   \"<br><br>Please select or open a new Python interpreter \"\r\n-                  \"and try again.\") % osp.basename(filename), QMessageBox.Ok)\r\n+                  \"and try again.\"\r\n+                  ) % osp.basename(norm(filename)), QMessageBox.Ok)\r\n         else:\r\n             self.visibility_changed(True)\r\n             self.raise_()            \r"
+        }
+      ]
+    },
+    {
+      "sha": "60434b24b5d8391be167491a98bfeaecf5fe5c1c",
+      "message": "Variable explorer (dict editor): fixed crash when manipulating NumPy's iinfo objects\n\nTraceback was the following:\nTraceback (most recent call last):\n  File \"<stdin>\", line 1, in <module>\n  File \"D:\\Python\\spyder\\spyderlib\\widgets\\dicteditorutils.py\", line 113, in get_color_name\n    elif value.size == 1:\nAttributeError: iinfo instance has no attribute 'size'",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/dicteditorutils.py",
+          "patch": "@@ -102,7 +102,7 @@ def get_color_name(value):\n             return name\r\n     else:\r\n         np_dtype = get_numpy_dtype(value)\r\n-        if np_dtype is None:\r\n+        if np_dtype is None or not hasattr(value, 'size'):\r\n             return UNSUPPORTED_COLOR\r\n         elif value.size == 1:\r\n             return SCALAR_COLOR\r"
+        }
+      ]
+    },
+    {
+      "sha": "edaf8258d19fc978d441ee20d795e2fd8f979bb4",
+      "message": "Object Inspector: Avoid AttributeError if sphinx thread fails.\n\nSphinxThread in the Object Inspector might return an AttributeError if for some\nreason the thread fails to return a valid doc string.\nSet html_text to something valid at the beginning of the run method instead\nof later.\n\nUpdate Issue 1372\nStatus: Fixed",
+      "changes": [
+        {
+          "file": "spyderlib/plugins/inspector.py",
+          "patch": "@@ -228,6 +228,7 @@ def __init__(self, text={}, html_text_no_doc='', math_option=False):\n         self.math_option = math_option\r\n \r\n     def run(self):\r\n+        html_text = self.html_text_no_doc\r\n         text = self.text\r\n         if text is not None and text['docstring'] != '':\r\n             try:\r\n@@ -239,8 +240,6 @@ def run(self):\n             except Exception, error:\r\n                 self.emit(SIGNAL('error_msg(QString)'), unicode(error))\r\n                 return\r\n-        else:\r\n-            html_text = self.html_text_no_doc\r\n         self.emit(SIGNAL('html_ready(QString)'), html_text)\r\n \r\n \r"
+        }
+      ]
+    },
+    {
+      "sha": "ff75e3a53dd3497d62703195dcc2427fc5386250",
+      "message": "Editor/Inspecting PyQt object `connect` method was failing (TypeError: expected string or buffer)",
+      "changes": [
+        {
+          "file": "spyderlib/utils/dochelpers.py",
+          "patch": "@@ -159,6 +159,10 @@ def getsignaturesfromtext(text, objname):\n     \"\"\"Get object signatures from text (object documentation)\r\n     Return a list containing a single string in most cases\r\n     Example of multiple signatures: PyQt4 objects\"\"\"\r\n+    #FIXME: the following regexp is not working with this example of docstring:\r\n+    # QObject.connect(QObject, SIGNAL(), QObject, SLOT(), Qt.ConnectionType=Qt.AutoConnection) -> bool QObject.connect(QObject, SIGNAL(), callable, Qt.ConnectionType=Qt.AutoConnection) -> bool QObject.connect(QObject, SIGNAL(), SLOT(), Qt.ConnectionType=Qt.AutoConnection) -> bool\r\n+    if isinstance(text, dict):\r\n+        text = text.get('docstring', '')\r\n     return re.findall(objname+r'\\([^\\)]+\\)', text)\r\n \r\n def getargsfromtext(text, objname):\r"
+        }
+      ]
+    },
+    {
+      "sha": "bd97467372613c05730b94f75178878e0488729d",
+      "message": "bootstrap.py: fixed \"AttributeError: 'module' object has no attribute 'qt'\"\n(introduced with revision 82bbf24ae154)",
+      "changes": [
+        {
+          "file": "bootstrap.py",
+          "patch": "@@ -70,7 +70,7 @@\n \n # Importing Spyder (among other things, this has the effect of setting the \n # QT_API environment variable if this has not yet been done just above)\n-from spyderlib import get_versions\n+from spyderlib import spyder, get_versions\n versions = get_versions()\n print(\"03. Imported Spyder %s (Qt %s via %s %s)\" % \\\n     (versions['spyder'],\n@@ -81,5 +81,4 @@\n     print(\"0x. Enforcing parent console (Windows only)\")\n     sys.argv.append(\"--showconsole\")  # Windows only: show parent console\n print(\"04. Executing spyder.main()\")\n-from spyderlib import spyder\n spyder.main()"
+        }
+      ]
+    },
+    {
+      "sha": "07d8529e5175751dce06bbd0b5d460cc8c36cc42",
+      "message": "Editor: fixed UnboundLocalError when clicking on \"Search/Replace\" button if both\nsearch pattern and replace pattern fields are empty\n\nUpdate Issue 1188\nStatus: Fixed",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/findreplace.py",
+          "patch": "@@ -332,6 +332,7 @@ def replace_find(self):\n             pattern = search_text if self.re_button.isChecked() else None\r\n             case = self.case_button.isChecked()\r\n             first = True\r\n+            cursor = None\r\n             while True:\r\n                 if first:\r\n                     # First found\r"
+        }
+      ]
+    },
+    {
+      "sha": "25849ce01ac55c39e0c3afabe3c220c5049f1d83",
+      "message": "Project explorer was sometimes producing AttributeError when loading because of\nthe workspace was not defined at the beginning of the class constructor.\n\nFixes Issue 1080",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/projectexplorer.py",
+          "patch": "@@ -474,11 +474,11 @@ class ExplorerTreeWidget(FilteredDirView):\n     def __init__(self, parent):\r\n         FilteredDirView.__init__(self, parent)\r\n         \r\n+        self.workspace = Workspace()\r\n+        \r\n         self.connect(self.fsmodel, SIGNAL('modelReset()'),\r\n                      self.reset_icon_provider)\r\n         self.reset_icon_provider()\r\n-        \r\n-        self.workspace = Workspace()\r\n \r\n         self.last_folder = None\r\n         \r"
+        }
+      ]
+    },
+    {
+      "sha": "d5d7f6d7fc511c40d696dd52e6fa06a0fab21352",
+      "message": "Dictionary editor (Variable explorer): fixed UnboundLocalError when context menu\nis called on an empty table",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/dicteditor.py",
+          "patch": "@@ -702,7 +702,8 @@ def refresh_plot_entries(self, index):\n             condition_imshow = condition_plot and self.get_array_ndim(key) == 2\r\n             condition_imshow = condition_imshow or self.is_image(key)\r\n         else:\r\n-            is_array = condition_plot = condition_imshow = is_list = False\r\n+            is_array = condition_plot = condition_imshow = is_list \\\r\n+                     = condition_hist = False\r\n         self.plot_action.setVisible(condition_plot or is_list)\r\n         self.hist_action.setVisible(condition_hist or is_list)\r\n         self.imshow_action.setVisible(condition_imshow)\r"
+        }
+      ]
+    },
+    {
+      "sha": "3deca14dc838b5732a179e2517af62e24ee9c62c",
+      "message": "Code editor: selecting a part of a word raises an IndexError exception\n\nTraceback (most recent call last):\n  File \"C:\\Python27\\lib\\site-packages\\spyderlib\\widgets\\sourcecode\\codeeditor.py\", line 932, in __mark_occurences\n    self.occurences.pop(-1)\nIndexError: pop from empty list\n\nUpdate Issue 973\nStatus: Fixed\n\nThis was due to a difference of behavior between PyQt4 and PySide for the\nQTextDocument.find function used in the occurence highlighting feature.\nThis is just a workaround.",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/sourcecode/base.py",
+          "patch": "@@ -754,9 +754,10 @@ def find_text(self, text, changed=True, forward=True, case=False,\n     def get_current_word(self):\r\n         \"\"\"Return current word, i.e. word at cursor position\"\"\"\r\n         cursor = self.textCursor()\r\n+        cursor.clearSelection()\r\n         cursor.select(QTextCursor.WordUnderCursor)\r\n         text = unicode(cursor.selectedText())\r\n-        match = re.findall(r'([a-zA-Z_]+[0-9a-zA-Z_]*)', text)\r\n+        match = re.findall(r'([a-zA-Z\\_]+[0-9a-zA-Z\\_]*)', text)\r\n         if match:\r\n             return match[0]\r\n     \r"
+        }
+      ]
+    },
+    {
+      "sha": "3a4fbf16b5ae5d1dbe657cc3d357f90066e0df1f",
+      "message": "Find in files/bugfix: AttributeError: 'NoneType' object has no attribute 'get_results'\n(bug with no consequence except showing a traceback in the internal console)",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/findinfiles.py",
+          "patch": "@@ -780,6 +780,8 @@ def search_complete(self, completed):\n         \"\"\"Current search thread has finished\"\"\"\r\n         self.find_options.ok_button.setEnabled(True)\r\n         self.find_options.stop_button.setEnabled(False)\r\n+        if self.search_thread is None:\r\n+            return\r\n         found = self.search_thread.get_results()\r\n         self.stop_and_reset_thread()\r\n         if found is not None:\r"
+        }
+      ]
+    },
+    {
+      "sha": "7478e6fc3d23493a6ea412ce69164345014e177c",
+      "message": "Variable explorer: Spyder was freezing if \"Exclude unsupported data types\" option was disabled\n\nThe following traceback was shown when killing the remote process:\nException in thread Thread-1:\nTraceback (most recent call last):\n  File \"c:\\Python27\\lib\\threading.py\", line 552, in __bootstrap_inner\n    self.run()\n  File \"D:\\Python\\spyder\\spyderlib\\widgets\\externalshell\\monitor.py\", line 520, in run\n    self.update_remote_view(namespace)\n  File \"D:\\Python\\spyder\\spyderlib\\widgets\\externalshell\\monitor.py\", line 378, in update_remote_view\n    remote_view = make_remote_view(glbs, settings, more_excluded_names)\n  File \"D:\\Python\\spyder\\spyderlib\\widgets\\externalshell\\monitor.py\", line 84, in make_remote_view\n    'color': get_color_name(value),\n  File \"D:\\Python\\spyder\\spyderlib\\widgets\\dicteditorutils.py\", line 89, in get_color_name\n    np_dtype = get_numpy_dtype(value)\n  File \"D:\\Python\\spyder\\spyderlib\\widgets\\dicteditorutils.py\", line 31, in get_numpy_dtype\n    return obj.dtype.type\nAttributeError: 'function' object has no attribute 'dtype'",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/dicteditorutils.py",
+          "patch": "@@ -27,7 +27,8 @@ def get_numpy_dtype(obj):\n     if ndarray is not FakeObject:\r\n         # NumPy is available\r\n         import numpy as np\r\n-        if isinstance(obj, np.object):\r\n+        if isinstance(obj, np.object) and hasattr(obj, 'dtype'):\r\n+            # Note: only scalar and array objects have the method 'dtype'\r\n             return obj.dtype.type\r\n \r\n \r"
+        }
+      ]
+    },
+    {
+      "sha": "5a54cf1b57d3a1c48e12287e061c518680d06735",
+      "message": "Fixed bug introduced by revision 7b32e9e94f9f -- the following traceback was shown in the internal console when creating a new file:\nTraceback (most recent call last):\n  File \"D:\\Python\\spyder\\spyderlib\\plugins\\editor.py\", line 1372, in new\n    self._clone_file_everywhere()\nTypeError: _clone_file_everywhere() takes exactly 2 arguments (1 given)",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/editor.py",
+          "patch": "@@ -1725,10 +1725,10 @@ def new(self, filename, encoding, text):\n         Create new filename with *encoding* and *text*\r\n         \"\"\"\r\n         finfo = self.create_new_editor(filename, encoding, text,\r\n-                                       set_current=True, new=True)\r\n+                                       set_current=False, new=True)\r\n         finfo.editor.set_cursor_position('eof')\r\n         finfo.editor.insert_text(os.linesep)\r\n-        return finfo.editor\r\n+        return finfo\r\n         \r\n     def load(self, filename, set_current=True):\r\n         \"\"\"\r"
+        }
+      ]
+    },
+    {
+      "sha": "7d29b2f169c1b32de4a20420fd10de6f8a66e586",
+      "message": "Console/preferences: fixed AttributeError occuring when applying changes",
+      "changes": [
+        {
+          "file": "spyderlib/plugins/externalconsole.py",
+          "patch": "@@ -785,7 +785,8 @@ def apply_plugin_settings(self, options):\n             shellwidget.set_elapsed_time_visible(showtime)\r\n             shellwidget.set_icontext_visible(icontext)\r\n             shellwidget.shell.set_calltips(calltips)\r\n-            shellwidget.shell.set_inspector_enabled(inspector)\r\n+            if isinstance(shellwidget.shell, ExternalPythonShell):\r\n+                shellwidget.shell.set_inspector_enabled(inspector)\r\n             shellwidget.shell.toggle_wrap_mode(wrap)\r\n             shellwidget.shell.set_codecompletion_auto(compauto)\r\n             shellwidget.shell.set_codecompletion_case(case_comp)\r"
+        }
+      ]
+    },
+    {
+      "sha": "fd2a1c16fe92f60498495678931a43782b6741b2",
+      "message": "Outline explorer/bugfix (really fixed now): AttributeError: 'NoneType' object has no attribute 'parent'",
+      "changes": [
+        {
+          "file": "spyderlib/widgets/editortools.py",
+          "patch": "@@ -121,9 +121,9 @@ def __init__(self, name, line, parent, preceding):\n                 # Preceding must be either the same as item's parent\r\n                 # or have the same parent as item\r\n                 while preceding.parent() is not parent:\r\n+                    preceding = preceding.parent()\r\n                     if preceding is None:\r\n                         break\r\n-                    preceding = preceding.parent()\r\n             if preceding is None:\r\n                 QTreeWidgetItem.__init__(self, parent, QTreeWidgetItem.Type)\r\n             else:\r"
+        }
+      ]
+    },
+    {
+      "sha": "4ec5c1577392792ad9c30a79d12a65daa0f7d798",
+      "message": "Object inspector/bugfix: when terminal widget is active, AttributeError: 'TerminalWidget' object has no attribute 'is_defined'",
+      "changes": [
+        {
+          "file": "spyderlib/plugins/inspector.py",
+          "patch": "@@ -383,15 +383,17 @@ def _check_if_shell_is_running(self):\n         Checks if bound external shell is still running.\r\n         Otherwise, switch to internal console\r\n         \"\"\"\r\n-        if isinstance(self.shell, ExtPythonShellWidget) \\\r\n-           and not self.shell.externalshell.is_running():\r\n+        if not isinstance(self.shell, ExtPythonShellWidget) \\\r\n+           or not self.shell.externalshell.is_running():\r\n             self.shell = self.get_running_python_shell()\r\n         \r\n     def show_help(self, obj_text, ignore_unknown=False):\r\n         \"\"\"Show help\"\"\"\r\n         if self.shell is None:\r\n             return\r\n         self._check_if_shell_is_running()\r\n+        if self.shell is None:\r\n+            return\r\n         obj_text = unicode(obj_text)\r\n         \r\n         if self.shell.is_defined(obj_text):\r"
+        }
+      ]
+    },
+    {
+      "sha": "fc40a92b76a2b07844626abfbf81a85cecf4b023",
+      "message": "Fixed Issue 229 / spyderlib.utils.iofuncs: TypeError: can only concatenate list (not \"NoneType\") to list",
+      "changes": [
+        {
+          "file": "spyderlib/utils/iofuncs.py",
+          "patch": "@@ -333,7 +333,7 @@ def get_3rd_party_funcs(self):\n                                             mod.FORMAT_LOAD, mod.FORMAT_SAVE))\r\n                     except AttributeError, error:\r\n                         print >>STDERR, \"%s: %s\" % (mod, str(error))\r\n-            return other_funcs\r\n+        return other_funcs\r\n     \r\n     def get_open_filename(self, parent, filename, title):\r\n         return QFileDialog.getOpenFileName(parent, title, filename,\r"
+        }
+      ]
+    }
+  ]
+}

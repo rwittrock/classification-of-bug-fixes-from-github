@@ -1,0 +1,35 @@
+{
+  "repo_name": "AlessandroZ/LaZagne",
+  "commits": [
+    {
+      "sha": "21cbf78eeaa072440c69537c566ec17d9a192f03",
+      "message": "If fail to get username via winapi\n\n  File \"~\\lazagne\\config\\run.py\", line 189, in run_lazagne\r\nAttributeError: 'NoneType' object has no attribute 'endswith'",
+      "changes": [
+        {
+          "file": "Windows/lazagne/config/users.py",
+          "patch": "@@ -76,6 +76,6 @@ def get_username_winapi():\n             size.value = len(_buffer)\n         \n         else:\n-            return # Unusual error\n+            return os.getenv('username') # Unusual error\n \n     return _buffer.value"
+        }
+      ]
+    },
+    {
+      "sha": "0af5f10f1411c38d7c2df3c61846cecd6702a274",
+      "message": "decrypt_with_key (see traceback)\n\n  File \"libs\\lazagne\\config\\dpapi_structure.py\", line 164, in __init__\r\n  File \"libs\\lazagne\\config\\DPAPI\\masterkey.py\", line 432, in try_system_credential\r\n  File \"libs\\lazagne\\config\\DPAPI\\masterkey.py\", line 83, in decrypt_with_key\r\n  File \"libs\\lazagne\\config\\DPAPI\\crypto.py\", line 333, in dataDecrypt\r\n  File \"libs\\lazagne\\config\\DPAPI\\crypto.py\", line 313, in pbkdf2\r\n  File \"libs\\hmac.py\", line 136, in new\r\n  File \"libs\\hmac.py\", line 71, in __init__\r\nTypeError: object of type 'NoneType' has no len()",
+      "changes": [
+        {
+          "file": "Windows/lazagne/config/DPAPI/masterkey.py",
+          "patch": "@@ -75,7 +75,7 @@ def decrypt_with_key(self, pwdhash):\n         This function also extracts the HMAC part of the decrypted stuff and compare it with the computed one.\n         Note that, once successfully decrypted, the masterkey will not be decrypted anymore; this function will simply return.\n         \"\"\"\n-        if self.decrypted:\n+        if self.decrypted or not pwdhash:\n             return\n \n         # Compute encryption key"
+        }
+      ]
+    },
+    {
+      "sha": "a93ee981b85e6077db956b1d07040a2e2b76f6df",
+      "message": " TypeError: 'bool' object is not iterable #278 \n\nBad return value when called:\r\ntoken_sid, owner = get_token_info(hToken)",
+      "changes": [
+        {
+          "file": "Windows/lazagne/config/change_privileges.py",
+          "patch": "@@ -30,7 +30,7 @@ def get_token_info(hToken):\n                     sid = pStringSid.value\n                     LocalFree(address)\n                     return sid, owner\n-    return False\n+    return None, None\n \n \n def enable_privilege(privilegeStr, hToken=None):"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,145 @@
+{
+  "repo_name": "keras-team/keras",
+  "commits": [
+    {
+      "sha": "66455371551a544ed5127ed0792af1ef62001bb3",
+      "message": "Update babi_rnn.py (#13263)\n\nChange line 82 so the reg exp works as it says on token above in the comment\r\nbecause else it gives - AttributeError: 'NoneType' object has no attribute 'strip'",
+      "changes": [
+        {
+          "file": "examples/babi_rnn.py",
+          "patch": "@@ -79,7 +79,7 @@ def tokenize(sent):\n     >>> tokenize('Bob dropped the apple. Where is the apple?')\n     ['Bob', 'dropped', 'the', 'apple', '.', 'Where', 'is', 'the', 'apple', '?']\n     '''\n-    return [x.strip() for x in re.split(r'(\\W+)?', sent) if x.strip()]\n+    return [x.strip() for x in re.split(r'(\\W+)', sent) if x.strip()]\n \n \n def parse_stories(lines, only_supporting=False):"
+        }
+      ]
+    },
+    {
+      "sha": "871007dbb0e6211459b9d16244cc3c9683459df7",
+      "message": "fix https://github.com/keras-team/keras/pull/8274 (#8854)\n\nMoved epoch_logs = {} before batch loop to avoid UnboundLocalError.\r\n\r\n\"UnboundLocalError: local variable 'epoch_logs' referenced before assignment\" is really annoying error. This pr borrows the idea from https://github.com/keras-team/keras/commit/cb3469215ab78219a0ae58f566ddeba2fe6242fb, which seems to be a appropriate method.",
+      "changes": [
+        {
+          "file": "keras/engine/training.py",
+          "patch": "@@ -2106,6 +2106,8 @@ def generate_arrays_from_file(path):\n                 output_generator = generator\n \n             callback_model.stop_training = False\n+            # Construct epoch logs.\n+            epoch_logs = {}\n             while epoch < epochs:\n                 callbacks.on_epoch_begin(epoch)\n                 steps_done = 0\n@@ -2152,8 +2154,6 @@ def generate_arrays_from_file(path):\n \n                     callbacks.on_batch_end(batch_index, batch_logs)\n \n-                    # Construct epoch logs.\n-                    epoch_logs = {}\n                     batch_index += 1\n                     steps_done += 1\n "
+        }
+      ]
+    },
+    {
+      "sha": "c6c951442602034439ae3903069fc44c274b7570",
+      "message": "UnboundLocalError is input is a Dataframe (#8290)\n\nSee https://stackoverflow.com/questions/46999519/keras-model-fit-unboundlocalerror",
+      "changes": [
+        {
+          "file": "keras/engine/training.py",
+          "patch": "@@ -103,7 +103,7 @@ def _standardize_input_data(data, names, shapes=None,\n         arrays = data\n     elif data.__class__.__name__ == 'DataFrame':\n         # test if data is a DataFrame, without pandas installed\n-        data = data.values\n+        arrays = data.values\n     else:\n         if not hasattr(data, 'shape'):\n             raise TypeError('Error when checking model ' +"
+        }
+      ]
+    },
+    {
+      "sha": "2df5650ab64a173973a3a4b434d2f801b4694ce3",
+      "message": "IndexError fix (#7865)\n\n* IndexError fix\r\n\r\nWhen a corpus has less than MAX_NB_WORDS, num_words will be set to len(word_index) . However, since the index is zero based it causes an IndexError. eg. When there are 57 total words in the corpus you get the error 'IndexError: index 57 is out of bounds for axis 0 with size 57' since the index should stop at 56 (zero based).\r\n\r\n* missed one more spot\r\n\r\n* Correction to previous commit\r\n\r\n* Reverted to previous commit",
+      "changes": [
+        {
+          "file": "examples/pretrained_word_embeddings.py",
+          "patch": "@@ -106,7 +106,7 @@\n \n # prepare embedding matrix\n num_words = min(MAX_NB_WORDS, len(word_index))\n-embedding_matrix = np.zeros((num_words, EMBEDDING_DIM))\n+embedding_matrix = np.zeros((num_words + 1, EMBEDDING_DIM))\n for word, i in word_index.items():\n     if i >= MAX_NB_WORDS:\n         continue"
+        }
+      ]
+    },
+    {
+      "sha": "a4dc2a3d6bd7bd186bb79ad9d9cbcde60bf44b72",
+      "message": "Fix IndexError in scikit_learn wrapper (#5941) (#5944)",
+      "changes": [
+        {
+          "file": "keras/wrappers/scikit_learn.py",
+          "patch": "@@ -192,11 +192,13 @@ def fit(self, x, y, **kwargs):\n                 details about the training history at each epoch.\n         \"\"\"\n         y = np.array(y)\n-        if len(y.shape) != 1:\n+        if len(y.shape) == 2 and y.shape[1] > 1:\n             self.classes_ = np.arange(y.shape[1])\n-        else:\n+        elif (len(y.shape) == 2 and y.shape[1] == 1) or len(y.shape) == 1:\n             self.classes_ = np.unique(y)\n             y = np.searchsorted(self.classes_, y)\n+        else:\n+            raise ValueError('Invalid shape for y')\n         self.n_classes_ = len(self.classes_)\n         return super(KerasClassifier, self).fit(x, y, **kwargs)\n "
+        }
+      ]
+    },
+    {
+      "sha": "8590e086a37d86105755859373135cbed7893c21",
+      "message": "Dropout created UnboundLocalError (#5788)\n\n* Dropout created UnboundLocalError\r\n\r\noutput was not assigned when if-clause was not entered\r\n\r\n* remove unneeded else case\r\n\r\n* realign code with pep8",
+      "changes": [
+        {
+          "file": "keras/layers/core.py",
+          "patch": "@@ -107,9 +107,9 @@ def call(self, inputs, training=None):\n             def dropped_inputs():\n                 return K.dropout(inputs, self.rate, noise_shape,\n                                  seed=self.seed)\n-            output = K.in_train_phase(dropped_inputs, inputs,\n-                                      training=training)\n-        return output\n+            return K.in_train_phase(dropped_inputs, inputs,\n+                                    training=training)\n+        return inputs\n \n     def get_config(self):\n         config = {'rate': self.rate}"
+        }
+      ]
+    },
+    {
+      "sha": "7da568d59ff768ab84c944733071cdc79943b99e",
+      "message": "io utils: raise indexError for invalid key (#5560)",
+      "changes": [
+        {
+          "file": "keras/utils/io_utils.py",
+          "patch": "@@ -82,6 +82,8 @@ def __getitem__(self, key):\n                 idx = [x + self.start for x in key]\n             else:\n                 raise IndexError\n+        else:\n+            raise IndexError\n         if self.normalizer is not None:\n             return self.normalizer(self.data[idx])\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "72f1ce4ed4396a308f831c717d8c2856a7a4e86b",
+      "message": "Fix Sckit-learn API get_parameters bug (#5121)\n\nAdd **params to BaseWrapper.get_params(self,_) to fix TypeError",
+      "changes": [
+        {
+          "file": "keras/wrappers/scikit_learn.py",
+          "patch": "@@ -84,7 +84,7 @@ def check_params(self, params):\n             if params_name not in legal_params:\n                 raise ValueError('{} is not a legal parameter'.format(params_name))\n \n-    def get_params(self, _):\n+    def get_params(self, **params):\n         \"\"\"Gets parameters for this estimator.\n \n         # Returns"
+        }
+      ]
+    },
+    {
+      "sha": "028aae19bf5ae6efe0b32d25d1c700224eebfcf9",
+      "message": "Fixes for Python 3 (#4121)\n\n* Fixed weights.sort for Python 3\r\n\r\nIn Python 3 weights.sort could throw a TypeError exception, if the\r\nnames are all None\r\n\r\n* Fixed _flattened_layers under Python 3\r\n\r\nIf self.layers is empty, an IndexError appears when accessing it. So\r\nit\u2019s necessary to check if it\u2019s non-empty first\r\n\r\n* Fixed weight sorting for Theano backend\r\n\r\n* Added missing import statement\r\n\r\n* Improved backend handling for weight calculation\r\n\r\n* Simplified weight sorting and backend check\r\n\r\n* Changed behavior of weights sorting\r\n\r\n* Removed unnecessary import",
+      "changes": [
+        {
+          "file": "keras/engine/training.py",
+          "patch": "@@ -258,7 +258,12 @@ def collect_trainable_weights(layer):\n         weights += layer.trainable_weights\n     # dedupe weights\n     weights = list(set(weights))\n-    weights.sort(key=lambda x: x.name)\n+    # TF variables have auto-generated the name, while Theano has auto-generated the auto_name variable. name in Theano is None\n+    if weights:\n+        if K.backend() == 'theano':\n+            weights.sort(key=lambda x: x.auto_name)\n+        else:\n+            weights.sort(key=lambda x: x.name)\n     return weights\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "cb3469215ab78219a0ae58f566ddeba2fe6242fb",
+      "message": "Moved epoch_logs = {} before batch loop to avoid UnboundLocalError. (#3019)",
+      "changes": [
+        {
+          "file": "keras/engine/training.py",
+          "patch": "@@ -778,6 +778,7 @@ def _fit_loop(self, f, ins, out_labels=[], batch_size=32,\n                 np.random.shuffle(index_array)\n \n             batches = make_batches(nb_train_sample, batch_size)\n+            epoch_logs = {}\n             for batch_index, (batch_start, batch_end) in enumerate(batches):\n                 batch_ids = index_array[batch_start:batch_end]\n                 try:\n@@ -802,7 +803,6 @@ def _fit_loop(self, f, ins, out_labels=[], batch_size=32,\n \n                 callbacks.on_batch_end(batch_index, batch_logs)\n \n-                epoch_logs = {}\n                 if batch_index == len(batches) - 1:  # last batch\n                     # validation\n                     if do_validation:"
+        }
+      ]
+    },
+    {
+      "sha": "314ee54e60802caffa6700c000fc25b8d5f7e85a",
+      "message": "FIxed Tensorboard callback for Python 3\n\nAdding `dict_items` [does not work](https://stackoverflow.com/questions/13361510/typeerror-unsupported-operand-types-for-dict-items-and-dict-items) in Python 3. Workaround is to create a copy of the dict and `update` it with the other dict.",
+      "changes": [
+        {
+          "file": "keras/callbacks.py",
+          "patch": "@@ -513,7 +513,10 @@ def on_epoch_end(self, epoch, logs={}):\n                 summary_str = result[0]\n                 self.writer.add_summary(summary_str, epoch)\n \n-        for name, value in self.totals.items() + logs.items():\n+        all_values = self.totals.copy()\n+        all_values.update(logs)\n+        \n+        for name, value in all_values.items():\n             if name in ['batch', 'size']:\n                 continue\n             summary = tf.Summary()"
+        }
+      ]
+    },
+    {
+      "sha": "3e3c43d3eef80b5f59cf282d4a7fa00d5baaa6b2",
+      "message": "fix TypeError: fit() got an unexpected keyword argument 'show_accuracy'",
+      "changes": [
+        {
+          "file": "examples/imdb_bidirectional_lstm.py",
+          "patch": "@@ -56,8 +56,7 @@\n print(\"Train...\")\n model.fit({'input': X_train, 'output': y_train},\n           batch_size=batch_size,\n-          nb_epoch=4,\n-          show_accuracy=True)\n+          nb_epoch=4)\n acc = accuracy(y_test,\n                np.round(np.array(model.predict({'input': X_test},\n                                                batch_size=batch_size)['output'])))"
+        }
+      ]
+    },
+    {
+      "sha": "3bc4b5249a942144bc5f6b8fc2cdae5b51ed4fa1",
+      "message": "Fixes IndexError when converting sequence to matrix\n\nCalling sequences_to_matrix results in an IndexError when nb_words = None. This is caused by a 1-indexed word_index, since sequences_to_matrix expects 0-indexing. Converts word_index to 0-based indexing.",
+      "changes": [
+        {
+          "file": "keras/preprocessing/text.py",
+          "patch": "@@ -69,7 +69,7 @@ def fit_on_texts(self, texts):\n         wcounts = list(self.word_counts.items())\n         wcounts.sort(key = lambda x: x[1], reverse=True)\n         sorted_voc = [wc[0] for wc in wcounts]\n-        self.word_index = dict(list(zip(sorted_voc, list(range(1, len(sorted_voc)+1)))))\n+        self.word_index = dict(list(zip(sorted_voc, list(range(0, len(sorted_voc))))))\n \n         self.index_docs = {}\n         for w, c in list(self.word_docs.items()):"
+        }
+      ]
+    },
+    {
+      "sha": "e172e12182868f70d39ff27b307663d6fe9422e1",
+      "message": "join function TypeError fixed",
+      "changes": [
+        {
+          "file": "examples/kaggle_otto_nn.py",
+          "patch": "@@ -65,7 +65,7 @@ def preprocess_labels(y, encoder=None, categorical=True):\n def make_submission(y_prob, ids, encoder, fname):\n     with open(fname, 'w') as f:\n         f.write('id,')\n-        f.write(','.join(encoder.classes_))\n+        f.write(','.join([str(i) for i in encoder.classes_]))\n         f.write('\\n')\n         for i, probs in zip(ids, y_prob):\n             probas = ','.join([i] + [str(p) for p in probs.tolist()])"
+        }
+      ]
+    }
+  ]
+}

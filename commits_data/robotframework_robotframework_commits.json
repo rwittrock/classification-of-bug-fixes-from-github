@@ -1,0 +1,35 @@
+{
+  "repo_name": "robotframework/robotframework",
+  "commits": [
+    {
+      "sha": "51074ad84e7f42e6cff8fa7a2797f459c5353bf4",
+      "message": "Avoid problems with % formatting with tuples. Fixes #3201.\n\nUsages like `'foo %s' % bar` fail with TypeError if `bar` is a tuple.\nThis is a problem if that `bar` is given by user, especially in\ncontexts where tuples actually make sense.\n\nLooking forward to being able to use Python 3.6 with f-strings...",
+      "changes": [
+        {
+          "file": "src/robot/libraries/BuiltIn.py",
+          "patch": "@@ -1255,7 +1255,7 @@ def should_be_empty(self, item, msg=None):\n         default error message can be overridden with the ``msg`` argument.\n         \"\"\"\n         if self.get_length(item) > 0:\n-            raise AssertionError(msg or \"'%s' should be empty.\" % item)\n+            raise AssertionError(msg or \"'%s' should be empty.\" % (item,))\n \n     def should_not_be_empty(self, item, msg=None):\n         \"\"\"Verifies that the given item is not empty.\n@@ -1264,7 +1264,7 @@ def should_not_be_empty(self, item, msg=None):\n         default error message can be overridden with the ``msg`` argument.\n         \"\"\"\n         if self.get_length(item) == 0:\n-            raise AssertionError(msg or \"'%s' should not be empty.\" % item)\n+            raise AssertionError(msg or \"'%s' should not be empty.\" % (item,))\n \n     def _get_string_msg(self, item1, item2, custom_message, include_values,\n                         delimiter, quote_item1=True, quote_item2=True):"
+        }
+      ]
+    },
+    {
+      "sha": "aa699496a47136af4fd40782ef85e7d08512fa83",
+      "message": "Initial implementation for better reporting if using execution context via BuiltIn when RF not running.\n\nUpdate issue 1667\nStatus: Started\nOwner: pekka.klarck\nHere's initial implementation. It still uses AttributeError because I thought it would be more backwards-compatible. After thinking this a little more, and re-reading the issue description, I'm convinced we need to use something else.\n\nAny comments which exception should we use? Best existing Robot exceptions is DataError but it isn't exactly correct in this case. Best standard Python exception is probably RuntimeError, but that's probably bit too generic.\n\nShould we just add a new exception? What name? Where? Other exceptions are in robot.errors module, but having this in BuiltIn would work too:\n\n    from robot.libraries.BuiltIn import BuiltIn, RobotNotRunningError",
+      "changes": [
+        {
+          "file": "src/robot/libraries/BuiltIn.py",
+          "patch": "@@ -2649,6 +2649,9 @@ class BuiltIn(_Verify, _Converter, _Variables, _RunKeyword, _Control, _Misc):\n \n     @property\n     def _context(self):\n+        if EXECUTION_CONTEXTS.current is None:\n+            raise AttributeError('Cannot access execution context when '\n+                                 'Robot Framework is not running.')\n         return EXECUTION_CONTEXTS.current\n \n     @property"
+        }
+      ]
+    },
+    {
+      "sha": "ce8bea026686d3a0d2f30ab8559381a884f52830",
+      "message": "Fix keyword fails with `AttributeError` if second last argument to imported library is not string.\n\nUpdate  issue 1110\nStatus: Done\nOwner: kontulai@gmail.com\nFixed!",
+      "changes": [
+        {
+          "file": "src/robot/parsing/settings.py",
+          "patch": "@@ -248,7 +248,7 @@ def __init__(self, parent, name, args=None, alias=None, comment=None):\n         _Import.__init__(self, parent, name, args, alias, comment)\n \n     def _split_alias(self, args):\n-        if len(args) >= 2 and args[-2].upper() == 'WITH NAME':\n+        if len(args) >= 2 and str(args[-2]).upper() == 'WITH NAME':\n             return args[:-2], args[-1]\n         return args, None\n "
+        }
+      ]
+    }
+  ]
+}

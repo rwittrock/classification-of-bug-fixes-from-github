@@ -1,0 +1,71 @@
+{
+  "repo_name": "AUTOMATIC1111/stable-diffusion-webui",
+  "commits": [
+    {
+      "sha": "874954060297d847bf30cc5d220effe80ac18968",
+      "message": "fix lint",
+      "changes": [
+        {
+          "file": "modules/sd_samplers_kdiffusion.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -119,7 +119,7 @@ def get_sigmas(self, p, steps):\n \r\n             if scheduler.need_inner_model:\r\n                 sigmas_kwargs['inner_model'] = self.model_wrap\r\n-            \r\n+\r\n             if scheduler.label == 'Beta':\r\n                 p.extra_generation_params[\"Beta schedule alpha\"] = opts.beta_dist_alpha\r\n                 p.extra_generation_params[\"Beta schedule beta\"] = opts.beta_dist_beta\r"
+        }
+      ]
+    },
+    {
+      "sha": "964fc13a99d47263d023f4e3116ac2c220acec88",
+      "message": "fix upscale logic",
+      "changes": [
+        {
+          "file": "modules/upscaler.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -56,8 +56,8 @@ def upscale(self, img: PIL.Image, scale, selected_model: str = None):\n         dest_w = int((img.width * scale) // 8 * 8)\n         dest_h = int((img.height * scale) // 8 * 8)\n \n-        for _ in range(3):\n-            if img.width >= dest_w and img.height >= dest_h and scale != 1:\n+        for i in range(3):\n+            if img.width >= dest_w and img.height >= dest_h and (i > 0 or scale != 1):\n                 break\n \n             if shared.state.interrupted:"
+        }
+      ]
+    },
+    {
+      "sha": "2b50233f3ffa522d5183bacaee3411b9382cbe2c",
+      "message": "fix bugs in lora support",
+      "changes": [
+        {
+          "file": "extensions-builtin/Lora/networks.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -398,7 +398,7 @@ def network_restore_weights_from_backup(self: Union[torch.nn.Conv2d, torch.nn.Li\n     if weights_backup is not None:\r\n         if isinstance(self, torch.nn.MultiheadAttention):\r\n             restore_weights_backup(self, 'in_proj_weight', weights_backup[0])\r\n-            restore_weights_backup(self.out_proj, 'weight', weights_backup[0])\r\n+            restore_weights_backup(self.out_proj, 'weight', weights_backup[1])\r\n         else:\r\n             restore_weights_backup(self, 'weight', weights_backup)\r\n \r\n@@ -437,7 +437,7 @@ def network_apply_weights(self: Union[torch.nn.Conv2d, torch.nn.Linear, torch.nn\n     bias_backup = getattr(self, \"network_bias_backup\", None)\r\n     if bias_backup is None and wanted_names != ():\r\n         if isinstance(self, torch.nn.MultiheadAttention) and self.out_proj.bias is not None:\r\n-            bias_backup = store_weights_backup(self.out_proj)\r\n+            bias_backup = store_weights_backup(self.out_proj.bias)\r\n         elif getattr(self, 'bias', None) is not None:\r\n             bias_backup = store_weights_backup(self.bias)\r\n         else:\r"
+        }
+      ]
+    },
+    {
+      "sha": "3d2dbefcde4091ce4e6d915b3eda16ca964097f2",
+      "message": "fix OSError: cannot write mode P as JPEG",
+      "changes": [
+        {
+          "file": "modules/api/api.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -113,7 +113,7 @@ def encode_pil_to_base64(image):\n             image.save(output_bytes, format=\"PNG\", pnginfo=(metadata if use_metadata else None), quality=opts.jpeg_quality)\n \n         elif opts.samples_format.lower() in (\"jpg\", \"jpeg\", \"webp\"):\n-            if image.mode == \"RGBA\":\n+            if image.mode in (\"RGBA\", \"P\"):\n                 image = image.convert(\"RGB\")\n             parameters = image.info.get('parameters', None)\n             exif_bytes = piexif.dump({"
+        },
+        {
+          "file": "modules/shared_state.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -162,7 +162,7 @@ def do_set_current_image(self):\n             errors.record_exception()\r\n \r\n     def assign_current_image(self, image):\r\n-        if shared.opts.live_previews_image_format == 'jpeg' and image.mode == 'RGBA':\r\n+        if shared.opts.live_previews_image_format == 'jpeg' and image.mode in ('RGBA', 'P'):\r\n             image = image.convert('RGB')\r\n         self.current_image = image\r\n         self.id_live_preview += 1\r"
+        }
+      ]
+    },
+    {
+      "sha": "b1695c1b68f0e52cfe8dc4b9ed28228bd3710336",
+      "message": "fix #16169 Py 3.9 compatibility\n\nCo-Authored-By: SLAPaper Pang <slapaper.pku@gmail.com>",
+      "changes": [
+        {
+          "file": "scripts/xyz_grid.py",
+          "additions": 1,
+          "deletions": 1,
+          "patch": "@@ -118,7 +118,7 @@ def apply_size(p, x: str, xs) -> None:\n \r\n \r\n def find_vae(name: str):\r\n-    if name := name.strip().lower() in ('auto', 'automatic'):\r\n+    if (name := name.strip().lower()) in ('auto', 'automatic'):\r\n         return 'Automatic'\r\n     elif name == 'none':\r\n         return 'None'\r"
+        }
+      ]
+    }
+  ]
+}

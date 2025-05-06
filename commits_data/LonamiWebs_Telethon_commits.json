@@ -1,0 +1,15 @@
+{
+  "repo_name": "LonamiWebs/Telethon",
+  "commits": [
+    {
+      "sha": "09f994c105406b64ccd42ef3c9c11ccc3286ba43",
+      "message": "Except TypeError on empty access hash from 5018879 thoroughly",
+      "changes": [
+        {
+          "file": "telethon/events/common.py",
+          "patch": "@@ -150,9 +150,9 @@ def _set_client(self, client):\n         if not self._chat:\n             return\n \n-        self._input_chat = utils.get_input_peer(self._chat)\n-        if not getattr(self._input_chat, 'access_hash', True):\n-            # getattr with True to handle the InputPeerSelf() case\n+        try:\n+            self._input_chat = utils.get_input_peer(self._chat)\n+        except TypeError:\n             try:\n                 self._input_chat = self._client.session.get_input_entity(\n                     self._chat_peer"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "repo_name": "streamlink/streamlink",
+  "commits": [
+    {
+      "sha": "cc2945477057e6bb2470c3fcca2a18e40c69009d",
+      "message": "plugins.filmon: Fixed AttributeError\n\n`AttributeError: 'FilmOnAPI' object has no attribute 'session'`",
+      "changes": [
+        {
+          "file": "src/streamlink/plugins/filmon.py",
+          "patch": "@@ -19,7 +19,7 @@ def __init__(self, session_, channel=None, vod_id=None, quality=\"high\", **args):\n         if self.channel is None and self.vod_id is None:\n             raise ValueError(\"channel or vod_id must be set\")\n         self.quality = quality\n-        self.api = FilmOnAPI()\n+        self.api = FilmOnAPI(session_)\n         self._url = None\n         self.watch_timeout = 0\n \n@@ -57,6 +57,9 @@ def to_url(self):\n \n \n class FilmOnAPI(object):\n+    def __init__(self, session):\n+        self.session = session\n+\n     channel_url = \"http://www.filmon.com/api-v2/channel/{0}?protocol=hls\"\n     vod_url = \"http://www.filmon.com/vod/info/{0}\"\n \n@@ -109,7 +112,7 @@ class Filmon(Plugin):\n \n     def __init__(self, url):\n         super(Filmon, self).__init__(url)\n-        self.api = FilmOnAPI()\n+        self.api = FilmOnAPI(self.session)\n \n     @classmethod\n     def can_handle_url(cls, url):"
+        }
+      ]
+    },
+    {
+      "sha": "0534a96d7872ec13b14d084c62454c4cdfa711ed",
+      "message": "livecoding.tv: fix breakage (\"TypeError: cannot use a string pattern on a bytes-like object\")",
+      "changes": [
+        {
+          "file": "src/livestreamer/plugins/livecodingtv.py",
+          "patch": "@@ -16,7 +16,7 @@ def can_handle_url(cls, url):\n \n     def _get_streams(self):\n         res = http.get(self.url)\n-        match = _rtmp_re.search(res.content)\n+        match = _rtmp_re.search(res.content.decode('utf-8'))\n         if match:\n             params = {\n                 \"rtmp\": match.group(0),\n@@ -26,7 +26,7 @@ def _get_streams(self):\n             yield 'live', RTMPStream(self.session, params)\n             return\n \n-        match = _vod_re.search(res.content)\n+        match = _vod_re.search(res.content.decode('utf-8'))\n         if match:\n             yield 'vod', HTTPStream(self.session, match.group(1))\n "
+        }
+      ]
+    },
+    {
+      "sha": "b26254adde08782c812e4167e257c5396026c160",
+      "message": "Fixed connectcast.tv TypeError",
+      "changes": [
+        {
+          "file": "src/livestreamer/plugins/connectcast.py",
+          "patch": "@@ -18,7 +18,7 @@ def can_handle_url(self, url):\n \n     def _get_streams(self):\n         res = http.get(self.url)\n-        match = _manifest_re.search(res.content.decode())\n+        match = _manifest_re.search(res.text)\n         manifest = match.group(1)\n         streams = {}\n         streams.update("
+        }
+      ]
+    },
+    {
+      "sha": "5175309f6611bbdea1dd443e8c0e225914a86b9d",
+      "message": "Fixed connectcast.tv TypeError\n\nFixed TypeError by changing res.content to str type",
+      "changes": [
+        {
+          "file": "src/livestreamer/plugins/connectcast.py",
+          "patch": "@@ -18,7 +18,7 @@ def can_handle_url(self, url):\n \n     def _get_streams(self):\n         res = http.get(self.url)\n-        match = _manifest_re.search(res.content)\n+        match = _manifest_re.search(res.content.decode())\n         manifest = match.group(1)\n         streams = {}\n         streams.update("
+        }
+      ]
+    }
+  ]
+}

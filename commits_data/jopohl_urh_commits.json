@@ -1,0 +1,15 @@
+{
+  "repo_name": "jopohl/urh",
+  "commits": [
+    {
+      "sha": "55fe34488add833b74c8dde3e014df442376a760",
+      "message": "catch indexerror for dirty preambles",
+      "changes": [
+        {
+          "file": "src/urh/awre/components/Preamble.py",
+          "patch": "@@ -57,8 +57,11 @@ def __find_preamble_range(self, message: Message):\n         if first_difference is None:\n             return None\n \n-        preamble_end = next((i-1 for i in range(first_difference, search_end, 4)\n-            if bits[i] == bits[i+1] or bits[i] != bits[i+2] or bits[i] == bits[i+3]), search_end)\n+        try:\n+            preamble_end = next((i-1 for i in range(first_difference, search_end, 4)\n+                if bits[i] == bits[i+1] or bits[i] != bits[i+2] or bits[i] == bits[i+3]), search_end)\n+        except IndexError:\n+            return None\n \n         if preamble_end - first_difference > 4:\n             return first_difference, preamble_end"
+        }
+      ]
+    }
+  ]
+}

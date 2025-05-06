@@ -1,0 +1,25 @@
+{
+  "repo_name": "nodejs/node-gyp",
+  "commits": [
+    {
+      "sha": "a84b88575629f9190bceb7da6787895f8acf662d",
+      "message": "gyp: fix undefined name: cflags --> ldflags\n\nThe current code would raise NameError at runtime.\n\nPR-URL: https://github.com/nodejs/node-gyp/pull/1901\nReviewed-By: Rod Vagg <rod@vagg.org>",
+      "changes": [
+        {
+          "file": "gyp/pylib/gyp/xcode_emulation.py",
+          "patch": "@@ -846,7 +846,7 @@ def GetLdflags(self, configname, product_dir, gyp_to_build_path, arch=None):\n     if self._IsXCTest():\n       platform_root = self._XcodePlatformPath(configname)\n       if platform_root:\n-        cflags.append('-F' + platform_root + '/Developer/Library/Frameworks/')  # noqa TODO @cclauss\n+        ldflags.append('-F' + platform_root + '/Developer/Library/Frameworks/')\n \n     is_extension = self._IsIosAppExtension() or self._IsIosWatchKitExtension()\n     if sdk_root and is_extension:"
+        }
+      ]
+    },
+    {
+      "sha": "47496bf6dcf09d3fc95fdd069864eda36e094f56",
+      "message": "Fix IndexError when parsing GYP files.\n\nGYP automatically turns variables ending in _dir, _file or _path into\nabsolute paths but didn't check for empty strings.\n\nIt interacted badly with variables inherited through the environment\nfrom npm, the `scripts-prepend-node-path=false` setting in particular\nbecause it is turned into `npm_config_script_prepend_node_path=`.\n\nFixes: https://github.com/nodejs/node-gyp/issues/1217\nPR-URL: https://github.com/nodejs/node-gyp/pull/1267\nReviewed-By: Gibson Fahnestock <gibfahn@gmail.com>\nReviewed-By: Refael Ackermann <refack@gmail.com>",
+      "changes": [
+        {
+          "file": "gyp/pylib/gyp/input.py",
+          "patch": "@@ -2033,7 +2033,7 @@ def MakePathRelative(to_file, fro_file, item):\n         gyp.common.RelativePath(os.path.dirname(fro_file),\n                                 os.path.dirname(to_file)),\n                                 item)).replace('\\\\', '/')\n-    if item[-1] == '/':\n+    if item[-1:] == '/':\n       ret += '/'\n     return ret\n "
+        }
+      ]
+    }
+  ]
+}

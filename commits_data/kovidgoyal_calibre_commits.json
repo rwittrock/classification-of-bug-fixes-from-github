@@ -1,0 +1,225 @@
+{
+  "repo_name": "kovidgoyal/calibre",
+  "commits": [
+    {
+      "sha": "1c82942ed8b82411068affdfe3a71e4cad2d38b2",
+      "message": "Forgot to also catch attributeerror for people running from source",
+      "changes": [
+        {
+          "file": "src/calibre/srv/render_book.py",
+          "patch": "@@ -761,7 +761,7 @@ def html_as_json(root):\n     ensure_body(root)\n     try:\n         serialize = plugins['html_as_json'][0].serialize\n-    except KeyError:\n+    except (KeyError, AttributeError):\n         return as_bytes(json.dumps(html_as_dict(root), ensure_ascii=False, separators=(',', ':')))\n     for child in tuple(root.iterchildren('*')):\n         if child.tag.partition('}')[-1] not in ('head', 'body'):"
+        }
+      ]
+    },
+    {
+      "sha": "e8afb87d9d00cbd6f8abe92f992215d01a57598c",
+      "message": "Fix problem when CC accesses the content server with the option device_for_template. Fixes exception\nTraceback (most recent call last):\n  File \"C:\\CBH_Data\\calibre.git\\calibre_dev\\src\\calibre\\srv\\ajax.py\", line 141, in book_to_json\n  File \"C:\\CBH_Data\\calibre.git\\calibre_dev\\src\\calibre\\devices\\utils.py\", line 98, in create_upload_path\n  File \"C:\\CBH_Data\\calibre.git\\calibre_dev\\src\\calibre\\utils\\filenames.py\", line 40, in ascii_filename\n  File \"C:\\CBH_Data\\calibre.git\\calibre_dev\\src\\calibre\\utils\\filenames.py\", line 30, in ascii_text\nAttributeError: 'int' object has no attribute 'decode'",
+      "changes": [
+        {
+          "file": "src/calibre/srv/ajax.py",
+          "patch": "@@ -135,7 +135,7 @@ def book_to_json(ctx, rd, db, book_id,\n             for device_class in device_plugins():\n                 if device_class.__class__.__name__ == device_for_template:\n                     template = device_class.save_template()\n-                    data['_filename_'] = create_upload_path(mi, book_id,\n+                    data['_filename_'] = create_upload_path(mi, unicode(book_id),\n                             template, sanitize, path_type=posixpath)\n                     break\n "
+        }
+      ]
+    },
+    {
+      "sha": "dc636725fa26b08501807fbfb23a81f9ac197f93",
+      "message": "EPUB Input: Handle invalid EPUB files that have their NCX documents in the spine. Fixes #1796497 [AttributeError: 'NoneType' object has no attribute 'get'](https://bugs.launchpad.net/calibre/+bug/1796497)",
+      "changes": [
+        {
+          "file": "src/calibre/ebooks/oeb/reader.py",
+          "patch": "@@ -337,7 +337,7 @@ def _spine_from_opf(self, opf):\n                 self.logger.warn(u'Spine item %r not found' % idref)\n                 continue\n             item = manifest.ids[idref]\n-            if item.media_type.lower() in OEB_DOCS and hasattr(item.data, 'xpath'):\n+            if item.media_type.lower() in OEB_DOCS and hasattr(item.data, 'xpath') and not getattr(item.data, 'tag', '').endswith('}ncx'):\n                 spine.add(item, elem.get('linear'))\n             else:\n                 if hasattr(item.data, 'tag') and item.data.tag and item.data.tag.endswith('}html'):"
+        }
+      ]
+    },
+    {
+      "sha": "67709b515ad2934f4c8f8182dda48d1df5b02784",
+      "message": "Fix #1643228 [UnboundLocalError while creating icon theme](https://bugs.launchpad.net/calibre/+bug/1643228)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/win_file_dialogs.py",
+          "patch": "@@ -18,6 +18,7 @@\n def is_ok():\n     return os.path.exists(HELPER)\n \n+\n try:\n     from calibre.constants import filesystem_encoding\n     from calibre.utils.filenames import expanduser\n@@ -266,7 +267,7 @@ def choose_save_file(window, name, title, filters=[], all_files=True, initial_pa\n     if all_files:\n         file_types.append((_('All files'), ['*']))\n     all_exts = []\n-    for _, exts in file_types:\n+    for ftext, exts in file_types:\n         for ext in exts:\n             if '*' not in ext:\n                 all_exts.append(ext.lower())\n@@ -355,5 +356,7 @@ def test(helper=HELPER):\n     if q != echo:\n         raise RuntimeError('Unexpected response: %r' % server.data)\n \n+\n if __name__ == '__main__':\n+    choose_save_file(None, 'xxx', 'yyy')\n     test(sys.argv[-1])"
+        }
+      ]
+    },
+    {
+      "sha": "5a500f7e1c4a33dd6c3779233b222d3fb42f975a",
+      "message": "Fix #1538451 [AttributeError: 'QImage' object has no attribute 'setFormat'](https://bugs.launchpad.net/calibre/+bug/1538451)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/tweak_book/editor/canvas.py",
+          "patch": "@@ -97,13 +97,11 @@ def qimage_to_magick(img):\n     fmt = get_pixel_map()\n     if not img.hasAlphaChannel():\n         if img.format() != img.Format_RGB32:\n-            img = QImage(img)\n-            img.setFormat(QImage.Format_RGB32)\n+            img = img.convertToFormat(QImage.Format_RGB32)\n         fmt = fmt.replace('A', 'P')\n     else:\n         if img.format() != img.Format_ARGB32:\n-            img = QImage(img)\n-            img.setFormat(img.Format_ARGB32)\n+            img = img.convertToFormat(QImage.Format_ARGB32)\n     raw = img.constBits().ascapsule()\n     ans.constitute(img.width(), img.height(), fmt, raw)\n     return ans"
+        }
+      ]
+    },
+    {
+      "sha": "4989be93779c48caf7684288697be698eee29df9",
+      "message": "Conversion: Fix error when converting a document that contains an invalid function based CSS selector without parentheses. Fixes #1440278 [Conversion Error - TypeError: select_nth_last_child() takes exactly 3 arguments (2 given)](https://bugs.launchpad.net/calibre/+bug/1440278)",
+      "changes": [
+        {
+          "file": "src/css_selectors/tests.py",
+          "patch": "@@ -10,7 +10,7 @@\n \n from lxml import etree, html\n \n-from css_selectors.errors import SelectorSyntaxError\n+from css_selectors.errors import SelectorSyntaxError, ExpressionError\n from css_selectors.parser import tokenize, parse\n from css_selectors.select import Select\n \n@@ -757,6 +757,8 @@ def pcss(main, *selectors, **kwargs):\n         self.ae(pcss(r'di\\a0 v', r'div\\['), [])\n         self.ae(pcss(r'[h\\a0 ref]', r'[h\\]ref]'), [])\n \n+        self.assertRaises(ExpressionError, lambda : tuple(select('body:nth-child')))\n+\n         del app\n \n     def test_select_shakespeare(self):"
+        }
+      ]
+    },
+    {
+      "sha": "72d47ba9377d70e786bf3d93b323544188c894bd",
+      "message": "Fix incompatibility with PyQt 5.4.1. Fixes #1427684 [\"TypeError: QPixmap(): argument 1 has unexpected type\" \u2013 incompatibility with Qt 5.4.1?](https://bugs.launchpad.net/calibre/+bug/1427684)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/widgets.py",
+          "patch": "@@ -295,7 +295,7 @@ class ImageView(QWidget, ImageDropMixin):  # {{{\n     def __init__(self, parent=None, show_size_pref_name=None, default_show_size=False):\n         QWidget.__init__(self, parent)\n         self.show_size_pref_name = ('show_size_on_cover_' + show_size_pref_name) if show_size_pref_name else None\n-        self._pixmap = QPixmap(self)\n+        self._pixmap = QPixmap()\n         self.setMinimumSize(QSize(150, 200))\n         ImageDropMixin.__init__(self)\n         self.draw_border = True"
+        }
+      ]
+    },
+    {
+      "sha": "986f8b467e251d912a34f382e428fa046c5b644d",
+      "message": "Edit metadata dialog: Disable OK button while results are being downloaded.\n\nFixes #1213397 [AttributeError](https://bugs.launchpad.net/calibre/+bug/1213397)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/metadata/single_download.py",
+          "patch": "@@ -1012,6 +1012,7 @@ def __init__(self, current_cover=None, parent=None):\n         self.next_button.setIcon(QIcon(I('ok.png')))\n         self.next_button.clicked.connect(self.next_clicked)\n         self.ok_button = self.bb.button(self.bb.Ok)\n+        self.ok_button.setEnabled(False)\n         self.ok_button.clicked.connect(self.ok_clicked)\n         self.prev_button = self.bb.addButton(_('Back'), self.bb.ActionRole)\n         self.prev_button.setIcon(QIcon(I('back.png')))\n@@ -1080,6 +1081,7 @@ def cleanup(self):\n \n     def identify_results_found(self):\n         self.next_button.setEnabled(True)\n+        self.ok_button.setEnabled(True)\n \n     def next_clicked(self, *args):\n         gprefs['metadata_single_gui_geom'] = bytearray(self.saveGeometry())"
+        }
+      ]
+    },
+    {
+      "sha": "2db79a12e4d9452635274671856873f15e427782",
+      "message": "PDF Output: Dont error out on files that have invalid font-family declarations. Fixes #1096279 (AttributeError: 'int' object has no attribute 'replace')",
+      "changes": [
+        {
+          "file": "src/calibre/ebooks/conversion/plugins/pdf_output.py",
+          "patch": "@@ -190,7 +190,10 @@ def handle_embedded_fonts(self):\n                 if ff is None: continue\n                 val = ff.propertyValue\n                 for i in xrange(val.length):\n-                    k = icu_lower(val[i].value)\n+                    try:\n+                        k = icu_lower(val[i].value)\n+                    except (AttributeError, TypeError):\n+                        val[i].value = k = 'times'\n                     if k in family_map:\n                         val[i].value = family_map[k]\n                 if iswindows:"
+        }
+      ]
+    },
+    {
+      "sha": "c8c4389a615e204a544fde8613bd81fc80e08717",
+      "message": "Fix #973336 (calibre, version 0.8.45 ERROR: Unhandled exception: <b>AttributeError</b>:'int' object has no attribute 'replace'  Traceback (most recent call last):   File \"site-packages/calibre/gui2/cover_flow.py\", line 74, in caption AttributeError: 'int' object has no attribute 'replace')",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/cover_flow.py",
+          "patch": "@@ -69,9 +69,10 @@ def caption(self, index):\n                 ans = self.model.title(index)\n                 if not ans:\n                     ans = ''\n+                ans = ans.replace('&', '&&')\n             except:\n                 ans = ''\n-            return ans.replace('&', '&&')\n+            return ans\n \n         def subtitle(self, index):\n             try:"
+        }
+      ]
+    },
+    {
+      "sha": "8f16a5e02a07e7fc0f35f3c95b8fb59e40a70395",
+      "message": "Fix #855060 (calibre, version 0.8.19 ERROR: Unhandled exception: <b>AttributeError</b>:'MobileReadStore' object has no attribute 'lock'  Traceback (most recent call last):   File \"site-packages/calibre/gui2/actions/store.py\", line 130, in open_store   File \"site-packages/calibre/gui2/store/stores/mobileread/mobileread_plugin.py\", line 40, in open   File \"site-packages/calibre/gui2/store/stores/mobileread/mobileread_plugin.py\", line 57, in update_cache AttributeError: 'MobileReadStore' object has no attribute 'lock')",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/ui.py",
+          "patch": "@@ -195,7 +195,8 @@ def initialize(self, library_path, db, listener, actions, show_gui=True):\n \n         for ac in self.iactions.values():\n             ac.do_genesis()\n-        self.donate_action = QAction(QIcon(I('donate.png')), _('&Donate to support calibre'), self)\n+        self.donate_action = QAction(QIcon(I('donate.png')),\n+                _('&Donate to support calibre'), self)\n         for st in self.istores.values():\n             st.do_genesis()\n         MainWindowMixin.__init__(self, db)"
+        }
+      ]
+    },
+    {
+      "sha": "8408f0119f4294378e3c9d3c434f5fdbff8f3c04",
+      "message": "Fix #822359 (AttributeError:'OpenBooksStore' object has no attribute 'url'  Traceback (most recent call last):   File \"/usr/lib/calibre/calibre/gui2/actions/store.py\", line 126, in open_store     store_plugin.open(self.gui)   File \"/usr/lib/calibre/calibre/gui2/store/stores/open_books_plugin.py\", line 31, in open     d = WebStoreDialog(self.gui, self.url, parent, detail_item) AttributeError: 'OpenBooksStore' object has no attribute 'url' [with fix])",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/store/stores/open_books_plugin.py",
+          "patch": "@@ -28,7 +28,7 @@ def open(self, parent=None, detail_item=None, external=False):\n         if external or self.config.get('open_external', False):\n             open_url(QUrl(url_slash_cleaner(detail_item if detail_item else url)))\n         else:\n-            d = WebStoreDialog(self.gui, self.url, parent, detail_item)\n+            d = WebStoreDialog(self.gui, url, parent, detail_item)\n             d.setWindowTitle(self.name)\n             d.set_tags(self.config.get('tags', ''))\n             d.exec_()\n@@ -44,7 +44,7 @@ def search(self, query, max_results=10, timeout=60):\n             for data in doc.xpath('//ul[@id=\"object_list\"]//li'):\n                 if counter <= 0:\n                     break\n-    \n+\n                 id = ''.join(data.xpath('.//div[@class=\"links\"]/a[1]/@href'))\n                 id = id.strip()\n                 if not id:"
+        }
+      ]
+    },
+    {
+      "sha": "f0bf205fea4ea98703bade7d32428a0b1b5c7f6c",
+      "message": "Fix #804383 (TypeError when deleting all saved searches)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/tag_browser/view.py",
+          "patch": "@@ -575,7 +575,9 @@ def recount(self, *args):\n         expanded_categories, state_map = self.get_state()\n         self._model.rebuild_node_tree(state_map=state_map)\n         for category in expanded_categories:\n-            self.expand(self._model.index_for_category(category))\n+            idx = self._model.index_for_category(category)\n+            if idx is not None and idx.isValid():\n+                self.expand(idx)\n         self.show_item_at_path(path)\n \n     def show_item_at_path(self, path, box=False,"
+        }
+      ]
+    },
+    {
+      "sha": "8f18065d3c484f8b9765ee084fa5f46243c3cf0f",
+      "message": "RTF Input: Handle RTF files with too many levels of list nesting. Fixes #743243 (IndexError: list index out of range Converting RTF to EPUB, LRF)",
+      "changes": [
+        {
+          "file": "src/calibre/ebooks/rtf2xml/make_lists.py",
+          "patch": "@@ -291,9 +291,12 @@ def __write_start_list(self, id):\n         if self.__list_of_lists: # older RTF won't generate a list_of_lists\n             index_of_list = self.__get_index_of_list(id)\n             if index_of_list != None:# found a matching id\n-                list_dict = self.__list_of_lists[index_of_list][0]\n+                curlist = self.__list_of_lists[index_of_list]\n+                list_dict = curlist[0]\n                 level = int(self.__level) + 1\n-                level_dict = self.__list_of_lists[index_of_list][level][0]\n+                if level >= len(curlist):\n+                    level = len(curlist) - 1\n+                level_dict = curlist[level][0]\n                 list_type = level_dict.get('numbering-type')\n                 if list_type == 'bullet':\n                     list_type = 'unordered'"
+        }
+      ]
+    },
+    {
+      "sha": "0c9a5a835623c5674ebed5753f96848be3aad4ad",
+      "message": "MOBI Input: Handle MOBI files that have too large number of records fields in their headers. Fixes #740713 (IndexError: list index out of range)",
+      "changes": [
+        {
+          "file": "src/calibre/ebooks/mobi/reader.py",
+          "patch": "@@ -769,7 +769,8 @@ def text_section(self, index):\n \n     def extract_text(self):\n         self.log.debug('Extracting text...')\n-        text_sections = [self.text_section(i) for i in range(1, self.book_header.records + 1)]\n+        text_sections = [self.text_section(i) for i in range(1,\n+            min(self.book_header.records + 1, len(self.sections)))]\n         processed_records = list(range(0, self.book_header.records + 1))\n \n         self.mobi_html = ''"
+        }
+      ]
+    },
+    {
+      "sha": "251b1f8aa47adc91b23cb4b0d45f80b232ca201c",
+      "message": "Fix #8882 (ERROR: Unhandled exception:  TypeError: index() takes exactly 4 arguments (3 given))",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/preferences/plugins.py",
+          "patch": "@@ -109,7 +109,7 @@ def find_next(self, idx, query, backwards=False):\n         return self.index(ans[0], 0, QModelIndex()) if ans[1] < 0 else \\\n                 self.index(ans[1], 0, self.index(ans[0], 0, QModelIndex()))\n \n-    def index(self, row, column, parent):\n+    def index(self, row, column, parent=QModelIndex()):\n         if not self.hasIndex(row, column, parent):\n             return QModelIndex()\n \n@@ -165,8 +165,6 @@ def refresh_plugin(self, plugin, rescan=False):\n     def flags(self, index):\n         if not index.isValid():\n             return 0\n-        if index.internalId() == 0:\n-            return Qt.ItemIsEnabled\n         flags = Qt.ItemIsSelectable | Qt.ItemIsEnabled\n         return flags\n "
+        }
+      ]
+    },
+    {
+      "sha": "28cba375fd6aee8846c9c3ac572700907969fa45",
+      "message": "Fix #8793 (Unhandled exception: AttributeError:'MessageBox' object has no attribute 'ctc_button')",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/dialogs/message_box.py",
+          "patch": "@@ -89,7 +89,8 @@ def copy_to_clipboard(self, *args):\n                 (__version__, unicode(self.windowTitle()),\n                     unicode(self.msg.text()),\n                     unicode(self.det_msg.toPlainText())))\n-        self.ctc_button.setText(_('Copied'))\n+        if hasattr(self, 'ctc_button'):\n+            self.ctc_button.setText(_('Copied'))\n \n     def showEvent(self, ev):\n         ret = QDialog.showEvent(self, ev)"
+        }
+      ]
+    },
+    {
+      "sha": "dce70ef463eac468a943ccac1b3a618323e59e69",
+      "message": "Fix #6300 (TypeError: an integer is required)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/throbber.py",
+          "patch": "@@ -26,7 +26,10 @@ def __init__(self, *args):\n     def set_normal_icon_size(self, w, h):\n         self.normal_icon_size = QSize(w, h)\n         self.setIconSize(self.normal_icon_size)\n-        self.setMinimumSize(self.sizeHint())\n+        try:\n+            self.setMinimumSize(self.sizeHint())\n+        except:\n+            self.setMinimumSize(QSize(w+5, h+5))\n \n     def animation_finished(self):\n         self.setIconSize(self.normal_icon_size)"
+        }
+      ]
+    },
+    {
+      "sha": "ee6d94aa405afdd4cb3b2f04ad0bb9c956871445",
+      "message": "Fix #5695 (AttributeError: 'LibraryServer' object has no attribute 'stanza')",
+      "changes": [
+        {
+          "file": "src/calibre/library/server/content.py",
+          "patch": "@@ -127,10 +127,7 @@ def index(self, **kwargs):\n             cherrypy.log('User agent: '+ua)\n \n         if want_opds:\n-            return self.stanza(search=kwargs.get('search', None), sortby=kwargs.get('sortby',None), authorid=kwargs.get('authorid',None),\n-                           tagid=kwargs.get('tagid',None),\n-                           seriesid=kwargs.get('seriesid',None),\n-                           offset=kwargs.get('offset', 0))\n+            return self.opds(version=0)\n \n         if want_mobile:\n             return self.mobile()"
+        }
+      ]
+    },
+    {
+      "sha": "5fa32e48500cd3d6754f312a6a22eedc89c862dc",
+      "message": "Fix #5431 (AttributeError:'NoneType' object has no attribute 'db_id')",
+      "changes": [
+        {
+          "file": "src/calibre/devices/prs505/books.py",
+          "patch": "@@ -384,7 +384,7 @@ def reorder_playlists(self):\n             if not pl:\n                 continue\n             db_ids = [i.getAttribute('id') for i in pl.childNodes if hasattr(i, 'getAttribute')]\n-            pl_book_ids = [self.book_by_id(i.getAttribute('id')).db_id for i in pl.childNodes  if hasattr(i, 'getAttribute')]\n+            pl_book_ids = [getattr(self.book_by_id(i), 'db_id', None) for i in db_ids]\n             map = {}\n             for i, j in zip(pl_book_ids, db_ids):\n                 map[i] = j"
+        }
+      ]
+    },
+    {
+      "sha": "6463f7cd4c0e5408265298cb2b151ad114accf40",
+      "message": "Fix #5225 (IndexError returned for metadata lookup with ISBN and blank author)",
+      "changes": [
+        {
+          "file": "src/calibre/gui2/dialogs/metadata_single.py",
+          "patch": "@@ -553,7 +553,10 @@ def hangcheck(self):\n     def fetch_metadata(self):\n         isbn   = re.sub(r'[^0-9a-zA-Z]', '', unicode(self.isbn.text()))\n         title  = qstring_to_unicode(self.title.text())\n-        author = string_to_authors(unicode(self.authors.text()))[0]\n+        try:\n+            author = string_to_authors(unicode(self.authors.text()))[0]\n+        except IndexError:\n+            author = ''\n         publisher = qstring_to_unicode(self.publisher.currentText())\n         if isbn or title or author or publisher:\n             d = FetchMetadata(self, isbn, title, author, publisher, self.timeout)"
+        }
+      ]
+    },
+    {
+      "sha": "5fb1d6ab82ad774f2a4d4400856493266e7cfef2",
+      "message": "Fix #4727 (AttributeError: 'MetaInformation' object has no attribute 'thumnbail')",
+      "changes": [
+        {
+          "file": "src/calibre/devices/prs500/books.py",
+          "patch": "@@ -274,7 +274,7 @@ def add_book(self, mi, name, size, ctime):\n             node.setAttribute(attr, attrs[attr])\n         try:\n             w, h, data = mi.thumbnail\n-        except TypeError:\n+        except:\n             w, h, data = None, None, None\n \n         if data:"
+        }
+      ]
+    }
+  ]
+}

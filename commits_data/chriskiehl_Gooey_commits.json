@@ -1,0 +1,15 @@
+{
+  "repo_name": "chriskiehl/Gooey",
+  "commits": [
+    {
+      "sha": "2898c1540e4751e1bf66215c887f602f1a0e694e",
+      "message": "Fixing Exception\n\nTraceback (most recent call last):\r\n  File \"C:\\Python27\\lib\\site-packages\\gooey\\gui\\footer.py\", line 152, in OnStart\r\nButton\r\n    self._controller.OnStartButton(event, self)\r\n  File \"C:\\Python27\\lib\\site-packages\\gooey\\gui\\controller.py\", line 52, in OnSt\r\nartButton\r\n    cmd_line_args = self._base.GetOptions()\r\n  File \"C:\\Python27\\lib\\site-packages\\gooey\\gui\\base_window.py\", line 94, in Get\r\nOptions\r\n    return self.config_panel.GetOptions()\r\n  File \"C:\\Python27\\lib\\site-packages\\gooey\\gui\\advanced_config.py\", line 104, i\r\nn GetOptions\r\n    if c.GetValue() is not None]\r\n  File \"C:\\Python27\\lib\\site-packages\\gooey\\gui\\components.py\", line 181, in Get\r\nValue\r\n    [self._action.option_strings[0],  # get the verbose copy if available\r\nIndexError: list index out of range",
+      "changes": [
+        {
+          "file": "gooey/gui/components.py",
+          "patch": "@@ -178,7 +178,7 @@ def GetValue(self):\n     if self._widget.GetValue() == self._DEFAULT_VALUE:\r\n       return None\r\n     return ' '.join(\r\n-      [self._action.option_strings[0],  # get the verbose copy if available\r\n+      [self._action.option_strings[0] if self._action.option_strings else '',  # get the verbose copy if available\r\n        self._widget.GetValue()])\r\n \r\n   def BuildInputWidget(self, parent, action):\r"
+        }
+      ]
+    }
+  ]
+}

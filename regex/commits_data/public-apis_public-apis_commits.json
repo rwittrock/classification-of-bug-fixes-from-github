@@ -1,0 +1,15 @@
+{
+  "repo_name": "public-apis/public-apis",
+  "commits": [
+    {
+      "sha": "b756f21f13fccb4a3e3b7f3db75e7107882ce5fd",
+      "message": "Add segment length check per entry\n\nThis avoids an IndexError if the length of split segments is shorter than expected.",
+      "changes": [
+        {
+          "file": "build/validate_format.py",
+          "patch": "@@ -16,6 +16,7 @@\n index_https = 3\n index_cors = 4\n index_link = 5\n+num_segments = 6\n \n errors = []\n title_links = []\n@@ -133,6 +134,10 @@ def check_format(filename):\n             continue\n         num_in_category += 1\n         segments = line.split('|')[1:-1]\n+        if len(segments) < num_segments:\n+            add_error(line_num, \"entry does not have all the required sections (have {}, need {})\".format(\n+                len(segments), num_segments))\n+            continue\n         # START Global\n         for segment in segments:\n             # every line segment should start and end with exactly 1 space"
+        }
+      ]
+    }
+  ]
+}

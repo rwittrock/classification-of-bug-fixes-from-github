@@ -1,0 +1,45 @@
+{
+  "repo_name": "plotly/plotly.py",
+  "commits": [
+    {
+      "sha": "6c0a66d01ec33cc57239193caaedba07e19b161c",
+      "message": "Fix get_config_plotly_server_url on .config load error\n\nIf .config is not found or not loaded it should be treated as empty,\nbut it's resulting in an `UnboundLocalError`",
+      "changes": [
+        {
+          "file": "plotly/tools.py",
+          "patch": "@@ -1280,10 +1280,10 @@ def get_config_plotly_server_url():\n         try:\n             config_dict = json.load(f)\n             if not isinstance(config_dict, dict):\n-                data = {}\n+                config_dict = {}\n         except:\n             # TODO: issue a warning and bubble it up\n-            data = {}\n+            config_dict = {}\n \n     return config_dict.get('plotly_domain', default_server_url)\n "
+        }
+      ]
+    },
+    {
+      "sha": "42c0d996277a17e1c5167961890c4798c7b84b84",
+      "message": "Update _facet_grid.py\n\nI was getting error that kwargs is undefined:\r\n\r\n```NameError                                 Traceback (most recent call last)\r\n<ipython-input-173-30fb7f3aeb2e> in <module>()\r\n      9     facet_row='cut',\r\n     10     color_name='depth',\r\n---> 11     facet_col='z'\r\n     12 \r\n     13 )\r\n\r\n/home/alishobeiri/anaconda2/lib/python2.7/site-packages/plotly/figure_factory/_facet_grid.pyc in create_facet_grid(df, x, y, facet_row, facet_col, color_name, colormap, color_is_cat, facet_row_labels, facet_col_labels, height, width, trace_type, scales, dtick_x, dtick_y, show_boxes, ggplot2, binsize, **kwargs)\r\n    867                     facet_row_labels, facet_col_labels, trace_type,\r\n    868                     flipped_rows, flipped_cols, show_boxes, marker_color,\r\n--> 869                     kwargs_trace, kwargs_marker\r\n    870                 )\r\n    871 \r\n\r\n/home/alishobeiri/anaconda2/lib/python2.7/site-packages/plotly/figure_factory/_facet_grid.pyc in _facet_grid_color_numerical(df, x, y, facet_row, facet_col, color_name, colormap, num_of_rows, num_of_cols, facet_row_labels, facet_col_labels, trace_type, flipped_rows, flipped_cols, show_boxes, marker_color, kwargs_trace, kwargs_marker)\r\n    414                         type=trace_type,\r\n    415                         showlegend=False,\r\n--> 416                         **kwargs\r\n    417                     )\r\n    418                 fig.append_trace(trace, row_count + 1, col_count + 1)\r\n\r\nNameError: global name 'kwargs' is not defined ```\r\n\r\nThought it might be because kwargs should actually be kwards_trace - not sure tho",
+      "changes": [
+        {
+          "file": "plotly/figure_factory/_facet_grid.py",
+          "patch": "@@ -413,7 +413,7 @@ def _facet_grid_color_numerical(df, x, y, facet_row, facet_col, color_name,\n                         mode='markers',\n                         type=trace_type,\n                         showlegend=False,\n-                        **kwargs\n+                        **kwargs_trace\n                     )\n                 fig.append_trace(trace, row_count + 1, col_count + 1)\n                 if row_count == 0:"
+        }
+      ]
+    },
+    {
+      "sha": "c5f90230b8e596307af49ec0f97eb8e9db8ce1f0",
+      "message": "Fix: spelling on PlotlyDataTypeError message",
+      "changes": [
+        {
+          "file": "plotly/exceptions.py",
+          "patch": "@@ -122,7 +122,7 @@ def __init__(self, obj, path, notes=()):\n         format_dict = {'index': path[-1], 'object_name': obj._name}\n         message = (\"Invalid entry found in '{object_name}' at index, '{index}'\"\n                    .format(**format_dict))\n-        note = \"It's invalid because it does't contain a valid 'type' value.\"\n+        note = \"It's invalid because it doesn't contain a valid 'type' value.\"\n         notes = [note] + list(notes)\n         super(PlotlyDataTypeError, self).__init__(\n             message=message, path=path, notes=notes"
+        }
+      ]
+    },
+    {
+      "sha": "96c226abbe73335dfff513d9cfea7876ddeca585",
+      "message": "In PY3 `.keys()` returns a `view` not a `list`!\n\nWe were getting this error:\n\n`TypeError: can only concatenate list (not \"dict_keys\") to list`",
+      "changes": [
+        {
+          "file": "plotly/graph_reference.py",
+          "patch": "@@ -347,7 +347,9 @@ def _get_object_info_from_name(object_name):\n \n # The ordering here is important.\n GRAPH_REFERENCE = get_graph_reference()\n-TRACE_NAMES = GRAPH_REFERENCE['traces'].keys()\n+\n+# See http://blog.labix.org/2008/06/27/watch-out-for-listdictkeys-in-python-3\n+TRACE_NAMES = list(GRAPH_REFERENCE['traces'].keys())\n OBJECT_PATHS = [path for node, path in utils.node_generator(GRAPH_REFERENCE)\n                 if node.get('role') == 'object']\n OBJECTS = _get_objects()"
+        }
+      ]
+    }
+  ]
+}

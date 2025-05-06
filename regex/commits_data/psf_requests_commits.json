@@ -1,0 +1,145 @@
+{
+  "repo_name": "psf/requests",
+  "commits": [
+    {
+      "sha": "cee8fae65efc1d4557d1b2291963a729444a5f42",
+      "message": "Adding header name to exception\n\nAdds the name of the header to the invalid header exception raised on TypeError.",
+      "changes": [
+        {
+          "file": "requests/utils.py",
+          "patch": "@@ -868,8 +868,8 @@ def check_header_validity(header):\n         if not pat.match(value):\n             raise InvalidHeader(\"Invalid return character or leading space in header: %s\" % name)\n     except TypeError:\n-        raise InvalidHeader(\"Header value %s must be of type str or bytes, \"\n-                            \"not %s\" % (value, type(value)))\n+        raise InvalidHeader(\"Header %s value %s must be of type str or bytes, \"\n+                            \"not %s\" % (name, value, type(value)))\n \n \n def urldefragauth(url):"
+        }
+      ]
+    },
+    {
+      "sha": "cb4c2c0b6507d0978859cf824ca396902ba81064",
+      "message": "Fix TypeError when get json-encoded content of a response\n\n``self.content`` could be ``None``, so ``len(self.content)`` may raise ``TypeError: object of type 'NoneType' has no len()``",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -792,7 +792,7 @@ def json(self, **kwargs):\n         :param \\*\\*kwargs: Optional arguments that ``json.loads`` takes.\n         \"\"\"\n \n-        if not self.encoding and len(self.content) > 3:\n+        if not self.encoding and self.content and len(self.content) > 3:\n             # No encoding set. JSON RFC 4627 section 3 states we should expect\n             # UTF-8, -16 or -32. Detect which one to use; If the detection or\n             # decoding fails, fall back to `self.text` (using chardet to make"
+        }
+      ]
+    },
+    {
+      "sha": "abe02ed89fa7f575877a882cb5ba337290eb27d1",
+      "message": "Initialize hash_utf8 to None, preventing NameError. Fixes #3138.",
+      "changes": [
+        {
+          "file": "requests/auth.py",
+          "patch": "@@ -93,6 +93,7 @@ def build_digest_header(self, method, url):\n         qop = self._thread_local.chal.get('qop')\n         algorithm = self._thread_local.chal.get('algorithm')\n         opaque = self._thread_local.chal.get('opaque')\n+        hash_utf8 = None\n \n         if algorithm is None:\n             _algorithm = 'MD5'"
+        }
+      ]
+    },
+    {
+      "sha": "cda95d3cdee339f10d48287395368e31c386f296",
+      "message": "morsel['max-age'] may be a str.\n\nExample:\r\n\r\nhere are Set-Cookie list:\r\n```python\r\nsclst = ['dwac_bcIBMiaagZmkYaaadeYtg11eVR=j9jHdmPjUhgDOhyH9f89X4lQgehEmflVyeA%3D|dw-only|||CNY|false|Asia%2FShanghai|true; Path=/',\r\n 'sid=j9jHdmPjUhgDOhyH9f89X4lQgehEmflVyeA; Path=/',\r\n 'geoLocation=CN; Path=/',\r\n 'dwpersonalization_fae107a9dd0fc32ed99532ec1977f31f=bc8sEiaagZqRsaaadk8XoNTL8h20150506; Expires=Sun, 14-Jun-2015 10:37:07 GMT; Path=/',\r\n 'dwanonymous_fae107a9dd0fc32ed99532ec1977f31f=abjpA8kng31LjPp8ZEERDT4XVg; Version=1; Comment=\"Demandware anonymous cookie for site Sites-abercrombie_cn-Site\"; Max-Age=15552000; Expires=Tue, 10-Nov-2015 10:37:07 GMT; Path=/',\r\n 'myStore=91156; Path=/',\r\n 'AF_PREF=en_CN; Path=/',\r\n 'dwsid=MiHJy3KYZKDcN0lZg4HS1zSpj1VV4s_tFu39ar0KXNpAx9aX8X2LlvZQ9m5fOOknb6QXtmmukHcOjmivYf31hg==; path=/; HttpOnly']\r\n```\r\n\r\n```python\r\n    for sc in sclst:\r\n        C = Cookie.SimpleCookie(sc)\r\n        for morsel in C.values():\r\n            cookie = requests.cookies.morsel_to_cookie(morsel)\r\n            cookiejar.set_cookie(cookie)\r\n```\r\nThen, exception occured\r\n```shell\r\n  File \"/Library/Python/2.7/site-packages/requests/cookies.py\", line 402, in morsel_to_cookie\r\n    expires = time.time() + morsel['max-age']\r\nTypeError: unsupported operand type(s) for +: 'float' and 'str'\r\n```\r\n\r\nAs Cookie.SimpleCookie is in STL, should `morsel_to_cookie` check the type of `max-age`? On the other hand, if **max-age** can not be converted to float, it's illegal obviously.",
+      "changes": [
+        {
+          "file": "requests/cookies.py",
+          "patch": "@@ -415,7 +415,7 @@ def morsel_to_cookie(morsel):\n \n     expires = None\n     if morsel['max-age']:\n-        expires = time.time() + morsel['max-age']\n+        expires = time.time() + float(morsel['max-age'])\n     elif morsel['expires']:\n         time_template = '%a, %d-%b-%Y %H:%M:%S GMT'\n         expires = time.mktime("
+        }
+      ]
+    },
+    {
+      "sha": "c6c8d649af10cd5660b625fca4f44bd00541d518",
+      "message": "do not blindly catch all AttributeErrors\n\nsee shazow/urllib3#618",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -648,9 +648,10 @@ def iter_content(self, chunk_size=1, decode_unicode=False):\n         If decode_unicode is True, content will be decoded using the best\n         available encoding based on the response.\n         \"\"\"\n+\n         def generate():\n-            try:\n-                # Special case for urllib3.\n+            # Special case for urllib3.\n+            if hasattr(self.raw, 'stream'):\n                 try:\n                     for chunk in self.raw.stream(chunk_size, decode_content=True):\n                         yield chunk\n@@ -660,7 +661,7 @@ def generate():\n                     raise ContentDecodingError(e)\n                 except ReadTimeoutError as e:\n                     raise ConnectionError(e)\n-            except AttributeError:\n+            else:\n                 # Standard file-like object.\n                 while True:\n                     chunk = self.raw.read(chunk_size)"
+        }
+      ]
+    },
+    {
+      "sha": "ca2ebc5b682452bc870efb2f7123feda9a80a8ea",
+      "message": "allow unicode URLs on Python 2\n\non Python 2 u'\u00e9'.decode('utf8') fails with UnicodeEncodeError,\nbut only AttributeError is caught.\n\nThis only calls decode on known bytes objects.",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -338,9 +338,9 @@ def prepare_url(self, url, params):\n         #: as this will include the bytestring indicator (b'')\n         #: on python 3.x.\n         #: https://github.com/kennethreitz/requests/pull/2238\n-        try:\n+        if isinstance(url, bytes):\n             url = url.decode('utf8')\n-        except AttributeError:\n+        else:\n             url = unicode(url) if is_py2 else str(url)\n \n         # Don't do any URL preparation for non-HTTP schemes like `mailto`,"
+        }
+      ]
+    },
+    {
+      "sha": "ee7fe02953d864021298ed8d3e3e5f6aff1f6731",
+      "message": "Ensure that .raw() is present after unpickling.\n\nSome people will assume that .raw() is present, and they shouldn't get\nAttributeErrors when they make that assumption on a pickled Response.\nHowever, @kennethreitz has asked that we not be too dependent on\nurllib3. For that reason, set to None.",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -575,6 +575,7 @@ def __setstate__(self, state):\n \n         # pickled objects do not have .raw\n         setattr(self, '_content_consumed', True)\n+        setattr(self, 'raw', None)\n \n     def __repr__(self):\n         return '<Response [%s]>' % (self.status_code)"
+        }
+      ]
+    },
+    {
+      "sha": "dddb41e34906c1b7eff389921c7b1bb6d734a433",
+      "message": "TypeError, not AttributeError on 3.3.",
+      "changes": [
+        {
+          "file": "requests/utils.py",
+          "patch": "@@ -639,7 +639,7 @@ def get_auth_from_url(url):\n \n         try:\n             return (unquote(parsed.username), unquote(parsed.password))\n-        except AttributeError:\n+        except (AttributeError, TypeError):\n             pass\n \n     return ('', '')"
+        }
+      ]
+    },
+    {
+      "sha": "961790f95c7c06dc073d882acb28810a22d27b77",
+      "message": "cookies.morsel_to_cookie(morsel) raise TypeError repaired.\n\nmorsel_to_cookie(mosel) method raise TypeError: create_cookie() got unexpected keyword arguments: ['path_specified', 'domain_specified', 'port_specified', 'domain_initial_dot'].\r\n\r\nso we should remove these param from create_cookie(...)",
+      "changes": [
+        {
+          "file": "requests/cookies.py",
+          "patch": "@@ -359,12 +359,8 @@ def morsel_to_cookie(morsel):\n         value=morsel.value,\n         version=morsel['version'] or 0,\n         port=None,\n-        port_specified=False,\n         domain=morsel['domain'],\n-        domain_specified=bool(morsel['domain']),\n-        domain_initial_dot=morsel['domain'].startswith('.'),\n         path=morsel['path'],\n-        path_specified=bool(morsel['path']),\n         secure=bool(morsel['secure']),\n         expires=morsel['max-age'] or morsel['expires'],\n         discard=False,"
+        }
+      ]
+    },
+    {
+      "sha": "2bb49ff386deab4e67e199450085720c1521411a",
+      "message": "Handle encoding of `None` when decoding unicode\n\nIf encoding is None, decoding will throw the following TypeError:\r\nTypeError: unicode() argument 2 must be string, not None\r\n\r\nIf this is the case, attempt to run without any set encoding",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -834,6 +834,11 @@ def text(self):\n             #\n             # So we try blindly encoding.\n             content = str(self.content, errors='replace')\n+        except TypeError:\n+            # A TypeError can be raised if encoding is None\n+            #\n+            # So we try blindly encoding.\n+            content = str(self.content, errors='replace')\n \n         return content\n "
+        }
+      ]
+    },
+    {
+      "sha": "b1610df282c67cd87781be166549643e647704ee",
+      "message": "Handle encoding of `None` when decoding unicode\n\nIf encoding is None, decoding will throw the following TypeError:\r\nTypeError: unicode() argument 2 must be string, not None\r\n\r\nIf this is the case, attempt to run without any set encoding",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -834,6 +834,11 @@ def text(self):\n             #\n             # So we try blindly encoding.\n             content = str(self.content, errors='replace')\n+        except TypeError:\n+            # A TypeError can be raised if encoding is None\n+            #\n+            # So we try blindly encoding.\n+            content = str(self.content, errors='replace')\n \n         return content\n "
+        }
+      ]
+    },
+    {
+      "sha": "dee3693ea004e2f859e4fba4cfedb376e4d0bb2b",
+      "message": "Use BytesIO for bytes.\n\nThis fixes a TypeError on Python 3 that ocurred when passing\nbytes as the values for files.",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -10,6 +10,7 @@\n import os\n import socket\n from datetime import datetime\n+from io import BytesIO\n \n from .hooks import dispatch_hook, HOOKS\n from .structures import CaseInsensitiveDict\n@@ -377,8 +378,10 @@ def tuples(obj):\n             else:\n                 fn = guess_filename(v) or k\n                 fp = v\n-            if isinstance(fp, (bytes, str)):\n+            if isinstance(fp, str):\n                 fp = StringIO(fp)\n+            if isinstance(fp, bytes):\n+                fp = BytesIO(fp)\n             fields.append((k, (fn, fp.read())))\n \n         for k, vs in tuples(self.data):"
+        }
+      ]
+    },
+    {
+      "sha": "83a9f2c7407347a4e1e148e2a1bea4b47e1543c0",
+      "message": "explicating the cause of LookupError with a better comment",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -789,7 +789,10 @@ def text(self):\n         try:\n             content = str(self.content, encoding, errors='replace')\n         except LookupError:\n-            # try blindly encoding\n+            # A LookupError is raised if the encoding was not found which could\n+            # indicate a misspelling or similar mistake.\n+            #\n+            # So we try blindly encoding.\n             content = str(self.content, errors='replace')\n         except (UnicodeError, TypeError):\n             pass"
+        }
+      ]
+    },
+    {
+      "sha": "2f55393593fb0d8818fa014bc004dfed73564110",
+      "message": "Fixes an issue #128: ``Response not working with lxml''. This error happend due to lxml's attempt to do .geturl() call on the response object. __getattr__ didn't raise AttributeError so ``response.geturl'' returned None and ``response.geturl()'' resulted into ``TypeError: 'NoneType' object is not callable'' seen in the issue.",
+      "changes": [
+        {
+          "file": "requests/models.py",
+          "patch": "@@ -416,7 +416,8 @@ def __getattr__(self, name):\n                 except zlib.error:\n                     pass\n             return self._content\n-\n+        else:\n+            raise AttributeError\n \n     def raise_for_status(self):\n         \"\"\"Raises stored :class:`HTTPError` or :class:`URLError`, if one occured.\"\"\""
+        }
+      ]
+    }
+  ]
+}

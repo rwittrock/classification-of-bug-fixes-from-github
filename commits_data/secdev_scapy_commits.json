@@ -1,0 +1,25 @@
+{
+  "repo_name": "secdev/scapy",
+  "commits": [
+    {
+      "sha": "11423f295db00d3c0841274c4f48042aad202d9c",
+      "message": "fixed inet6.py get_trace(): TypeError: unorderable types: int() > str()",
+      "changes": [
+        {
+          "file": "scapy/layers/inet6.py",
+          "patch": "@@ -3467,7 +3467,7 @@ def get_trace(self):\n \n         for k in six.itervalues(trace):\n             try:\n-                m = min(x for x, y in six.itervalues(k) if y)\n+                m = min(x for x, y in six.iteritems(k) if y[1])\n             except ValueError:\n                 continue\n             for l in list(k):  # use list(): k is modified in the loop"
+        }
+      ]
+    },
+    {
+      "sha": "3408e34e0d77f2f9f59633efd63aec2f44a32a46",
+      "message": "fixed inet.py get_trace(): TypeError: unorderable types: int() > str()",
+      "changes": [
+        {
+          "file": "scapy/layers/inet.py",
+          "patch": "@@ -1144,7 +1144,7 @@ def get_trace(self):\n             trace[d][s[IP].ttl] = r[IP].src, ICMP not in r\n         for k in six.itervalues(trace):\n             try:\n-                m = min(x for x, y in six.itervalues(k) if y)\n+                m = min(x for x, y in six.iteritems(k) if y[1])\n             except ValueError:\n                 continue\n             for l in list(k):  # use list(): k is modified in the loop"
+        }
+      ]
+    }
+  ]
+}

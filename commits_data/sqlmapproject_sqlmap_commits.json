@@ -1,0 +1,235 @@
+{
+  "repo_name": "sqlmapproject/sqlmap",
+  "commits": [
+    {
+      "sha": "4da20679ee6968d3b4036bc48f39bc793b76d8f1",
+      "message": "Update httpshandler.py\n\nssl.PROTOCOL_SSLv3 removed\r\naffecting error: AttributeError: 'module' object has no attribute 'PROTOCOL_SSLv3'",
+      "changes": [
+        {
+          "file": "lib/request/httpshandler.py",
+          "patch": "@@ -19,7 +19,7 @@\n except ImportError:\n     pass\n \n-_protocols = [ssl.PROTOCOL_SSLv3, ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv23]\n+_protocols = [ssl.PROTOCOL_TLSv1, ssl.PROTOCOL_SSLv23]\n \n class HTTPSConnection(httplib.HTTPSConnection):\n     \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "8a36f7fc037ba9501e32041dc273552b426b15fb",
+      "message": "fix for a bug reported by aboynes@gmail.com (UnboundLocalError: local variable 'infoMsg' referenced before assignment)",
+      "changes": [
+        {
+          "file": "plugins/generic/enumeration.py",
+          "patch": "@@ -702,6 +702,8 @@ def getDbs(self):\n         if len(kb.data.cachedDbs) > 0:\n             return kb.data.cachedDbs\n \n+        infoMsg = None\n+\n         if Backend.isDbms(DBMS.MYSQL) and not kb.data.has_information_schema:\n             warnMsg = \"information_schema not available, \"\n             warnMsg += \"back-end DBMS is MySQL < 5. database \"\n@@ -725,7 +727,8 @@ def getDbs(self):\n         else:\n             infoMsg = \"fetching database names\"\n \n-        logger.info(infoMsg)\n+        if infoMsg:\n+            logger.info(infoMsg)\n \n         rootQuery = queries[Backend.getIdentifiedDbms()].dbs\n "
+        }
+      ]
+    },
+    {
+      "sha": "5e9620198c2754f2cc0c0a97519837b15ee9af3f",
+      "message": "fix for a privately reported bug (\"AttributeError: item is disabled\")",
+      "changes": [
+        {
+          "file": "lib/core/option.py",
+          "patch": "@@ -465,7 +465,11 @@ def __findPageForms():\n         for form in forms:\n             for control in form.controls:\n                 if hasattr(control, 'items'):\n-                    control.items[0].selected = True\n+                    # if control has selectable items select first non-disabled\n+                    for item in control.items:\n+                        if not item.disabled:\n+                            item.selected = True\n+                            break\n             request = form.click()\n             url = urldecode(request.get_full_url(), kb.pageEncoding)\n             method = request.get_method()"
+        }
+      ]
+    },
+    {
+      "sha": "a2bb0d72e84fc678cf7838235bf87528529764d5",
+      "message": "fix for a bug reported by rdsears@mtu.edu (TypeError: expected string or buffer)",
+      "changes": [
+        {
+          "file": "lib/core/dump.py",
+          "patch": "@@ -305,7 +305,7 @@ def dbTableValues(self, tableValues):\n \n                     for value in tableValues[column]['values']:\n                         try:\n-                            if re.search(\"^[\\ *]*$\", value): #NULL\n+                            if not value or re.search(\"^[\\ *]*$\", value): #NULL\n                                 continue\n \n                             _ = int(value)\n@@ -318,7 +318,7 @@ def dbTableValues(self, tableValues):\n \n                         for value in tableValues[column]['values']:\n                             try:\n-                                if re.search(\"^[\\ *]*$\", value): #NULL\n+                                if not value or re.search(\"^[\\ *]*$\", value): #NULL\n                                     continue\n \n                                 _ = float(value)"
+        }
+      ]
+    },
+    {
+      "sha": "bd4fbb3251bcacacba0914fd04fca2e64787389d",
+      "message": "fix for a bug reported by l0rda@l0rda.biz (TypeError: cannot concatenate 'str' and 'NoneType' objects)",
+      "changes": [
+        {
+          "file": "plugins/generic/filesystem.py",
+          "patch": "@@ -294,7 +294,8 @@ def readFile(self, rFile):\n                     else:\n                         chunk = \"\"\n \n-                newFileContent += chunk\n+                if chunk:\n+                    newFileContent += chunk\n \n             fileContent = newFileContent\n "
+        }
+      ]
+    },
+    {
+      "sha": "a883ce26b580554e3e003eed40024b5fe84f274f",
+      "message": "fix for a bug reported by ToR (AttributeError: 'NoneType' object has no attribute 'redcode')",
+      "changes": [
+        {
+          "file": "lib/request/redirecthandler.py",
+          "patch": "@@ -55,7 +55,8 @@ def common_http_redirect(self, result, headers, code, content, msg):\n         if \"set-cookie\" in headers:\n             result.setcookie = headers[\"set-cookie\"].split(\"; path\")[0]\n \n-        result.redcode = code\n+        if result:\n+            result.redcode = code\n \n         return result\n "
+        }
+      ]
+    },
+    {
+      "sha": "60102209f60673c9d27eb35599c593f543f053c4",
+      "message": "quick fix for a bug reported by Kirill (AttributeError: 'NoneType' object has no attribute 'split')",
+      "changes": [
+        {
+          "file": "plugins/generic/enumeration.py",
+          "patch": "@@ -142,7 +142,7 @@ def isDba(self, user=None):\n \n         if Backend.getIdentifiedDbms() == DBMS.MYSQL:\n             self.getCurrentUser()\n-            query = queries[Backend.getIdentifiedDbms()].is_dba.query % kb.data.currentUser.split(\"@\")[0]\n+            query = queries[Backend.getIdentifiedDbms()].is_dba.query % (kb.data.currentUser.split(\"@\")[0] if kb.data.currentUser else None)\n         elif Backend.getIdentifiedDbms() in (DBMS.MSSQL, DBMS.SYBASE) and user is not None:\n             query = queries[Backend.getIdentifiedDbms()].is_dba.query2 % user\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "f7feebe0df3a47c12e5860d2f8e23561a187964d",
+      "message": "fix for a bug reported by malice.anon@gmail.com (TypeError: encode() takes no keyword arguments)",
+      "changes": [
+        {
+          "file": "lib/core/common.py",
+          "patch": "@@ -587,7 +587,7 @@ def dataToStdout(data, forceOutput=False):\n             try:\n                 sys.stdout.write(data.encode(sys.stdout.encoding))\n             except:\n-                sys.stdout.write(data.encode(UNICODE_ENCODING, errors=\"replace\"))\n+                sys.stdout.write(data.encode(UNICODE_ENCODING))\n             finally:\n                 sys.stdout.flush()\n "
+        }
+      ]
+    },
+    {
+      "sha": "7ad41f9b19297470766b2940e35a673c24e6255a",
+      "message": "bug fix (UnboundLocalError: local variable 'colType' referenced before assignment)",
+      "changes": [
+        {
+          "file": "lib/core/dump.py",
+          "patch": "@@ -183,6 +183,8 @@ def dbTableColumns(self, tableColumns):\n                 maxlength1 = 0\n                 maxlength2 = 0\n \n+                colType = None\n+\n                 colList = columns.keys()\n                 colList.sort(key=lambda x: x.lower())\n "
+        }
+      ]
+    },
+    {
+      "sha": "a835f233acfddea93876b531a0f840adc8b9fb98",
+      "message": "fix for a bug reported by buawig@gmail.com (AttributeError: 'module' object has no attribute 'set_completer')",
+      "changes": [
+        {
+          "file": "lib/core/readlineng.py",
+          "patch": "@@ -14,9 +14,11 @@\n _readline = None\n \n try:\n+    from readline import *\n     import readline as _readline\n except ImportError:\n     try:\n+        from pyreadline import *\n         import pyreadline as _readline\n     except ImportError:\n         pass"
+        }
+      ]
+    },
+    {
+      "sha": "b763feafd9a073e89244e50f4a25642c3e512b7b",
+      "message": "bug fix (TypeError: object of type 'NoneType' has no len())",
+      "changes": [
+        {
+          "file": "plugins/generic/enumeration.py",
+          "patch": "@@ -1313,7 +1313,7 @@ def dumpTable(self):\n                                     break\n                                 else:\n                                     pivotValue = value\n-                            lengths[column] = max(lengths[column], len(value))\n+                            lengths[column] = max(lengths[column], len(value) if value else 0)\n                             entries[column].append(value)\n \n                 else:\n@@ -1345,7 +1345,7 @@ def dumpTable(self):\n \n                             value = inject.getValue(query, inband=False)\n \n-                            lengths[column] = max(lengths[column], len(value))\n+                            lengths[column] = max(lengths[column], len(value) if value else 0)\n                             entries[column].append(value)\n             except KeyboardInterrupt:\n                 warnMsg = \"Ctrl+C detected in dumping phase\""
+        }
+      ]
+    },
+    {
+      "sha": "15e6911fd81e8d7063ea779eb862fa795e048a3f",
+      "message": "fix for a bug reported by ragos@joker.ms (AttributeError: 'NoneType' object has no attribute 'write')",
+      "changes": [
+        {
+          "file": "lib/controller/controller.py",
+          "patch": "@@ -27,7 +27,6 @@\n from lib.core.data import conf\n from lib.core.data import kb\n from lib.core.data import logger\n-from lib.core.dump import dumper\n from lib.core.enums import HTTPMETHOD\n from lib.core.enums import PAYLOAD\n from lib.core.enums import PLACE\n@@ -118,7 +117,7 @@ def __showInjections():\n \n     data = data.rstrip(\"\\n\")\n \n-    dumper.technic(header, data)\n+    conf.dumper.technic(header, data)\n \n def __saveToSessionFile():\n     for inj in kb.injections:"
+        }
+      ]
+    },
+    {
+      "sha": "ceeb6374e80a6f5e6bf0e54ae7e9761f555bdbe8",
+      "message": "bug fix (TypeError: object of type 'NoneType' has no len())",
+      "changes": [
+        {
+          "file": "lib/core/common.py",
+          "patch": "@@ -1748,7 +1748,9 @@ def removeDynamicContent(page):\n     if page:\n         for item in kb.dynamicMarkings:\n             prefix, suffix = item\n-            if prefix is None:\n+            if prefix is None and suffix is None:\n+                continue\n+            elif prefix is None:\n                 page = getCompiledRegex('(?s)^.+%s' % suffix).sub(suffix, page)\n             elif suffix is None:\n                 page = getCompiledRegex('(?s)%s.+$' % prefix).sub(prefix, page)"
+        }
+      ]
+    },
+    {
+      "sha": "e3fa3b0e8ed31b70525c5850383abae23e499b5b",
+      "message": "fix for a minor bug reported by nightman (AttributeError: 'NoneType' object has no attribute 'getFingerprint')",
+      "changes": [
+        {
+          "file": "lib/controller/action.py",
+          "patch": "@@ -31,7 +31,7 @@ def action():\n     # system to be able to go ahead with the injection\n     setHandler()\n \n-    if not kb.dbmsDetected:\n+    if not kb.dbmsDetected and conf.dbmsHandler:\n         htmlParsed = getHtmlErrorFp()\n \n         errMsg  = \"sqlmap was not able to fingerprint the \""
+        }
+      ]
+    },
+    {
+      "sha": "2cc167a42eb18030536107803dfbca6a71694f65",
+      "message": "fix for a bug reported by ToR: \"AttributeError: 'NoneType' object has no attribute 'isdigit'\"",
+      "changes": [
+        {
+          "file": "lib/core/common.py",
+          "patch": "@@ -1639,3 +1639,6 @@ def trimAlphaNum(value):\n         value = value[1:]\n \n     return value\n+\n+def isNumPosStrValue(value):\n+    return value and isinstance(value, basestring) and value.isdigit() and value != \"0\""
+        }
+      ]
+    },
+    {
+      "sha": "c471b815cca289dc4bd447e49db09c884d1dfe75",
+      "message": "fix for a bug reported by BugTrace (IndexError: list index out of range)",
+      "changes": [
+        {
+          "file": "lib/core/option.py",
+          "patch": "@@ -946,7 +946,7 @@ def __setHTTPUserAgent():\n     if __count == 1:\n         __userAgent = kb.userAgents[0]\n     else:\n-        __userAgent = kb.userAgents[randomRange(stop=__count)]\n+        __userAgent = kb.userAgents[randomRange(stop=__count-1)]\n \n     __userAgent = sanitizeStr(__userAgent)\n     conf.httpHeaders.append((\"User-Agent\", __userAgent))"
+        }
+      ]
+    },
+    {
+      "sha": "63af5444fdc5eb38b96d79ab138cb14512726a7a",
+      "message": "fix (NameError: global name 'DBMS' is not defined)",
+      "changes": [
+        {
+          "file": "lib/techniques/inband/union/test.py",
+          "patch": "@@ -14,6 +14,7 @@\n from lib.core.data import logger\n from lib.core.data import queries\n from lib.core.session import setUnion\n+from lib.core.settings import DBMS\n from lib.core.unescaper import unescaper\n from lib.parse.html import htmlParser\n from lib.request.connect import Connect as Request"
+        }
+      ]
+    },
+    {
+      "sha": "f74b69cc2944aa17c5136e85fa6f8b72abc859f5",
+      "message": "fix (AttributeError: class ICMPsh has no attribute '__init__')",
+      "changes": [
+        {
+          "file": "plugins/generic/takeover.py",
+          "patch": "@@ -39,7 +39,6 @@ def __init__(self):\n         self.tblField = \"data\"\n \n         Abstraction.__init__(self)\n-        ICMPsh.__init__(self)\n \n     def osCmd(self):\n         stackedTest()"
+        }
+      ]
+    },
+    {
+      "sha": "44678fa3201626f9b685839c5c3edc87ee22ccd0",
+      "message": "fix for a bug reported by ToR (TypeError: unsupported operand type(s) for *: 'float' and 'NoneType')",
+      "changes": [
+        {
+          "file": "lib/request/comparison.py",
+          "patch": "@@ -58,10 +58,13 @@ def comparison(page, headers=None, getSeqMatcher=False, pageLength=None):\n         else:\n             page = re.sub('(?s)%s.+%s' % (prefix, postfix), '%s%s' % (prefix, postfix), page)\n \n+    if not pageLength and page:\n+        pageLength = len(page)\n+\n     if kb.locks.seqLock:\n         kb.locks.seqLock.acquire()\n \n-    if not conf.eRegexp and not conf.eString and kb.nullConnection:\n+    if not conf.eRegexp and not conf.eString and kb.nullConnection and pageLength:\n         ratio = 1. * pageLength / len(conf.seqMatcher.a)\n         if ratio > 1.:\n             ratio = 1. / ratio"
+        }
+      ]
+    },
+    {
+      "sha": "6eab7997d122e1d440aee6e37c980fec51725f18",
+      "message": "fix for bug reported by dragoun dash (TypeError: sequence item 0: expected string, NoneType found)",
+      "changes": [
+        {
+          "file": "lib/core/common.py",
+          "patch": "@@ -161,7 +161,10 @@ def formatDBMSfp(versions=None):\n     @rtype: C{str}\n     \"\"\"\n \n-    if ( not versions or versions == [None] ) and kb.dbmsVersion and kb.dbmsVersion[0] != \"Unknown\":\n+    while None in versions:\n+        versions.remove(None)\n+    \n+    if not versions and kb.dbmsVersion and kb.dbmsVersion[0] != \"Unknown\":\n         versions = kb.dbmsVersion\n \n     if isinstance(versions, basestring):"
+        }
+      ]
+    },
+    {
+      "sha": "a4155269c575b3a51b017d8d1a0f64619355e623",
+      "message": "bug fix (unicode(unicode) results in \u201cTypeError: decoding Unicode is not supported\u201d (http://www.red-mercury.com/blog/eclectic-tech/python-mystery-of-the-day/)",
+      "changes": [
+        {
+          "file": "lib/core/xmldump.py",
+          "patch": "@@ -131,8 +131,7 @@ def __createAttribute(self,attrName,attrValue):\n         if attrValue is None :\n             attr.nodeValue = unicode(\"\",\"utf-8\")\n         else :\n-            escaped_data = unicode(attrValue)\n-            attr.nodeValue = unicode(escaped_data,\"utf-8\")\n+            attr.nodeValue = attrValue if isinstance(attrValue, unicode) else unicode(attrValue,\"utf-8\")\n         return attr\n \n     def __formatString(self, string):"
+        }
+      ]
+    },
+    {
+      "sha": "d8e5585c6620a4b600ecbba6b5a68d14cba36e87",
+      "message": "fixed a bug reported by Mosk Dmitri (infoMsg UnboundLocalError)",
+      "changes": [
+        {
+          "file": "lib/techniques/blind/inference.py",
+          "patch": "@@ -304,6 +304,7 @@ def downloadThread():\n             conf.threadContinue = False\n             raise\n \n+        infoMsg = None\n         # If we have got one single character not correctly fetched it\n         # can mean that the connection to the target url was lost\n         if None in value:"
+        }
+      ]
+    },
+    {
+      "sha": "f6b447f6e7e31a91cc4c444a76780dd12277ae08",
+      "message": "fix for \"NameError: global name 'webFileStreamUpload' is not defined\"",
+      "changes": [
+        {
+          "file": "lib/takeover/web.py",
+          "patch": "@@ -77,7 +77,7 @@ def webBackdoorRunCmd(self, cmd):\n \n     def webFileUpload(self, fileToUpload, destFileName, directory):\n         file = open(fileToUpload, \"r\")\n-        webFileStreamUpload(self, file, destFileName, directory)\n+        self.webFileStreamUpload(self, file, destFileName, directory)\n         file.close()\n         \n     def webFileStreamUpload(self, stream, destFileName, directory):"
+        }
+      ]
+    }
+  ]
+}

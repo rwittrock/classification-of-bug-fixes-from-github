@@ -1,0 +1,15 @@
+{
+  "repo_name": "google/python-fire",
+  "commits": [
+    {
+      "sha": "9bff9d01ce16589201f57ffef27ea84744951c11",
+      "message": "unicode() --> six.u() for Python 3 compatibility (#111)\n\n__unicode()__ was removed from Python 3 because all strs are unicode.\r\n\r\nExecuting these lines in Python 3 would raise a NameError.\r\n\r\n* https://pythonhosted.org/six/#six.u",
+      "changes": [
+        {
+          "file": "fire/parser_fuzz_test.py",
+          "patch": "@@ -67,8 +67,8 @@ def testDefaultParseValueFuzz(self, value):\n       raise\n \n     try:\n-      uvalue = unicode(value)\n-      uresult = unicode(result)\n+      uvalue = six.u(value)\n+      uresult = six.u(result)\n     except UnicodeDecodeError:\n       # This is not what we're testing.\n       return"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "repo_name": "deepfakes/faceswap",
+  "commits": [
+    {
+      "sha": "048e032a91735323bad88e4e5b10d19ed5730e3e",
+      "message": "Model json unicode fix1 (#443)\n\n* fixed Windows 10 path error while loading weights\r\n\r\n* - fixed TypeError: the JSON object must be str, not 'bytes' with OriginalHighRes Model",
+      "changes": [
+        {
+          "file": "plugins/Model_OriginalHighRes/Model.py",
+          "patch": "@@ -122,7 +122,7 @@ def load(self, swapped):\n         \n         try:\n             with open(state_dir, 'rb') as fp:\n-                state = ser.unmarshal(fp.read())\n+                state = ser.unmarshal(fp.read().decode('utf-8'))\n                 self._epoch_no = state['epoch_no']\n         except IOError as e:\n             print('Error loading training info:', e.strerror)"
+        }
+      ]
+    },
+    {
+      "sha": "2e2dc846e3af7417ed8840bdd003832aa3737eee",
+      "message": "Fix to an UnboundLocalError due to rename. (#318)",
+      "changes": [
+        {
+          "file": "lib/FaceLandmarksExtractor/FaceLandmarksExtractor.py",
+          "patch": "@@ -173,7 +173,7 @@ def extract(input_image_bgr, detector, verbose, all_faces=True, input_is_predete\n             center[1] -= (bottom - top) * 0.12\n             scale = (right - left + bottom - top) / 195.0\n         \n-            image = crop(input_image, center, scale).transpose ( (2,0,1) ).astype(np.float32) / 255.0\n+            image = crop(input_image_bgr, center, scale).transpose ( (2,0,1) ).astype(np.float32) / 255.0\n             image = np.expand_dims(image, 0)\n             \n             pts_img = get_pts_from_predict ( keras_model.predict (image)[-1][0], center, scale)"
+        }
+      ]
+    }
+  ]
+}

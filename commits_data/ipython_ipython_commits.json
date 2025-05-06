@@ -1,0 +1,275 @@
+{
+  "repo_name": "ipython/ipython",
+  "commits": [
+    {
+      "sha": "d4f41859f3d9080e99ac607a7f589e67c9805fd3",
+      "message": "Fix an IndexError in leading_indent",
+      "changes": [
+        {
+          "file": "IPython/core/inputtransformer2.py",
+          "patch": "@@ -24,6 +24,8 @@ def leading_indent(lines):\n     If the first line starts with a spaces or tabs, the same whitespace will be\n     removed from each following line in the cell.\n     \"\"\"\n+    if not lines: \n+        return lines\n     m = _indent_re.match(lines[0])\n     if not m:\n         return lines"
+        }
+      ]
+    },
+    {
+      "sha": "9f216675ddbdf3f5585800b2c183c6f6f1202b3e",
+      "message": "fix UnboundLocalError",
+      "changes": [
+        {
+          "file": "IPython/core/interactiveshell.py",
+          "patch": "@@ -2789,6 +2789,7 @@ def run_cell(self, raw_cell, store_history=False, silent=False, shell_futures=Tr\n         -------\n         result : :class:`ExecutionResult`\n         \"\"\"\n+        result = None\n         try:\n             result = self._run_cell(\n                 raw_cell, store_history, silent, shell_futures)"
+        }
+      ]
+    },
+    {
+      "sha": "7775e29e7d6cde23684d1404a772008614a2163e",
+      "message": "FIX: bare functions in callback registry on bogus unregister\n\n7de483b5fdaa99fa289b418ce0efc5102287ba64 added checking for the case\nwhere the callback was wrapped by backcall, however if there are\nun-wrapped functions registered and a non-registered function is\nattempted to be unregistered then this fails by raise an uncaught\nAttributeError.",
+      "changes": [
+        {
+          "file": "IPython/core/events.py",
+          "patch": "@@ -69,8 +69,11 @@ def unregister(self, event, function):\n \n         # Remove callback in case ``function`` was adapted by `backcall`.\n         for callback in self.callbacks[event]:\n-            if callback.__wrapped__ is function:\n-                return self.callbacks[event].remove(callback)\n+            try:\n+                if callback.__wrapped__ is function:\n+                    return self.callbacks[event].remove(callback)\n+            except AttributeError:\n+                pass\n \n         raise ValueError('Function {!r} is not registered as a {} callback'.format(function, event))\n "
+        }
+      ]
+    },
+    {
+      "sha": "e96f4e58e4b5f24bc2f5badb5870ca822a41924e",
+      "message": "explicit TypeError when IPCompleter passed to PTCompleter",
+      "changes": [
+        {
+          "file": "IPython/terminal/ptutils.py",
+          "patch": "@@ -3,6 +3,7 @@\n \n from IPython.utils.py3compat import PY3\n \n+from IPython.core.completer import IPCompleter\n from prompt_toolkit.completion import Completer, Completion\n from prompt_toolkit.layout.lexers import Lexer\n from prompt_toolkit.layout.lexers import PygmentsLexer\n@@ -13,8 +14,11 @@\n class IPythonPTCompleter(Completer):\n     \"\"\"Adaptor to provide IPython completions to prompt_toolkit\"\"\"\n     def __init__(self, shell):\n+        if isinstance(shell, IPCompleter):\n+            raise TypeError(\"IPythonPTCompleter expects an InteractiveShell\"\n+                            \" instance in IPython 5.1, not a Completer\")\n         self.shell = shell\n-    \n+\n     @property\n     def ipy_completer(self):\n         return self.shell.Completer"
+        }
+      ]
+    },
+    {
+      "sha": "bd4fcf7960d341430c782bbb046f51cb41c3ba76",
+      "message": "ensure deprecated_subcommands is defined\n\non the base Application class\n\ncased AttributeError on subclasses other than TerminalIPythonApp",
+      "changes": [
+        {
+          "file": "IPython/core/application.py",
+          "patch": "@@ -194,7 +194,9 @@ def __init__(self, **kwargs):\n     #-------------------------------------------------------------------------\n     # Various stages of Application creation\n     #-------------------------------------------------------------------------\n-\n+    \n+    deprecated_subcommands = {}\n+    \n     def initialize_subcommand(self, subc, argv=None):\n         if subc in self.deprecated_subcommands:\n             import time"
+        }
+      ]
+    },
+    {
+      "sha": "5bd36f6be58e8a4d54b4f6e5738203a715045bd1",
+      "message": "Calculate worst time in timeit unconditionally\n\nOtherwise `%timeit -o -q stmt` fails with UnboundLocalError",
+      "changes": [
+        {
+          "file": "IPython/core/tests/test_magic.py",
+          "patch": "@@ -568,6 +568,11 @@ def test_timeit_quiet():\n     with tt.AssertNotPrints(\"loops\"):\n         _ip.run_cell(\"%timeit -n1 -r1 -q 1\")\n \n+def test_timeit_return_quiet():\n+    with tt.AssertNotPrints(\"loops\"):\n+        res = _ip.run_line_magic('timeit', '-n1 -r1 -q -o 1')\n+    assert (res is not None)\n+\n @dec.skipif(sys.version_info[0] >= 3, \"no differences with __future__ in py3\")\n def test_timeit_futures():\n     \"Test %timeit with __future__ environments\""
+        }
+      ]
+    },
+    {
+      "sha": "10a376e04c5ed29a0fb2feb61d33f6ee3bb40f57",
+      "message": "fix bug in stale profile clean up for clusters\n\n\"clusters\" tab of my notebook wasn't rendering, so checked the log, found the stack trace:\r\n\r\n```\r\n[...]\r\n      File \"/usr/local/lib/python3.4/site-packages/ipython-3.0.0-py3.4.egg/IPython/html/services/clusters/handlers.py\", line 21, in get\r\n        self.finish(json.dumps(self.cluster_manager.list_profiles()))\r\n      File \"/usr/local/lib/python3.4/site-packages/ipython-3.0.0-py3.4.egg/IPython/html/services/clusters/clustermanager.py\", line 77, in list_profiles\r\n        self.update_profiles()\r\n      File \"/usr/local/lib/python3.4/site-packages/ipython-3.0.0-py3.4.egg/IPython/html/services/clusters/clustermanager.py\", line 74, in update_profiles\r\n        self.profiles.pop(stale)\r\n    TypeError: unhashable type: 'set'\r\n```\r\n\r\nlooks like a pretty straightforward mistake",
+      "changes": [
+        {
+          "file": "jupyter_notebook/services/clusters/clustermanager.py",
+          "patch": "@@ -71,7 +71,7 @@ def update_profiles(self):\n         for profile in stale:\n             # remove profiles that no longer exist\n             self.log.debug(\"Profile '%s' no longer exists\", profile)\n-            self.profiles.pop(stale)\n+            self.profiles.pop(profile)\n \n     def list_profiles(self):\n         self.update_profiles()"
+        }
+      ]
+    },
+    {
+      "sha": "7643236be3869c133df0a75ae85198c1dda5ff2c",
+      "message": "add missing NBFormatError import in nbformat.reader.reads\n\nopening unreadable notebook format failed with 'NameError: NBFormatError'\ninstead of the expected error.",
+      "changes": [
+        {
+          "file": "IPython/nbformat/reader.py",
+          "patch": "@@ -80,6 +80,8 @@ def reads(s, **kwargs):\n     nb : NotebookNode\n         The notebook that was read.\n     \"\"\"\n+    from .current import NBFormatError\n+    \n     nb_dict = parse_json(s, **kwargs)\n     (major, minor) = get_version(nb_dict)\n     if major in versions:"
+        }
+      ]
+    },
+    {
+      "sha": "c0a66f915a5d7af5d30e83652f5ee468f40b5da1",
+      "message": "Fix a NameError in IPython.parallel",
+      "changes": [
+        {
+          "file": "IPython/parallel/controller/dependency.py",
+          "patch": "@@ -56,7 +56,7 @@ class dependent(object):\n \n     def __init__(self, _wrapped_f, _wrapped_df, *dargs, **dkwargs):\n         self.f = _wrapped_f\n-        name = getattr(f, '__name__', 'f')\n+        name = getattr(_wrapped_f, '__name__', 'f')\n         if py3compat.PY3:\n             self.__name__ = name\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "5dd3598ead830d8fca3ed7b8da1c1f582a352312",
+      "message": "Fix NameError: name '_rl' is not defined",
+      "changes": [
+        {
+          "file": "IPython/utils/rlineimpl.py",
+          "patch": "@@ -27,7 +27,7 @@\n         have_readline = True\n         break\n \n-if sys.platform == 'win32' or sys.platform == 'cli':\n+if have_readline and (sys.platform == 'win32' or sys.platform == 'cli'):\n     try:\n         _outputfile=_rl.GetOutputFile()\n     except AttributeError:"
+        }
+      ]
+    },
+    {
+      "sha": "c03e6aa132ddd6211202b5a0c1d78d3b12637890",
+      "message": "fix a NameError inside an exception",
+      "changes": [
+        {
+          "file": "IPython/config/application.py",
+          "patch": "@@ -505,7 +505,6 @@ def _load_config_files(cls, basefilename, path=None, log=None):\n \n         yield each config object in turn.\n         \"\"\"\n-\n         pyloader = PyFileConfigLoader(basefilename+'.py', path=path, log=log)\n         jsonloader = JSONFileConfigLoader(basefilename+'.json', path=path, log=log)\n         config_found = False\n@@ -519,7 +518,7 @@ def _load_config_files(cls, basefilename, path=None, log=None):\n             except Exception:\n                 # try to get the full filename, but it will be empty in the\n                 # unlikely event that the error raised before filefind finished\n-                filename = loader.full_filename or filename\n+                filename = loader.full_filename or basefilename\n                 # problem while running the file\n                 if log:\n                     log.error(\"Exception while loading config file %s\","
+        }
+      ]
+    },
+    {
+      "sha": "573099d36112e34053a29746f731138c845c3447",
+      "message": "Minor import fix to get qtconsole with --pylab=qt working\n\nRunning the qtconsole with --pylab=qt on non-OSX-10.9 OSes fails with\nthe error `TypeError: 'NoOpContext' object is not callable`.",
+      "changes": [
+        {
+          "file": "IPython/kernel/zmq/eventloops.py",
+          "patch": "@@ -40,8 +40,8 @@ def _notify_stream_qt(kernel, stream):\n     if _on_os_x_10_9() and kernel._darwin_app_nap:\n         from IPython.external.appnope import nope_scope as context\n     else:\n-        from IPython.core.interactiveshell import no_op_context as context\n-        \n+        from IPython.core.interactiveshell import NoOpContext as context\n+\n     def process_stream_events():\n         while stream.getsockopt(zmq.EVENTS) & zmq.POLLIN:\n             with context():"
+        }
+      ]
+    },
+    {
+      "sha": "e5ec1d8f7190e3ffec60382077b25fcd4af6013b",
+      "message": "Correct TypeError message in svg2pdf",
+      "changes": [
+        {
+          "file": "IPython/nbconvert/preprocessors/svg2pdf.py",
+          "patch": "@@ -92,4 +92,4 @@ def convert_figure(self, data_format, data):\n                     # PDF is a nb supported binary, data type, so base64 encode.\n                     return base64.encodestring(f.read())\n             else:\n-                raise TypeError(\"Inkscape svg to png conversion failed\")\n+                raise TypeError(\"Inkscape svg to pdf conversion failed\")"
+        }
+      ]
+    },
+    {
+      "sha": "0d8bc68d3a6cc1233d4de518f518c58b198b33a9",
+      "message": "AttributeError no longer raised on missing config",
+      "changes": [
+        {
+          "file": "IPython/config/tests/test_loader.py",
+          "patch": "@@ -9,7 +9,7 @@\n \"\"\"\n \n #-----------------------------------------------------------------------------\n-#  Copyright (C) 2008-2011  The IPython Development Team\n+#  Copyright (C) 2008 The IPython Development Team\n #\n #  Distributed under the terms of the BSD License.  The full license is in\n #  the file COPYING, distributed as part of this software.\n@@ -279,4 +279,4 @@ def test_fromdictmerge2(self):\n         self.assertEqual(c1.Foo.__class__, Config)\n         self.assertEqual(c1.Foo.bar, 1)\n         self.assertEqual(c1.Foo.baz, 2)\n-        self.assertRaises(AttributeError, getattr, c2.Foo, 'baz')\n+        self.assertNotIn('baz', c2.Foo)"
+        }
+      ]
+    },
+    {
+      "sha": "52f39dd5c835803fc4ff39c9e3c917ba2c0db8e4",
+      "message": "Update connect.py\n\nFixing a bug on windows 7 32 bit : \r\n\r\n[IPythonQtConsoleApp] ERROR | Could not setup tunnels\r\nTraceback (most recent call last):\r\n  File \"C:\\Anaconda\\lib\\site-packages\\IPython\\consoleapp.py\", line 304, in init_\r\nssh\r\n    newports = tunnel_to_kernel(info, self.sshserver, self.sshkey)\r\n  File \"C:\\Anaconda\\lib\\site-packages\\IPython\\kernel\\connect.py\", line 364, in t\r\nunnel_to_kernel\r\n    password = getpass(\"SSH Password for %s: \"%sshserver)\r\n  File \"C:\\Anaconda\\lib\\getpass.py\", line 95, in win_getpass\r\n    msvcrt.putch(c)\r\nTypeError: must be char, not unicode\r\n[IPythonQtConsoleApp] Exiting application: ipython-qtconsole\r\nWhen calling getpass,\r\nTypeError: must be char, not unicode",
+      "changes": [
+        {
+          "file": "IPython/kernel/connect.py",
+          "patch": "@@ -360,7 +360,7 @@ def tunnel_to_kernel(connection_info, sshserver, sshkey=None):\n     if tunnel.try_passwordless_ssh(sshserver, sshkey):\n         password=False\n     else:\n-        password = getpass(\"SSH Password for %s: \"%sshserver)\n+        password = getpass(\"SSH Password for %s: \"%str(sshserver))\n     \n     for lp,rp in zip(lports, rports):\n         tunnel.ssh_tunnel(lp, rp, sshserver, remote_ip, sshkey, password)"
+        }
+      ]
+    },
+    {
+      "sha": "f0f1be169fe77f55e557270198445881492e6881",
+      "message": "engine ID metadata should be unicode, not bytes\n\nfixes `TypeError: b'f5b984b0-fd8c-4873-a23e-658425c1e28a' is not JSON serializable` when an engine dies while working on a task in Python 3.\n\ncandidate for backport",
+      "changes": [
+        {
+          "file": "IPython/parallel/controller/scheduler.py",
+          "patch": "@@ -358,7 +358,7 @@ def handle_stranded_tasks(self, engine):\n             # build fake metadata\n             md = dict(\n                 status=u'error',\n-                engine=engine,\n+                engine=engine.decode('ascii'),\n                 date=datetime.now(),\n             )\n             msg = self.session.msg('apply_reply', content, parent=parent, metadata=md)"
+        }
+      ]
+    },
+    {
+      "sha": "bb9d57becfb4b2042f4184c0e869a1ffd4a0153d",
+      "message": "s/AttributeError/TypeError",
+      "changes": [
+        {
+          "file": "IPython/nbconvert/writers/files.py",
+          "patch": "@@ -63,7 +63,7 @@ def write(self, output, resources, notebook_name=None, **kw):\n \n             # Verify that a notebook name is provided.\n             if notebook_name is None:\n-                raise AttributeError('notebook_name')\n+                raise TypeError('notebook_name')\n \n             # Pull the extension and subdir from the resources dict.\n             output_extension = resources.get('output_extension', None)"
+        }
+      ]
+    },
+    {
+      "sha": "7814ebf20dba496a98ab85f4e2ebaefe56fb7e2a",
+      "message": "raise AttributeError on missing attribute in ShimModule\n\nrequired for sphinx build to succeed",
+      "changes": [
+        {
+          "file": "IPython/frontend.py",
+          "patch": "@@ -65,7 +65,7 @@ def __getattr__(self, key):\n             try:\n                 pak = module.__dict__[obj]\n             except KeyError:\n-                raise ImportError('No module named %s' % obj)\n+                raise AttributeError(obj)\n             return pak\n         else:\n             # called with un-dotted string"
+        }
+      ]
+    },
+    {
+      "sha": "493bc117988394be71e9f05e760342c1d5fe72ee",
+      "message": "Added ExporterNameError to exported names",
+      "changes": [
+        {
+          "file": "IPython/nbconvert/exporters/export.py",
+          "patch": "@@ -79,12 +79,15 @@ def decorator(*args, **kwargs):\n     'export_reveal',\n     'export_rst',\n     'export_by_name',\n-    'get_export_names'\n+    'get_export_names',\n+    'ExporterNameError'\n ]\n \n+\n class ExporterNameError(NameError):\n     pass\n \n+\n @DocDecorator\n def export(exporter_type, nb, **kw):\n     \"\"\"\n@@ -210,6 +213,7 @@ def export_by_name(format_name, nb, **kw):\n     else:\n         raise ExporterNameError(\"template for `%s` not found\" % function_name)\n \n+\n def get_export_names():\n     \"Return a list of the currently supported export targets\"\n     # grab everything after 'export_'"
+        }
+      ]
+    },
+    {
+      "sha": "5ef6add848a272836adffce7e2372a1e567dbb47",
+      "message": "add missing ClusterApp mixin to SSHClusterLauncher\n\nfixes AttributeError on profile_dir in SSHProxyEngineSetLauncher\n\nalso adds SSHProxyEngineSetLauncher to ssh launcher collection,\nwhich adds it to the generated config files, help output, etc.",
+      "changes": [
+        {
+          "file": "IPython/parallel/apps/launcher.py",
+          "patch": "@@ -643,7 +643,7 @@ def signal(self, sig):\n             self.process.stdin.write('~.')\n             self.process.stdin.flush()\n \n-class SSHClusterLauncher(SSHLauncher):\n+class SSHClusterLauncher(SSHLauncher, ClusterAppMixin):\n     \n     remote_profile_dir = Unicode('', config=True,\n         help=\"\"\"The remote profile_dir to use.  \n@@ -1328,6 +1328,7 @@ def start(self):\n     SSHControllerLauncher,\n     SSHEngineLauncher,\n     SSHEngineSetLauncher,\n+    SSHProxyEngineSetLauncher,\n ]\n winhpc_launchers = [\n     WindowsHPCLauncher,"
+        }
+      ]
+    },
+    {
+      "sha": "795686bee4820f07e8cae0a7bc6587ae67e3c689",
+      "message": "catch AttributeError in cleanup_connection_files\n\ncan be triggered during garbage collection (os.remove is destroyed before the KM instance)",
+      "changes": [
+        {
+          "file": "IPython/kernel/kernelmanager.py",
+          "patch": "@@ -849,7 +849,7 @@ def cleanup_connection_file(self):\n             self._connection_file_written = False\n             try:\n                 os.remove(self.connection_file)\n-            except (IOError, OSError):\n+            except (IOError, OSError, AttributeError):\n                 pass\n     \n     def cleanup_ipc_files(self):"
+        }
+      ]
+    },
+    {
+      "sha": "b6be263b1cca0886ed7cd736cd76c094a695ad11",
+      "message": "add check_version utility\n\nusing LooseVersion and explicitly catching TypeError, rather than the NumericalVersion subclass.",
+      "changes": [
+        {
+          "file": "IPython/external/qt_for_kernel.py",
+          "patch": "@@ -32,10 +32,10 @@\n import sys\n \n from IPython.utils.warn import warn\n-from IPython.utils.version import NumericalVersion as V\n+from IPython.utils.version import check_version\n \n matplotlib = sys.modules.get('matplotlib')\n-if matplotlib and V(matplotlib.__version__) <= V('1.0.1'):\n+if matplotlib and not check_version(matplotlib.__version__, '1.0.2'):\n     # 1.0.1 doesn't support pyside or v2, so stick with PyQt @v1,\n     # and ignore everything else\n     from PyQt4 import QtCore, QtGui"
+        }
+      ]
+    },
+    {
+      "sha": "89b4dd764e34fab9fadfba2f624ca9bd29dab03f",
+      "message": "Fix regression in embed() from pull-request #2096.\n\nWith certain sets of arguments `compile_flags` might be left as `None`. This\ncaused IPython to internally raise a TypeError when it tried to do a\nbitwise or between `shell.compile.flags` and `PyCF_ONLY_AST` in\n`CachingCompiler.ast_parse`.\n\nThe regression was introduced in:\n  b70ac12 embed(): Default to the future compile flags of the calling frame.",
+      "changes": [
+        {
+          "file": "IPython/frontend/terminal/embed.py",
+          "patch": "@@ -200,7 +200,8 @@ class DummyMod(object):\n             module.__dict__ = global_ns\n \n         # Get locals and globals from caller\n-        if (local_ns is None or module is None) and self.default_user_namespaces:\n+        if ((local_ns is None or module is None or compile_flags is None)\n+            and self.default_user_namespaces):\n             call_frame = sys._getframe(stack_depth).f_back\n \n             if local_ns is None:\n@@ -233,7 +234,8 @@ class DummyMod(object):\n             self.init_user_ns()\n \n         # Compiler flags\n-        self.compile.flags = compile_flags\n+        if compile_flags is not None:\n+            self.compile.flags = compile_flags\n \n         # Patch for global embedding to make sure that things don't overwrite\n         # user globals accidentally. Thanks to Richard <rxe@renre-europe.com>"
+        }
+      ]
+    },
+    {
+      "sha": "b570c26197f78fcd952a64aa2479a470b2f1de52",
+      "message": "oinspect.find_file: Additional safety if file cannot be found.\n\nIn some code paths, e.g. when introspecting fortran objects generated by\nf2py, oinspect.find_file will raise an UnboundLocalError.  Prevent this by\nsetting fname to None.",
+      "changes": [
+        {
+          "file": "IPython/core/oinspect.py",
+          "patch": "@@ -249,7 +249,8 @@ def find_file(obj):\n     # get source if obj was decorated with @decorator\n     if hasattr(obj, '__wrapped__'):\n         obj = obj.__wrapped__\n-    \n+\n+    fname = None\n     try:\n         fname = inspect.getabsfile(obj)\n     except TypeError:\n@@ -260,9 +261,9 @@ def find_file(obj):\n                 fname = inspect.getabsfile(obj.__class__)\n             except TypeError:\n                 # Can happen for builtins\n-                fname = None\n+                pass\n     except:\n-        fname = None\n+        pass\n     return fname\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "527525b2be38e5da4eb7366f59c03fe94eaefbe8",
+      "message": "during `%autopx` call display_outputs inside builtin_trap\n\nit detects IPython with get_ipython NameErrors",
+      "changes": [
+        {
+          "file": "IPython/extensions/parallelmagic.py",
+          "patch": "@@ -321,7 +321,8 @@ def pxrun_cell(self, raw_cell, store_history=False, silent=False):\n                         self.shell.showtraceback()\n                         return True\n                     else:\n-                        result.display_outputs()\n+                        with ipself.builtin_trap:\n+                            result.display_outputs()\n                 return False\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "ee40ebe03b5a75e2d325fb6a72afa8ec23d5236b",
+      "message": "avoid AttributeErrors on zmq.ZMQError at shutdown of qtconsole\n\ngarbage collection could cleanup zmq.ZMQError before channel threads\nwere done with it. Import into top-level namespace in kernelmanager\nto avoid the issue.",
+      "changes": [
+        {
+          "file": "IPython/zmq/kernelmanager.py",
+          "patch": "@@ -27,6 +27,9 @@\n \n # System library imports.\n import zmq\n+# import ZMQError in top-level namespace, to avoid ugly attribute-error messages\n+# during garbage collection of threads at exit:\n+from zmq import ZMQError\n from zmq.eventloop import ioloop, zmqstream\n \n # Local imports.\n@@ -116,7 +119,7 @@ def _run_loop(self):\n         while True:\n             try:\n                 self.ioloop.start()\n-            except zmq.ZMQError as e:\n+            except ZMQError as e:\n                 if e.errno == errno.EINTR:\n                     continue\n                 else:\n@@ -505,7 +508,7 @@ def _poll(self, start_time):\n         while True:\n             try:\n                 events = self.poller.poll(1000 * until_dead)\n-            except zmq.ZMQError as e:\n+            except ZMQError as e:\n                 if e.errno == errno.EINTR:\n                     # ignore interrupts during heartbeat\n                     # this may never actually happen"
+        }
+      ]
+    },
+    {
+      "sha": "1848240bc4888173a86d73abaff4f78cb79a0e27",
+      "message": "Show message about %paste magic on an IndentationError from code in the prompt.",
+      "changes": [
+        {
+          "file": "IPython/core/interactiveshell.py",
+          "patch": "@@ -2273,6 +2273,11 @@ def run_cell(self, raw_cell, store_history=True):\n                 with self.display_trap:\n                     try:\n                         code_ast = ast.parse(cell, filename=cell_name)\n+                    except IndentationError:\n+                        self.showsyntaxerror()\n+                        print(\"If you want to paste code into IPython, try the %paste magic function.\")\n+                        self.execution_count += 1\n+                        return None\n                     except (OverflowError, SyntaxError, ValueError, TypeError,\n                             MemoryError):\n                         self.showsyntaxerror()"
+        }
+      ]
+    }
+  ]
+}

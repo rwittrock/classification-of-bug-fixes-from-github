@@ -1,0 +1,25 @@
+{
+  "repo_name": "mailpile/Mailpile",
+  "commits": [
+    {
+      "sha": "2f25ed0aa0754fabfaf7f34ae68b07bbff845fb8",
+      "message": "Return 404 rather than TypeError when nonexistent files are requested from /static/",
+      "changes": [
+        {
+          "file": "mailpile/config.py",
+          "patch": "@@ -1220,6 +1220,8 @@ def open_file(self, ftype, fpath, mode='rb', mkdir=False):\n             raise ValueError(_('Parent paths are not allowed'))\n         fpath, mt = self.data_file_and_mimetype(ftype, fpath,\n                                                 mode=mode, mkdir=mkdir)\n+        if not fpath:\n+            raise IOError(2, 'Not Found')\n         return fpath, open(fpath, mode), mt\n \n     def prepare_workers(config, session=None, daemons=False):"
+        }
+      ]
+    },
+    {
+      "sha": "9dca3fc224c0803e310f2bc036d7d802781e49e8",
+      "message": "Now only excepting AttributeError instead of all errors.",
+      "changes": [
+        {
+          "file": "mailpile/plugins/search.py",
+          "patch": "@@ -118,7 +118,7 @@ def command(self):\n         session = self.session\n         try:\n             session.displayed = session.displayed.next_set()\n-        except:\n+        except AttributeError:\n             session.ui.error(_(\"You must perform a search before requesting the next page.\"))\n             return False\n         return session.displayed\n@@ -134,7 +134,7 @@ def command(self):\n         session = self.session\n         try:\n             session.displayed = session.displayed.previous_set()\n-        except:\n+        except AttributeError:\n             session.ui.error(_(\"You must perform a search before requesting the previous page.\"))\n             return False\n         return session.displayed"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "repo_name": "pymc-devs/pymc",
+  "commits": [
+    {
+      "sha": "a96098df5fb04405d98a49f51d96a7f6ba8299f7",
+      "message": "Improved TypeError message for distribution (#2423)",
+      "changes": [
+        {
+          "file": "pymc3/distributions/distribution.py",
+          "patch": "@@ -25,7 +25,8 @@ def __new__(cls, name, *args, **kwargs):\n         except TypeError:\n             raise TypeError(\"No model on context stack, which is needed to \"\n                             \"instantiate distributions. Add variable inside \"\n-                            \"a 'with model:' block\")\n+                            \"a 'with model:' block, or use the '.dist' syntax \"\n+                            \"for a standalone distribution.\")\n \n         if isinstance(name, string_types):\n             data = kwargs.pop('observed', None)"
+        }
+      ]
+    },
+    {
+      "sha": "e4fb845ef25471b6c6a4d1e16cc92b78b7072991",
+      "message": "Edited TypeError message for Distribution (#2395)\n\n* Edited TypeError message for Distribution\r\n\r\n* Added space to multi-line message",
+      "changes": [
+        {
+          "file": "pymc3/distributions/distribution.py",
+          "patch": "@@ -24,8 +24,8 @@ def __new__(cls, name, *args, **kwargs):\n             model = Model.get_context()\n         except TypeError:\n             raise TypeError(\"No model on context stack, which is needed to \"\n-                            \"use the Normal('x', 0,1) syntax. \"\n-                            \"Add a 'with model:' block\")\n+                            \"instantiate distributions. Add variable inside \"\n+                            \"a 'with model:' block\")\n \n         if isinstance(name, string_types):\n             data = kwargs.pop('observed', None)"
+        }
+      ]
+    },
+    {
+      "sha": "4ea07151b4c33ec6ae7608eea4979676134798bf",
+      "message": "Fixed TypeError in draw_value",
+      "changes": [
+        {
+          "file": "pymc3/distributions/distribution.py",
+          "patch": "@@ -249,7 +249,7 @@ def draw_value(param, point=None, givens=()):\n         try:\n             shape = param.shape.tag.test_value\n         except:\n-            shape = param.shape\n+            shape = param.shape.eval()\n         if len(shape) == 0 and len(value) == 1:\n             value = value[0]\n     return value"
+        }
+      ]
+    },
+    {
+      "sha": "37c6d52d98df4794d6cd06afd0262d95e9737fad",
+      "message": "small fix to prevent a TypeError with the ufunc true_divide",
+      "changes": [
+        {
+          "file": "pymc3/plots/utils.py",
+          "patch": "@@ -99,6 +99,6 @@ def fast_kde(x):\n \n     norm_factor = n * dx * (2 * np.pi * std_x ** 2 * scotts_factor ** 2) ** 0.5\n \n-    grid /= norm_factor\n+    grid = grid / norm_factor\n \n     return grid, xmin, xmax"
+        }
+      ]
+    },
+    {
+      "sha": "a7410c207eb81386e0d3dbaabddce75ef8399fd6",
+      "message": "Fix the TypeError issue #994 on Windows. (#1550)\n\n* Suggestion to fix the TypeError issue #994 on Windows.\r\n\r\nErrors occurs because some ndarrays with dtype=int32\r\nare passed to the function delta_logp which expects\r\nndarrays with dtype=int64 as inputs. Inputs are casted\r\nwith `ndarray.astype(int)`, but on Windows, the\r\nPython 'int' type is treated as a 32-bit integer\r\nby NumPy.\r\n\r\nI suggest to remove the line with `f.trust_input = True`\r\nto ensure that Theano always checks the inputs and\r\ncasts it if necessary and when possible.\r\nThis fix resolves the issue on my computer:\r\n\r\n```\r\nPython version:\r\n2.7.12 |Continuum Analytics, Inc.| (default, Jun 29 2016, 11:07:13) [MSC v.1500 64 bit (AMD64)]\r\nOS version:\r\nWindows-8.1-6.3.9600\r\n```\r\n\r\n* Discrete super-class raises TypeError if dtype != 'int64'.\r\n\r\nArguments for delta_logp in Metropolis.astep() are now casted to 'int64'\r\nwhen Metropolis handles a discrete model.",
+      "changes": [
+        {
+          "file": "pymc3/distributions/distribution.py",
+          "patch": "@@ -105,6 +105,8 @@ class Discrete(Distribution):\n     \"\"\"Base class for discrete distributions\"\"\"\n \n     def __init__(self, shape=(), dtype='int64', defaults=['mode'], *args, **kwargs):\n+        if dtype != 'int64':\n+            raise TypeError('Discrete classes expect dtype to be int64.')\n         super(Discrete, self).__init__(\n             shape, dtype, defaults=defaults, *args, **kwargs)\n "
+        }
+      ]
+    },
+    {
+      "sha": "5b3acbf4aa8fe55a373061218567865a10bc57ce",
+      "message": "Fixed NameError in FindMAP",
+      "changes": [
+        {
+          "file": "pymc3/tuning/starting.py",
+          "patch": "@@ -48,7 +48,7 @@ def find_MAP(start=None, vars=None, fmin=None, return_raw=False,\n     \n     kwargs[\"disp\"] = model.verbose > 1\n     \n-    if disc_vars and disp:\n+    if disc_vars and kwargs[\"disp\"]:\n         print(\"Warning: vars contains discrete variables. MAP \" +\n               \"estimates may not be accurate for the default \" +\n               \"parameters. Defaulting to non-gradient minimization \" +"
+        }
+      ]
+    },
+    {
+      "sha": "e69ef7aff560f48b0c6c9752a84fdcf797a67c64",
+      "message": "Fix for IndexError in metropolis discrete indexing",
+      "changes": [
+        {
+          "file": "pymc3/step_methods/metropolis.py",
+          "patch": "@@ -91,7 +91,7 @@ def __init__(self, vars=None, S=None, proposal_dist=NormalProposal, scaling=1.,\n         self.accepted = 0\n \n         # Determine type of variables\n-        self.discrete = np.hstack(np.ravel([[v.dtype in discrete_types ] * v.dsize for v in vars]))\n+        self.discrete = np.ravel([[v.dtype in discrete_types ] * (v.dsize or 1) for v in vars])\n         self.any_discrete = self.discrete.any()\n         self.all_discrete = self.discrete.all()\n "
+        }
+      ]
+    },
+    {
+      "sha": "2e0d904f16752e492e395124f48c0bd2e59b4bf5",
+      "message": "Fixed model NameError",
+      "changes": [
+        {
+          "file": "pymc3/model.py",
+          "patch": "@@ -236,7 +236,7 @@ def Var(self, name, dist, data=None):\n                 self.free_RVs.append(var)\n             else:\n                 var = TransformedRV(name=name, distribution=dist, model=self, transform=dist.transform)\n-                if model.verbose:\n+                if self.verbose:\n                     print('Applied {transform}-transform to {name}'\n                           ' and added transformed {orig_name} to model.'.format(\n                               transform=dist.transform.name,"
+        }
+      ]
+    },
+    {
+      "sha": "f97cf829f7a78465f8c2af267f7030ae3e51115d",
+      "message": "Added check to see if the Distribution shape only contains integers. Raises TypeError.",
+      "changes": [
+        {
+          "file": "pymc3/distributions/distribution.py",
+          "patch": "@@ -36,6 +36,8 @@ def dist(cls, *args, **kwargs):\n \n     def __init__(self, shape, dtype, testval=None, defaults=[], transform=None):\n         self.shape = np.atleast_1d(shape)\n+        if False in (np.floor(self.shape) == self.shape):\n+            raise TypeError(\"Expected int elements in shape\")\n         self.dtype = dtype\n         self.type = TensorType(self.dtype, self.shape)\n         self.testval = testval"
+        }
+      ]
+    },
+    {
+      "sha": "a940a522ef67052f7a1959f151d323f6a376be80",
+      "message": "Use `KeyError` instead of `exceptions.KeyError`\n\nUsing `exceptions.KeyError` will lead to a `NameError`. `KeyError`\nshould be used instead because `KeyError` is already in builtins\nnamespace and because the exceptions module is not present in Python 3.\n\nThis fixes #483.",
+      "changes": [
+        {
+          "file": "pymc/plots.py",
+          "patch": "@@ -73,7 +73,7 @@ def traceplot(trace, vars=None, figsize=None,\n                 try:\n                     ax[i, 0].axvline(x=lines[v], color=\"r\", lw=1.5)\n                     ax[i, 1].axhline(y=lines[v], color=\"r\", lw=1.5, alpha=.35)\n-                except exceptions.KeyError:\n+                except KeyError:\n                     pass\n \n     plt.tight_layout()"
+        }
+      ]
+    }
+  ]
+}

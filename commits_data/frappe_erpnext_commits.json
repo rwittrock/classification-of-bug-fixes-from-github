@@ -1,0 +1,145 @@
+{
+  "repo_name": "frappe/erpnext",
+  "commits": [
+    {
+      "sha": "dd42dbc6a34cec136d8a1f500bcc3f3807150784",
+      "message": "fix: date validation on student form, instructor duplicate fix on student grp, instructor with same employee id fix (#20072)\n\n* fix: date validation on inpatient record, else condition removing on clinical prcd templ which is not req\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix: joining and relieving Date can be on same date as valid use case\r\n\r\n* fix-education: date of birth validation\r\n\r\n* fix:Sibling child table filtering for duplacacy on student form\r\n\r\n* fix:Sibling child table filtering for duplacacy on student form\r\n\r\n* fix:Sibling child table filtering for duplacacy on student form\r\n\r\n* fix: date validation on student form, instructor duplicacy fix on student grp, instructor with same employee id fix\r\n\r\n* fix: date validation on student form, instructor duplicacy fix on student grp, instructor with same employee id fix\r\n\r\n* fix: Exclude current record while validating duplicate employee\r\n\r\nCo-authored-by: Nabin Hait <nabinhait@gmail.com>",
+      "changes": [
+        {
+          "file": "erpnext/education/doctype/student/student.py",
+          "patch": "@@ -25,6 +25,9 @@ def validate_dates(self):\n \t\tif self.date_of_birth and getdate(self.date_of_birth) >= getdate(today()):\n \t\t\tfrappe.throw(_(\"Date of Birth cannot be greater than today.\"))\n \n+\t\tif self.joining_date and self.date_of_leaving and getdate(self.joining_date) > getdate(self.date_of_leaving):\n+\t\t\tfrappe.throw(_(\"Joining Date can not be greater than Leaving Date\"))\n+\n \tdef update_student_name_in_linked_doctype(self):\n \t\tlinked_doctypes = get_linked_doctypes(\"Student\")\n \t\tfor d in linked_doctypes:"
+        }
+      ]
+    },
+    {
+      "sha": "5380a4c3db67cf8e69fce0c7c06661c893a4fee4",
+      "message": "fix-education: date of birth validation on student form (#19875)\n\n* fix: date validation on inpatient record, else condition removing on clinical prcd templ which is not req\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix: joining and relieving Date can be on same date as valid use case\r\n\r\n* fix-education: date of birth validation",
+      "changes": [
+        {
+          "file": "erpnext/education/doctype/student/student.py",
+          "patch": "@@ -5,12 +5,14 @@\n from __future__ import unicode_literals\n import frappe\n from frappe.model.document import Document\n+from frappe.utils import getdate,today\n from frappe import _\n from frappe.desk.form.linked_with import get_linked_doctypes\n from erpnext.education.utils import check_content_completion, check_quiz_completion\n class Student(Document):\n \tdef validate(self):\n \t\tself.title = \" \".join(filter(None, [self.first_name, self.middle_name, self.last_name]))\n+\t\tself.validate_dates()\n \n \t\tif self.student_applicant:\n \t\t\tself.check_unique()\n@@ -19,6 +21,10 @@ def validate(self):\n \t\tif frappe.get_value(\"Student\", self.name, \"title\") != self.title:\n \t\t\tself.update_student_name_in_linked_doctype()\n \n+\tdef validate_dates(self):\n+\t\tif self.date_of_birth and getdate(self.date_of_birth) >= getdate(today()):\n+\t\t\tfrappe.throw(_(\"Date of Birth cannot be greater than today.\"))\n+\n \tdef update_student_name_in_linked_doctype(self):\n \t\tlinked_doctypes = get_linked_doctypes(\"Student\")\n \t\tfor d in linked_doctypes:"
+        }
+      ]
+    },
+    {
+      "sha": "51f2131a41b4c6cb57241aa8b35cc170287efac0",
+      "message": "fix: joining and relieving Date can be on same date as valid use case on emoloyee form (#19798)\n\n* fix: date validation on inpatient record, else condition removing on clinical prcd templ which is not req\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix: joining and relieving Date can be on same date as valid use case\r\n\r\n* Update employee.py",
+      "changes": [
+        {
+          "file": "erpnext/hr/doctype/employee/employee.py",
+          "patch": "@@ -152,8 +152,8 @@ def validate_date(self):\n \t\telif self.date_of_retirement and self.date_of_joining and (getdate(self.date_of_retirement) <= getdate(self.date_of_joining)):\n \t\t\tthrow(_(\"Date Of Retirement must be greater than Date of Joining\"))\n \n-\t\telif self.relieving_date and self.date_of_joining and (getdate(self.relieving_date) <= getdate(self.date_of_joining)):\n-\t\t\tthrow(_(\"Relieving Date must be greater than Date of Joining\"))\n+\t\telif self.relieving_date and self.date_of_joining and (getdate(self.relieving_date) < getdate(self.date_of_joining)):\n+\t\t\tthrow(_(\"Relieving Date must be greater than or equal to Date of Joining\"))\n \n \t\telif self.contract_end_date and self.date_of_joining and (getdate(self.contract_end_date) <= getdate(self.date_of_joining)):\n \t\t\tthrow(_(\"Contract End Date must be greater than Date of Joining\"))"
+        }
+      ]
+    },
+    {
+      "sha": "73129e6ac8e5931dab2ecc7d788d160c163fddb5",
+      "message": "fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' (#19774)\n\n* fix: date validation on inpatient record, else condition removing on clinical prcd templ which is not req\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770\r\n\r\n* fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770",
+      "changes": [
+        {
+          "file": "erpnext/accounts/doctype/pricing_rule/pricing_rule.py",
+          "patch": "@@ -34,8 +34,7 @@ def validate(self):\n \n \tdef validate_duplicate_apply_on(self):\n \t\tfield = apply_on_dict.get(self.apply_on)\n-\t\tvalues = [d.get(frappe.scrub(self.apply_on)) for d in self.get(field)]\n-\n+\t\tvalues = [d.get(frappe.scrub(self.apply_on)) for d in self.get(field) if field]\n \t\tif len(values) != len(set(values)):\n \t\t\tfrappe.throw(_(\"Duplicate {0} found in the table\").format(self.apply_on))\n "
+        }
+      ]
+    },
+    {
+      "sha": "728f8d09c89b146204cb3a155a8b3be191440b0d",
+      "message": "fix: AttributeError on new Student creation (#19786)",
+      "changes": [
+        {
+          "file": "erpnext/education/doctype/student/student.py",
+          "patch": "@@ -40,7 +40,7 @@ def check_unique(self):\n \t\t\tfrappe.throw(_(\"Student {0} exist against student applicant {1}\").format(student[0][0], self.student_applicant))\n \n \tdef after_insert(self):\n-\t\tif not frappe.get_single('Education Settings').user_creation_skip:\n+\t\tif not frappe.get_single('Education Settings').get('user_creation_skip'):\n \t\t\tself.create_student_user()\n \n \tdef create_student_user(self):"
+        }
+      ]
+    },
+    {
+      "sha": "db8911b05d79c98b10d1ff6b0dd723216961dc3d",
+      "message": "fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770",
+      "changes": [
+        {
+          "file": "erpnext/accounts/doctype/pricing_rule/pricing_rule.py",
+          "patch": "@@ -33,7 +33,6 @@ def validate(self):\n \t\tif not self.margin_type: self.margin_rate_or_amount = 0.0\n \n \tdef validate_duplicate_apply_on(self):\n-\t\tprint(\"##############\",self.apply_on)\n \t\tfield = apply_on_dict.get(self.apply_on)\n \t\tvalues = [d.get(frappe.scrub(self.apply_on)) for d in self.get(field) if field]\n \t\tif len(values) != len(set(values)):"
+        }
+      ]
+    },
+    {
+      "sha": "213e071b214893ac951f313a84ffada18a145358",
+      "message": "fix:Pricing Rule error AttributeError: 'str' object has no attribute 'get' #19770",
+      "changes": [
+        {
+          "file": "erpnext/accounts/doctype/pricing_rule/pricing_rule.py",
+          "patch": "@@ -33,9 +33,9 @@ def validate(self):\n \t\tif not self.margin_type: self.margin_rate_or_amount = 0.0\n \n \tdef validate_duplicate_apply_on(self):\n+\t\tprint(\"##############\",self.apply_on)\n \t\tfield = apply_on_dict.get(self.apply_on)\n-\t\tvalues = [d.get(frappe.scrub(self.apply_on)) for d in self.get(field)]\n-\n+\t\tvalues = [d.get(frappe.scrub(self.apply_on)) for d in self.get(field) if field]\n \t\tif len(values) != len(set(values)):\n \t\t\tfrappe.throw(_(\"Duplicate {0} found in the table\").format(self.apply_on))\n "
+        }
+      ]
+    },
+    {
+      "sha": "1ba83427e51d956e0ecdfb563df82c1cce34ba9f",
+      "message": "fix: asset maintenance TypeError during date comparisons (#19098)",
+      "changes": [
+        {
+          "file": "erpnext/assets/doctype/asset_maintenance/asset_maintenance.py",
+          "patch": "@@ -57,7 +57,7 @@ def calculate_next_due_date(periodicity, start_date = None, end_date = None, las\n \tif not start_date and not last_completion_date:\n \t\tstart_date = frappe.utils.now()\n \n-\tif last_completion_date and (last_completion_date > start_date or not start_date):\n+\tif last_completion_date and ((start_date and last_completion_date > start_date) or not start_date):\n \t\tstart_date = last_completion_date\n \tif periodicity == 'Daily':\n \t\tnext_due_date = add_days(start_date, 1)\n@@ -71,10 +71,11 @@ def calculate_next_due_date(periodicity, start_date = None, end_date = None, las\n \t\tnext_due_date = add_years(start_date, 2)\n \tif periodicity == 'Quarterly':\n \t\tnext_due_date = add_months(start_date, 3)\n-\tif end_date and (start_date >= end_date or last_completion_date >= end_date or next_due_date):\n+\tif end_date and ((start_date and start_date >= end_date) or (last_completion_date and last_completion_date >= end_date) or next_due_date):\n \t\tnext_due_date = \"\"\n \treturn next_due_date\n \n+\n def update_maintenance_log(asset_maintenance, item_code, item_name, task):\n \tasset_maintenance_log = frappe.get_value(\"Asset Maintenance Log\", {\"asset_maintenance\": asset_maintenance,\n \t\t\"task\": task.maintenance_task, \"maintenance_status\": ('in',['Planned','Overdue'])})"
+        }
+      ]
+    },
+    {
+      "sha": "b752acf8034540ffe316fede77288ddbde99d1fa",
+      "message": "fix: added default value for projected_qty in bin_dict\n\n`projected_qty` if not in `bin_dict` would return None. And when compared to an integer would result in a TypeError.\r\n\r\nThis PR fixes this\r\n\r\nCo-authored-by: Shivam Mishra <scm.mymail@gmail.com>",
+      "changes": [
+        {
+          "file": "erpnext/manufacturing/doctype/production_plan/production_plan.py",
+          "patch": "@@ -505,7 +505,7 @@ def get_material_request_items(row, sales_order,\n \ttotal_qty = row['qty']\n \n \trequired_qty = 0\n-\tif ignore_existing_ordered_qty or bin_dict.get(\"projected_qty\") < 0:\n+\tif ignore_existing_ordered_qty or bin_dict.get(\"projected_qty\", 0) < 0:\n \t\trequired_qty = total_qty\n \telif total_qty > bin_dict.get(\"projected_qty\"):\n \t\trequired_qty = total_qty - bin_dict.get(\"projected_qty\")"
+        }
+      ]
+    },
+    {
+      "sha": "0d7bd433670636f35a65154a3104ede56cd2c16f",
+      "message": "Handle IndexError if no data found",
+      "changes": [
+        {
+          "file": "erpnext/accounts/report/tds_computation_summary/tds_computation_summary.py",
+          "patch": "@@ -41,8 +41,10 @@ def get_result(filters):\n \tfor supplier in filters.supplier:\n \t\ttds = frappe.get_doc(\"Tax Withholding Category\", supplier.tax_withholding_category)\n \t\trate = [d.tax_withholding_rate for d in tds.rates if d.fiscal_year == filters.fiscal_year][0]\n-\t\taccount = [d.account for d in tds.accounts if d.company == filters.company][0]\n-\n+\t\ttry:\n+\t\t\taccount = [d.account for d in tds.accounts if d.company == filters.company][0]\n+\t\texcept IndexError:\n+\t\t\taccount = []\n \t\ttotal_invoiced_amount, tds_deducted = get_invoice_and_tds_amount(supplier.name, account,\n \t\t\tfilters.company, filters.from_date, filters.to_date)\n "
+        }
+      ]
+    },
+    {
+      "sha": "b13b9b4ed398694976e5278dd7a2db35bcd60bf2",
+      "message": "fix TabError in install_fixtures.py",
+      "changes": [
+        {
+          "file": "erpnext/setup/setup_wizard/operations/install_fixtures.py",
+          "patch": "@@ -320,7 +320,7 @@ def add_sale_stages():\n \t\t{\"doctype\": \"Sales Stage\", \"stage_name\": _(\"Proposal/Price Quote\")},\n \t\t{\"doctype\": \"Sales Stage\", \"stage_name\": _(\"Negotiation/Review\")}\n \t]\n- \tmake_fixture_records(records)\n+\tmake_fixture_records(records)\n \n def make_fixture_records(records):\n \tfrom frappe.modules import scrub"
+        }
+      ]
+    },
+    {
+      "sha": "80f333950b001efe72408fd0917d90e0f47ac601",
+      "message": "[minor] fixed AttributeError: 'GrossProfitGenerator' object has no attribute 'grouped_data' (#11195)",
+      "changes": [
+        {
+          "file": "erpnext/accounts/report/gross_profit/gross_profit.py",
+          "patch": "@@ -107,6 +107,8 @@ def __init__(self, filters=None):\n \n \tdef process(self):\n \t\tself.grouped = {}\n+\t\tself.grouped_data = []\n+\n \t\tfor row in self.si_list:\n \t\t\tif self.skip_row(row, self.product_bundles):\n \t\t\t\tcontinue\n@@ -150,7 +152,6 @@ def process(self):\n \n \tdef get_average_rate_based_on_group_by(self):\n \t\t# sum buying / selling totals for group\n-\t\tself.grouped_data = []\n \t\tfor key in self.grouped.keys():\n \t\t\tif self.filters.get(\"group_by\") != \"Invoice\":\n \t\t\t\tfor i, row in enumerate(self.grouped[key]):"
+        }
+      ]
+    },
+    {
+      "sha": "11224eaf06b14d32d83170185eaf818cccc8f1c9",
+      "message": "[hotfix] fixes for TypeError: 'NoneType' object is not iterable (#10484)",
+      "changes": [
+        {
+          "file": "erpnext/accounts/doctype/tax_rule/tax_rule.py",
+          "patch": "@@ -163,6 +163,8 @@ def get_tax_template(posting_date, args):\n \treturn tax_template\n \n def get_customer_group_condition(customer_group):\n-\tcustomer_groups = [\"'%s'\"%(d.name) for d in get_parent_customer_groups(frappe.db.escape(customer_group))]\n-\tcondition = \",\".join(['%s'] * len(customer_groups))%(tuple(customer_groups))\n+\tcondition = \"\"\n+\tcustomer_groups = [\"'%s'\"%(frappe.db.escape(d.name)) for d in get_parent_customer_groups(customer_group)]\n+\tif customer_groups:\n+\t\tcondition = \",\".join(['%s'] * len(customer_groups))%(tuple(customer_groups))\n \treturn condition\n\\ No newline at end of file"
+        }
+      ]
+    },
+    {
+      "sha": "b43f4073dbee54dee5a0d6aa90f07bd6ce54b72d",
+      "message": "fixed TypeError: throw() got an unexpected keyword argument 'exception'",
+      "changes": [
+        {
+          "file": "erpnext/regional/doctype/gst_settings/gst_settings.py",
+          "patch": "@@ -70,7 +70,7 @@ def _send_gstin_reminder(party_type, party, default_email_id=None, sent_to=None)\n \t\temail_id = default_email_id\n \n \tif not email_id:\n-\t\tfrappe.throw('Email not found in default contact', exception=EmailMissing)\n+\t\tfrappe.throw('Email not found in default contact', exc=EmailMissing)\n \n \tif sent_to and email_id in sent_to:\n \t\treturn\n@@ -95,4 +95,3 @@ def _send_gstin_reminder(party_type, party, default_email_id=None, sent_to=None)\n \t)\n \n \treturn email_id\n-"
+        }
+      ]
+    }
+  ]
+}

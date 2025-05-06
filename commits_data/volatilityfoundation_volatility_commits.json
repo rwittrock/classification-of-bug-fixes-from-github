@@ -1,0 +1,35 @@
+{
+  "repo_name": "volatilityfoundation/volatility",
+  "commits": [
+    {
+      "sha": "d5ec83791188a44e1b038931c2e33880ae3d184f",
+      "message": "sometimes a basic.String() instance may evaluate to None, but not be a NoneObject, thus .reason won't be available, and an AttributeError will be raised",
+      "changes": [
+        {
+          "file": "volatility/plugins/registry/printkey.py",
+          "patch": "@@ -99,7 +99,7 @@ def render_text(self, outfd, data):\n                 outfd.write(\"Subkeys:\\n\")\n                 for s in rawreg.subkeys(key):\n                     if s.Name == None:\n-                        outfd.write(\"  Unknown subkey: \" + s.Name.reason + \"\\n\")\n+                        outfd.write(\"  Unknown subkey at {0:#x}\\n\".format(s.obj_offset))\n                     else:\n                         outfd.write(\"  {1:3s} {0}\\n\".format(s.Name, self.voltext(s)))\n                 outfd.write(\"\\n\")"
+        }
+      ]
+    },
+    {
+      "sha": "7c0ef8111dc914a904088e9c54c68fb709753606",
+      "message": "bug fix: boot_code may become 'NoneType' object\n\nboot_code may cause an error as follows\r\n  File \"/home/jie/software/volatility-master/volatility/plugins/mbrparser.py\", line 285, in calculate\r\n    all_zeros = boot_code.count(chr(0)) == len(boot_code)\r\nAttributeError: 'NoneType' object has no attribute 'count'",
+      "changes": [
+        {
+          "file": "volatility/plugins/mbrparser.py",
+          "patch": "@@ -271,7 +271,8 @@ def calculate(self):\n             PARTITION_TABLE = obj.Object('PARTITION_TABLE', vm = address_space,\n                                offset = self._config.OFFSET)\n             boot_code = address_space.read(self._config.OFFSET + diff, 440 - diff)\n-            all_zeros = boot_code.count(chr(0)) == len(boot_code)\n+            if boot_code:\n+                all_zeros = boot_code.count(chr(0)) == len(boot_code)\n             if not all_zeros:\n                 yield self._config.OFFSET, PARTITION_TABLE, boot_code\n             else:\n@@ -282,7 +283,8 @@ def calculate(self):\n                 PARTITION_TABLE = obj.Object('PARTITION_TABLE', vm = address_space,\n                                offset = offset)\n                 boot_code = address_space.read(offset + diff, 440 - diff)\n-                all_zeros = boot_code.count(chr(0)) == len(boot_code)\n+                if boot_code:\n+                    all_zeros = boot_code.count(chr(0)) == len(boot_code)\n                 if not all_zeros:\n                     yield offset, PARTITION_TABLE, boot_code\n "
+        }
+      ]
+    },
+    {
+      "sha": "65507320bee7b4855de08d2d0e7678be9a400d5e",
+      "message": "prevent impscan from raising an IndexError when no imports are found. Fixes issue #300",
+      "changes": [
+        {
+          "file": "volatility/plugins/malware/impscan.py",
+          "patch": "@@ -124,6 +124,9 @@ def _vicinity_scan(self, addr_space, calls_imported,\n         sortedlist = calls_imported.keys()\n         sortedlist.sort()\n \n+        if not sortedlist:\n+            return\n+\n         size_of_address = addr_space.profile.get_obj_size(\"address\")\n \n         if forward:"
+        }
+      ]
+    }
+  ]
+}

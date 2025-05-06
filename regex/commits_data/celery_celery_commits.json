@@ -1,0 +1,255 @@
+{
+  "repo_name": "celery/celery",
+  "commits": [
+    {
+      "sha": "27a686fd3c2ded4f8d0eeefb3c725b8d775eb70c",
+      "message": "Beat: fixed entry._default_now() not used everywhere\n\nI'm using custom scheduler entries with an overridden ``is_due()`` method that do not require a schedule (``entry.schedule``) to be set. Judging from the ``entry._default_now()`` method, this seems to be supported by the scheduler in Celery 4.1.0, however that method is not used everywhere, leading to an AttributeError in my use case.\r\n\r\nThis change just uses ``_default_now()`` everywhere which fixes the issue. It shouldn't have any impact on the default implementation.",
+      "changes": [
+        {
+          "file": "celery/beat.py",
+          "patch": "@@ -237,7 +237,7 @@ def is_due(self, entry):\n     def _when(self, entry, next_time_to_run, mktime=time.mktime):\n         adjust = self.adjust\n \n-        return (mktime(entry.schedule.now().timetuple()) +\n+        return (mktime(entry._default_now().timetuple()) +\n                 (adjust(next_time_to_run) or 0))\n \n     def populate_heap(self, event_t=event_t, heapify=heapq.heapify):"
+        }
+      ]
+    },
+    {
+      "sha": "db273c74fdf3345647d29a77ac4d78f2f751291f",
+      "message": "Use LookupError",
+      "changes": [
+        {
+          "file": "celery/canvas.py",
+          "patch": "@@ -588,7 +588,7 @@ def app(self):\n         if app is None:\n             try:\n                 app = self.tasks[0]._app\n-            except (KeyError, IndexError):\n+            except LookupError:\n                 pass\n         return app or current_app\n \n@@ -881,7 +881,7 @@ def app(self):\n         if app is None:\n             try:\n                 app = self.tasks[0].app\n-            except (KeyError, IndexError):\n+            except LookupError:\n                 pass\n         return app if app is not None else current_app\n "
+        }
+      ]
+    },
+    {
+      "sha": "3d00cc63c52401ae7002d29ec221a6286140af83",
+      "message": "Fix issue #2225\n\nCreating a chord no longer results in \"TypeError: group object got\nmultiple values for keyword argument 'task_id'\".  Chords now\ncomplete without hanging.",
+      "changes": [
+        {
+          "file": "celery/app/amqp.py",
+          "patch": "@@ -371,6 +371,7 @@ def as_task_v1(self, task_id, name, args=None, kwargs=None,\n                 'id': task_id,\n                 'args': args,\n                 'kwargs': kwargs,\n+                'group': group_id,\n                 'retries': retries,\n                 'eta': eta,\n                 'expires': expires,"
+        },
+        {
+          "file": "celery/backends/base.py",
+          "patch": "@@ -534,7 +534,11 @@ def _restore_group(self, group_id):\n     def _apply_chord_incr(self, header, partial_args, group_id, body,\n                           result=None, options={}, **kwargs):\n         self.save_group(group_id, self.app.GroupResult(group_id, result))\n-        return header(*partial_args, task_id=group_id, **options or {})\n+\n+        fixed_options = dict((k,v) for k,v in options.items() if k != 'task_id')\n+\n+        return header(*partial_args, task_id=group_id, **fixed_options or {})\n+\n \n     def on_chord_part_return(self, task, state, result, propagate=None):\n         if not self.implements_incr:"
+        }
+      ]
+    },
+    {
+      "sha": "8470bbb439db6b783f32db00afb235748cc1320d",
+      "message": "Fix issue #2225\n\nCreating a chord no longer results in \"TypeError: group object got\nmultiple values for keyword argument 'task_id'\".  Chords now\ncomplete without hanging.",
+      "changes": [
+        {
+          "file": "celery/app/amqp.py",
+          "patch": "@@ -371,6 +371,7 @@ def as_task_v1(self, task_id, name, args=None, kwargs=None,\n                 'id': task_id,\n                 'args': args,\n                 'kwargs': kwargs,\n+                'group': group_id,\n                 'retries': retries,\n                 'eta': eta,\n                 'expires': expires,"
+        },
+        {
+          "file": "celery/backends/base.py",
+          "patch": "@@ -534,7 +534,11 @@ def _restore_group(self, group_id):\n     def _apply_chord_incr(self, header, partial_args, group_id, body,\n                           result=None, options={}, **kwargs):\n         self.save_group(group_id, self.app.GroupResult(group_id, result))\n-        return header(*partial_args, task_id=group_id, **options or {})\n+\n+        fixed_options = dict((k,v) for k,v in options.items() if k != 'task_id')\n+\n+        return header(*partial_args, task_id=group_id, **fixed_options or {})\n+\n \n     def on_chord_part_return(self, task, state, result, propagate=None):\n         if not self.implements_incr:"
+        }
+      ]
+    },
+    {
+      "sha": "5005b5a3fdb1e883bcbaf29b7afbeb1749992927",
+      "message": "Fix TypeError raised by Django's SystemCheck",
+      "changes": [
+        {
+          "file": "celery/fixups/django.py",
+          "patch": "@@ -156,9 +156,10 @@ def validate_models(self):\n         try:\n             from django.core.management.validation import get_validation_errors\n         except ImportError:\n-            from django.core.management.base import BaseCommand\n+            from django.core.management.base import BaseCommand, OutputWrapper\n             cmd = BaseCommand()\n-            cmd.stdout, cmd.stderr = sys.stdout, sys.stderr\n+            cmd.stdout = OutputWrapper(sys.stdout)\n+            cmd.stderr = OutputWrapper(sys.stderr)\n             cmd.check()\n         else:\n             num_errors = get_validation_errors(s, None)"
+        }
+      ]
+    },
+    {
+      "sha": "be0b620411a6adb7d05955d5f7411d16a01263d7",
+      "message": "Fix issue #2225\n\nCreating a chord no longer results in \"TypeError: group object got\nmultiple values for keyword argument 'task_id'\".  Chords now\ncomplete without hanging.",
+      "changes": [
+        {
+          "file": "celery/app/amqp.py",
+          "patch": "@@ -371,6 +371,7 @@ def as_task_v1(self, task_id, name, args=None, kwargs=None,\n                 'id': task_id,\n                 'args': args,\n                 'kwargs': kwargs,\n+                'group': group_id,\n                 'retries': retries,\n                 'eta': eta,\n                 'expires': expires,"
+        },
+        {
+          "file": "celery/backends/base.py",
+          "patch": "@@ -519,7 +519,11 @@ def _restore_group(self, group_id):\n     def _apply_chord_incr(self, header, partial_args, group_id, body,\n                           result=None, options={}, **kwargs):\n         self.save_group(group_id, self.app.GroupResult(group_id, result))\n-        return header(*partial_args, task_id=group_id, **options or {})\n+\n+        fixed_options = dict((k,v) for k,v in options.items() if k != 'task_id')\n+\n+        return header(*partial_args, task_id=group_id, **fixed_options or {})\n+\n \n     def on_chord_part_return(self, task, state, result, propagate=None):\n         if not self.implements_incr:"
+        }
+      ]
+    },
+    {
+      "sha": "fe6654428dd425d113f118f65c799ae32dcc73f2",
+      "message": "Fixes _apply_result AttributeError",
+      "changes": [
+        {
+          "file": "celery/worker/job.py",
+          "patch": "@@ -147,6 +147,7 @@ def __init__(self, body, on_ack=noop,\n         self.task = task or self.app.tasks[name]\n         self.acknowledged = self._already_revoked = False\n         self.time_start = self.worker_pid = self._terminate_on_ack = None\n+        self._apply_result = None\n         self._tzlocal = None\n \n         # timezone means the message is timezone-aware, and the only timezone"
+        }
+      ]
+    },
+    {
+      "sha": "4a02ee906d86d46a4c486ff8827bc7394da80b0e",
+      "message": "Fixes in NameError in app.log",
+      "changes": [
+        {
+          "file": "celery/app/log.py",
+          "patch": "@@ -130,7 +130,7 @@ def setup_logging_subsystem(self, loglevel=None, logfile=None,\n             self.setup_task_loggers(loglevel, logfile, colorize=colorize)\n \n         try:\n-            stream = root.handlers[0].stream\n+            stream = logging.getLogger().handlers[0].stream\n         except (AttributeError, IndexError):\n             pass\n         else:"
+        },
+        {
+          "file": "celery/tests/app/test_log.py",
+          "patch": "@@ -150,7 +150,7 @@ def getMessage(self):\n \n         x.format(record)\n         self.assertIn('<Unrepresentable', record.msg)\n-        self.assertEqual(safe_str.call_count, 2)\n+        self.assertEqual(safe_str.call_count, 1)\n \n     @patch('celery.utils.log.safe_str')\n     def test_format_raises_no_color(self, safe_str):"
+        }
+      ]
+    },
+    {
+      "sha": "894023a41433f27843bfb0aefb705f67b3333262",
+      "message": "utils.debug: Fixes memsample IndexError bug",
+      "changes": [
+        {
+          "file": "celery/utils/debug.py",
+          "patch": "@@ -117,7 +117,10 @@ def sample(x, n, k=0):\n     \"\"\"\n     j = len(x) // n\n     for _ in range(n):\n-        yield x[k]\n+        try:\n+            yield x[k]\n+        except IndexError:\n+            break\n         k += j\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "29fa5ee8455971023c782a1d7d104a495e44acdb",
+      "message": "[mingle] Fixes UnboundLocalError.  Closes #1370",
+      "changes": [
+        {
+          "file": "celery/worker/consumer.py",
+          "patch": "@@ -521,8 +521,9 @@ def start(self, c):\n                     other_clock, other_revoked = MINGLE_GET_FIELDS(reply)\n                 except KeyError:  # reply from pre-3.1 worker\n                     pass\n-                c.app.clock.adjust(other_clock)\n-                revoked.update(other_revoked)\n+                else:\n+                    c.app.clock.adjust(other_clock)\n+                    revoked.update(other_revoked)\n             info('mingle: synced with %s', ', '.join(replies))\n         else:\n             info('mingle: no one here')"
+        }
+      ]
+    },
+    {
+      "sha": "b8c2341ae58d7b672e7df29fd72782f8dcc07ae2",
+      "message": "Fixes NameError",
+      "changes": [
+        {
+          "file": "celery/concurrency/processes.py",
+          "patch": "@@ -37,7 +37,7 @@\n from celery import signals\n from celery._state import set_default_app\n from celery.concurrency.base import BasePool\n-from celery.five import items\n+from celery.five import items, values\n from celery.task import trace\n from celery.utils.log import get_logger\n from celery.worker.hub import READ, WRITE, ERR\n@@ -642,9 +642,9 @@ def handle_timeouts(self):\n \n     def flush(self):\n         # cancel all tasks that have not been accepted to that NACK is sent.\n-        for job in values(self._pool._pool):\n+        for job in values(self._pool._cache):\n             if not job._accepted:\n-                job.cancel()\n+                job._cancel()\n \n         # clear the outgoing buffer as the tasks will be redelivered by\n         # the broker anyway."
+        },
+        {
+          "file": "funtests/stress/stress.py",
+          "patch": "@@ -30,7 +30,7 @@\n SMALL = 'e' * 1024\n \n celery = Celery(\n-    'stress', broker='amqp://', backend='redis://',\n+    'stress', broker='pyamqp://', backend='redis://',\n     set_as_current=False,\n )\n "
+        }
+      ]
+    },
+    {
+      "sha": "6f4fbe7532ae91e88ca4823058698cde052264f3",
+      "message": "celery command cannot catch TypeError",
+      "changes": [
+        {
+          "file": "celery/bin/celery.py",
+          "patch": "@@ -866,7 +866,7 @@ def execute(self, command, argv=None):\n         cls = self.commands.get(command) or self.commands['help']\n         try:\n             return cls(app=self.app).run_from_argv(self.prog_name, argv)\n-        except (TypeError, Error):\n+        except Error:\n             return self.execute('help', argv)\n \n     def remove_options_at_beginning(self, argv, index=0):"
+        }
+      ]
+    },
+    {
+      "sha": "7939b4e9e5ffe0f291d40fea7360022fd893eb58",
+      "message": "Fixes NameError",
+      "changes": [
+        {
+          "file": "celery/worker/__init__.py",
+          "patch": "@@ -157,7 +157,7 @@ def on_timeout_cancel(result):\n             import _billiard\n         except ImportError:\n             # billiard C extension not installed\n-            if worker.maxtasksperchild:\n+            if w.maxtasksperchild:\n                 logger.warning(MAXTASKS_NO_BILLIARD)\n         _quick_put = pool._pool._quick_put\n         def quick_put(obj):"
+        }
+      ]
+    },
+    {
+      "sha": "7fb849a4027ac2838da37b6fb7601e68caf9baa6",
+      "message": "Events: Fixes AttributeError",
+      "changes": [
+        {
+          "file": "celery/events/__init__.py",
+          "patch": "@@ -219,13 +219,13 @@ def __init__(self, connection, handlers=None, routing_key='#',\n         self.routing_key = routing_key\n         self.node_id = node_id or uuid()\n         self.queue_prefix = queue_prefix\n+        self.exchange = get_exchange(self.connection or self.app.connection())\n         self.queue = Queue('.'.join([self.queue_prefix, self.node_id]),\n                            exchange=self.exchange,\n                            routing_key=self.routing_key,\n                            auto_delete=True,\n                            durable=False)\n         self.adjust_clock = self.app.clock.adjust\n-        self.exchange = get_exchange(self.connection or self.app.connection())\n \n     def process(self, type, event):\n         \"\"\"Process the received event by dispatching it to the appropriate"
+        }
+      ]
+    },
+    {
+      "sha": "6fabb34c398de71286ee61c2c4c2803818e5a3dd",
+      "message": "normalize() got an unexpected keyword argument 'is_dst'\n\nHere is the traceback, that is raised on celery startup:\n\n    Traceback (most recent call last):\n       File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/worker/__init__.py\", line 347, in start\n        component.start()\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/worker/consumer.py\", line 391, in start\n        self.consume_messages()\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/worker/consumer.py\", line 475, in consume_messages\n        readers[fileno](fileno, event)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/kombu/connection.py\", line 201, in drain_nowait\n        self.drain_events(timeout=0)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/kombu/connection.py\", line 197, in drain_events\n        return self.transport.drain_events(self.connection, **kwargs)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/kombu/transport/amqplib.py\", line 330, in drain_events\n        return connection.drain_events(**kwargs)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/kombu/transport/amqplib.py\", line 182, in drain_events\n        return amqp_method(channel, args, content)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/amqplib/client_0_8/channel.py\", line 2060, in _basic_deliver\n        func(msg)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/kombu/messaging.py\", line 486, in _receive_callback\n        self.receive(decoded, message)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/kombu/messaging.py\", line 458, in receive\n        [callback(body, message) for callback in callbacks]\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/worker/consumer.py\", line 433, in on_task_received\n        strategies[name](message, body, message.ack_log_error)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/worker/strategy.py\", line 25, in task_message_handler\n        delivery_info=message.delivery_info))\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/worker/job.py\", line 133, in __init__\n        self.eta = maybe_make_aware(self.eta, self.tzlocal)\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/utils/timeutils.py\", line 319, in maybe_make_aware\n        timezone.utc if tz is None else timezone.tz_or_local(tz))\n      File \"/home/webspm/webspm/env/local/lib/python2.7/site-packages/celery/utils/timeutils.py\", line 304, in localize\n        return _normalize(dt, is_dst=None)\n    TypeError: normalize() got an unexpected keyword argument 'is_dst'\n\nVersion of pytz is 2012h, celery 3.0.12 (3.0.11 works well):\n\n    pytz/tzinfo.py:111:    def normalize(self, dt, is_dst=False):\n    pytz/tzinfo.py:189:    def normalize(self, dt):",
+      "changes": [
+        {
+          "file": "celery/utils/timeutils.py",
+          "patch": "@@ -302,6 +302,8 @@ def localize(dt, tz):\n     else:\n         try:\n             return _normalize(dt, is_dst=None)\n+        except TypeError:\n+            return _normalize(dt)\n         except AmbiguousTimeError:\n             return min(_normalize(dt, is_dst=True),\n                        _normalize(dt, is_dst=False))"
+        }
+      ]
+    },
+    {
+      "sha": "7b5abb5fbc895f9793b324e1d89b9509908869c6",
+      "message": "Set __package__ the same way in celeryd as elsewhere\n\nThis fixes a NameError on __package__ that got me on Python 2.5",
+      "changes": [
+        {
+          "file": "celery/bin/celeryd.py",
+          "patch": "@@ -73,7 +73,7 @@\n \"\"\"\n from __future__ import absolute_import\n \n-if \"__main__\" and __package__ is None:\n+if __name__ == \"__main__\" and __package__ is None:\n     __package__ = \"celery.bin.celeryd\"\n \n import sys"
+        }
+      ]
+    },
+    {
+      "sha": "b78b84a90e77c1a19da8ab0d950aa3ca27752b41",
+      "message": "celery.utils.threads: Ignore TypeError at interpreter shutdown",
+      "changes": [
+        {
+          "file": "celery/utils/threads.py",
+          "patch": "@@ -49,6 +49,12 @@ def run(self):\n                 self.on_crash(\"%r crashed: %r\", self.name, exc, exc_info=True)\n                 # exiting by normal means does not work here, so force exit.\n                 os._exit(1)\n+        try:\n+            self._is_stopped.set()\n+        except TypeError:  # pragma: no cover\n+            # we lost the race at interpreter shutdown,\n+            # so gc collected built-in modules.\n+            pass\n         self._is_stopped.set()\n \n     def stop(self):"
+        }
+      ]
+    },
+    {
+      "sha": "9f4a86482742b704925a0aab7d452a26e0d183de",
+      "message": "Consumer: ack callback must handle AttributeError",
+      "changes": [
+        {
+          "file": "celery/worker/consumer.py",
+          "patch": "@@ -340,7 +340,7 @@ def receive_message(self, body, message):\n             def ack():\n                 try:\n                     message.ack()\n-                except self.connection_errors, exc:\n+                except self.connection_errors + (AttributeError, ), exc:\n                     self.logger.critical(\n                             \"Couldn't ack %r: message:%r reason:%r\" % (\n                                 message.delivery_tag, body, exc))"
+        }
+      ]
+    },
+    {
+      "sha": "d455cd93ae2f2264659053ef36aaf75c3a1ac081",
+      "message": "maybe_conn_error: Add AttributeError to the list (if connection is None)",
+      "changes": [
+        {
+          "file": "celery/worker/consumer.py",
+          "patch": "@@ -346,7 +346,9 @@ def ack():\n     def maybe_conn_error(self, fun):\n         try:\n             fun()\n-        except self.connection_errors:\n+        except (AttributeError, ) + \\\n+                self.connection_errors + \\\n+                self.channel_errors:\n             pass\n \n     def close_connection(self):"
+        }
+      ]
+    },
+    {
+      "sha": "bb21e314d45cc88e2a12d6969a4f3e2f9af729ef",
+      "message": "Fix UnboundLocalError in celerybeat logging when using logging setup signals.",
+      "changes": [
+        {
+          "file": "celery/apps/beat.py",
+          "patch": "@@ -57,8 +57,8 @@ def run(self):\n     def setup_logging(self):\n         handled = self.app.log.setup_logging_subsystem(loglevel=self.loglevel,\n                                                        logfile=self.logfile)\n+        logger = self.app.log.get_default_logger(name=\"celery.beat\")\n         if not handled:\n-            logger = self.app.log.get_default_logger(name=\"celery.beat\")\n             if self.redirect_stdouts:\n                 self.app.log.redirect_stdouts_to_logger(logger,\n                         loglevel=self.redirect_stdouts_level)"
+        }
+      ]
+    },
+    {
+      "sha": "bee56a6460ca5e33984f6f75c5c0deef69ab5d0b",
+      "message": "Task.retry: Raise TypeError if kwargs argument is empty. Closes #164. Thanks to bmbouter.",
+      "changes": [
+        {
+          "file": "celery/task/base.py",
+          "patch": "@@ -376,6 +376,11 @@ def retry(self, args=None, kwargs=None, exc=None, throw=True, **options):\n             ...                        countdown=60 * 5, exc=exc)\n \n         \"\"\"\n+        if not kwargs:\n+            raise TypeError(\n+                    \"kwargs argument to retries can't be empty. \"\n+                    \"Task must accept **kwargs, see http://bit.ly/cAx3Bg\")\n+\n         delivery_info = kwargs.pop(\"delivery_info\", {})\n         options.setdefault(\"exchange\", delivery_info.get(\"exchange\"))\n         options.setdefault(\"routing_key\", delivery_info.get(\"routing_key\"))"
+        }
+      ]
+    },
+    {
+      "sha": "6a45cb8bd2cded418c5b502a784422989b6beae5",
+      "message": "KeyError, not IndexError",
+      "changes": [
+        {
+          "file": "celery/worker/state.py",
+          "patch": "@@ -19,7 +19,7 @@ def task_accepted(request):\n def task_ready(request):\n     try:\n         active_requests.remove(request)\n-    except IndexError:\n+    except KeyError:\n         pass\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "2b72d6346fc8f82c4e4da1b2b2edc841682f8da1",
+      "message": "Catch AttributeError on missing \"tasks\" module",
+      "changes": [
+        {
+          "file": "celery/loaders/djangoapp.py",
+          "patch": "@@ -85,4 +85,7 @@ def find_related_module(app, related_name):\n \n     module = importlib.import_module(\"%s.%s\" % (app, related_name))\n \n-    return getattr(module, related_name)\n+    try:\n+        return getattr(module, related_name)\n+    except AttributeError:\n+        return"
+        }
+      ]
+    }
+  ]
+}

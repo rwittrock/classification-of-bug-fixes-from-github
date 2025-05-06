@@ -1,0 +1,15 @@
+{
+  "repo_name": "jhao104/proxy_pool",
+  "commits": [
+    {
+      "sha": "2f17fe19862513bb32276cd44ce274262c2b8aee",
+      "message": "Update GetConfig.py\n\nFixed TypeError: port must be an integer error",
+      "changes": [
+        {
+          "file": "Util/GetConfig.py",
+          "patch": "@@ -55,7 +55,7 @@ def host_ip(self):\n \n     @LazyProperty\n     def host_port(self):\n-        return self.config_file.get('HOST', 'port')\n+        return int(self.config_file.get('HOST', 'port'))\n \n if __name__ == '__main__':\n     gg = GetConfig()"
+        }
+      ]
+    }
+  ]
+}

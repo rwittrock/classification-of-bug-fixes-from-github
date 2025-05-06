@@ -1,0 +1,1005 @@
+{
+  "repo_name": "ansible/ansible",
+  "commits": [
+    {
+      "sha": "2ebc4e1e7eda61f133d9425872e2a858bae92ec4",
+      "message": "inventory: Handle IndexError while parsing limit file (#59776)\n\nHandle IndexError exception raised while parsing the limit file.\r\n\r\nFixes: #59695\r\n\r\nSigned-off-by: Abhijeet Kasurde <akasurde@redhat.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/inventory/manager.py",
+          "patch": "@@ -69,11 +69,14 @@ def order_patterns(patterns):\n     pattern_intersection = []\n     pattern_exclude = []\n     for p in patterns:\n+        if not p:\n+            continue\n+\n         if p[0] == \"!\":\n             pattern_exclude.append(p)\n         elif p[0] == \"&\":\n             pattern_intersection.append(p)\n-        elif p:\n+        else:\n             pattern_regular.append(p)\n \n     # if no regular pattern was given, hence only exclude and/or intersection"
+        }
+      ]
+    },
+    {
+      "sha": "06651d105526c803ce24a4b3feeebab35876fdcf",
+      "message": "Fix traceback when using the module (#58588)\n\nSince bricks_in_volume is a list, it can't be compared to a int.\n\n    Traceback (most recent call last):\n      File \\\"/root/.ansible/tmp/ansible-tmp-1561989216.06-31322871319024/AnsiballZ_gluster_volume.py\\\", line 114, in <module>\n        _ansiballz_main()\n      File \\\"/root/.ansible/tmp/ansible-tmp-1561989216.06-31322871319024/AnsiballZ_gluster_volume.py\\\", line 106, in _ansiballz_main\n        invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\n      File \\\"/root/.ansible/tmp/ansible-tmp-1561989216.06-31322871319024/AnsiballZ_gluster_volume.py\\\", line 49, in invoke_module\n        imp.load_module('__main__', mod, module, MOD_DESC)\n      File \\\"/usr/lib64/python3.7/imp.py\\\", line 234, in load_module\n        return load_source(name, filename, file)\n      File \\\"/usr/lib64/python3.7/imp.py\\\", line 169, in load_source\n        module = _exec(spec, sys.modules[name])\n      File \\\"<frozen importlib._bootstrap>\\\", line 630, in _exec\n      File \\\"<frozen importlib._bootstrap_external>\\\", line 728, in exec_module\n      File \\\"<frozen importlib._bootstrap>\\\", line 219, in _call_with_frames_removed\n      File \\\"/tmp/ansible_gluster_volume_payload_d5mfag24/__main__.py\\\", line 610, in <module>\n      File \\\"/tmp/ansible_gluster_volume_payload_d5mfag24/__main__.py\\\", line 551, in main\n    TypeError: '<' not supported between instances of 'int' and 'list'",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/storage/glusterfs/gluster_volume.py",
+          "patch": "@@ -548,7 +548,7 @@ def main():\n                     if brick not in bricks_in_volume:\n                         new_bricks.append(brick)\n \n-            if not new_bricks and len(all_bricks) < bricks_in_volume:\n+            if not new_bricks and len(all_bricks) < len(bricks_in_volume):\n                 for brick in bricks_in_volume:\n                     if brick not in all_bricks:\n                         removed_bricks.append(brick)"
+        }
+      ]
+    },
+    {
+      "sha": "83bf90e02f3ad07d8e38d2e879416111bfbac4b7",
+      "message": "Fixes #55476 (#57715)\n\n* fixes bug introduced by commit 8cb73720f0599b08794cb7a3fbdf36d430214446: \"TypeError: argument of type 'NoneType' is not iterable\" when using module systemd without param 'name' (e.g. with daemon_reload)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/systemd.py",
+          "patch": "@@ -341,9 +341,10 @@ def main():\n     )\n \n     unit = module.params['name']\n-    for globpattern in (r\"*\", r\"?\", r\"[\"):\n-        if globpattern in unit:\n-            module.fail_json(msg=\"This module does not currently support using glob patterns, found '%s' in service name: %s\" % (globpattern, unit))\n+    if unit is not None:\n+        for globpattern in (r\"*\", r\"?\", r\"[\"):\n+            if globpattern in unit:\n+                module.fail_json(msg=\"This module does not currently support using glob patterns, found '%s' in service name: %s\" % (globpattern, unit))\n \n     systemctl = module.get_bin_path('systemctl', True)\n "
+        }
+      ]
+    },
+    {
+      "sha": "532de89b449593d11168bfb5ac3fd89a91e52f33",
+      "message": "Fix exception with load_provider function (#56959)\n\nIt is possible for provider.authorize to exist, but set to None. Rather\r\nthen loading this value blindly, assume the default is False.\r\n\r\n   File \"/home/zuul/src/github.com/ansible/ansible/lib/ansible/executor/task_executor.py\", line 145, in run\r\n     res = self._execute()\r\n   File \"/home/zuul/src/github.com/ansible/ansible/lib/ansible/executor/task_executor.py\", line 635, in _execute\r\n     result = self._handler.run(task_vars=variables)\r\n   File \"/home/zuul/src/github.com/ansible/ansible/lib/ansible/plugins/action/ios.py\", line 50, in run\r\n     provider = load_provider(ios_provider_spec, self._task.args)\r\n   File \"/home/zuul/src/github.com/ansible/ansible/lib/ansible/module_utils/network/common/utils.py\", line 424, in load_provider\r\n     provider['authorize'] = boolean(provider['authorize'])\r\n   File \"/home/zuul/src/github.com/ansible/ansible/lib/ansible/module_utils/parsing/convert_bool.py\", line 26, in boolean\r\n     raise TypeError(\"The value '%s' is not a valid boolean.  Valid booleans include: %s\" % (to_text(value), ', '.join(repr(i) for i in BOOLEANS)))\r\n\r\nSigned-off-by: Paul Belanger <pabelanger@redhat.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/network/common/utils.py",
+          "patch": "@@ -421,7 +421,7 @@ def load_provider(spec, args):\n                 provider[key] = None\n     if 'authorize' in provider:\n         # Coerce authorize to provider if a string has somehow snuck in.\n-        provider['authorize'] = boolean(provider['authorize'])\n+        provider['authorize'] = boolean(provider['authorize'] or False)\n     args['provider'] = provider\n     return provider\n "
+        }
+      ]
+    },
+    {
+      "sha": "4f25435cd2e354dad2e6cb165a867eda3ac9dd78",
+      "message": "Handle openstacksdk < 0.10.0: fix AttributeError (#50285)\n\n* openstacksdk < 0.10.0: fix AttributeError\r\n\r\n`openstack.version.__version__` expression raises an `AttributeError`\r\nexception when openstacksdk < 0.10.0 is used. `openstack.version` is\r\nnow imported as a module, which works for all openstacksdk versions.\r\n\r\nError was:\r\n\r\n    The full traceback is:\r\n    Traceback (most recent call last):\r\n      File \"$HOME/.ansible/tmp/ansible-tmp-1545612308.8-46792777824159/AnsiballZ_os_security_group.py\", line 113, in <module>\r\n        _ansiballz_main()\r\n      File \"$HOME/.ansible/tmp/ansible-tmp-1545612308.8-46792777824159/AnsiballZ_os_security_group.py\", line 105, in _ansiballz_main\r\n        invoke_module(zipped_mod, temp_path, ANSIBALLZ_PARAMS)\r\n      File \"$HOME/.ansible/tmp/ansible-tmp-1545612308.8-46792777824159/AnsiballZ_os_security_group.py\", line 48, in invoke_module\r\n        imp.load_module('__main__', mod, module, MOD_DESC)\r\n      File \"/tmp/ansible_os_security_group_payload_keFTIJ/__main__.py\", line 163, in <module>\r\n      File \"/tmp/ansible_os_security_group_payload_keFTIJ/__main__.py\", line 115, in main\r\n      File \"/tmp/ansible_os_security_group_payload_keFTIJ/ansible_os_security_group_payload.zip/ansible/module_utils/openstack.py\", line 121, in openstack_cloud_from_module\r\n    AttributeError: 'module' object has no attribute 'version'\r\n\r\n* Add missing space & dot in error message\r\n\r\n* Always require openstacksdk >= 0.12",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/doc_fragments/openstack.py",
+          "patch": "@@ -88,7 +88,7 @@ class ModuleDocFragment(object):\n     version_added: \"2.3\"\n requirements:\n   - python >= 2.7\n-  - openstacksdk\n+  - openstacksdk >= 0.12.0\n notes:\n   - The standard OpenStack environment variables, such as C(OS_USERNAME)\n     may be used instead of providing explicit values."
+        }
+      ]
+    },
+    {
+      "sha": "10c5e26ce83f2fbddd67acac17aa534eaeb788dc",
+      "message": "New Module: netbox_prefix.py (#49902)\n\n* Re-do of netbox_prefix\r\n\r\n* Updated netbox_utils to catch AttributeError within create_netbox_object\r\n\r\n* Fixed PEP issues",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/net_tools/netbox/netbox_utils.py",
+          "patch": "@@ -197,7 +197,10 @@ def create_netbox_object(nb_endpoint, data, check_mode):\n     if check_mode:\n         serialized_nb_obj = data\n     else:\n-        serialized_nb_obj = nb_endpoint.create(data).serialize()\n+        try:\n+            serialized_nb_obj = nb_endpoint.create(data).serialize()\n+        except AttributeError:\n+            serialized_nb_obj = nb_endpoint.create(data)\n \n     diff = _build_diff(before={\"state\": \"absent\"}, after={\"state\": \"present\"})\n     return serialized_nb_obj, diff"
+        }
+      ]
+    },
+    {
+      "sha": "eebebb1a83bfaab34976529628d947b4988c2dd7",
+      "message": "Fix ovirt4.py inventory file for oVirt 4.3 (#54338)\n\novirt4.py inventory file fails with oVirt 4.3 with the following error:\r\nTraceback (most recent call last):\r\n  File \"inventory/ovirt\", line 259, in <module>\r\n    main()\r\n  File \"inventory/ovirt\", line 250, in main\r\n    vm_name=args.host,\r\n  File \"inventory/ovirt\", line 209, in get_data\r\n    vms[name] = get_dict_of_struct(connection, vm)\r\n  File \"inventory/ovirt\", line 178, in get_dict_of_struct\r\n    (stat.name, stat.values[0].datum) for stat in stats\r\n  File \"inventory/ovirt\", line 178, in <genexpr>\r\n    (stat.name, stat.values[0].datum) for stat in stats\r\nIndexError: list index out of range",
+      "changes": [
+        {
+          "file": "contrib/inventory/ovirt4.py",
+          "patch": "@@ -176,7 +176,7 @@ def get_dict_of_struct(connection, vm):\n             if vm.name in [vm.name for vm in connection.follow_link(group.vms)]\n         ],\n         'statistics': dict(\n-            (stat.name, stat.values[0].datum) for stat in stats\n+            (stat.name, stat.values[0].datum) for stat in stats if stat.values\n         ),\n         'devices': dict(\n             (device.name, [ip.address for ip in device.ips]) for device in devices if device.ips"
+        }
+      ]
+    },
+    {
+      "sha": "384f4f1cef0971861a8456801460b745928dc6c8",
+      "message": "fix AttributeError for 'systems_uri' (#54178)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/remote_management/redfish/idrac_redfish_command.py",
+          "patch": "@@ -77,7 +77,7 @@ def create_bios_config_job(self):\n         jobs = \"Jobs\"\n \n         # Search for 'key' entry and extract URI from it\n-        response = self.get_request(self.root_uri + self.systems_uri)\n+        response = self.get_request(self.root_uri + self.systems_uris[0])\n         if response['ret'] is False:\n             return response\n         result['ret'] = True"
+        }
+      ]
+    },
+    {
+      "sha": "b45b5994332a327a5aca912b583735f0abb23dec",
+      "message": "Fix for \"AttributeError: 'module' object has no attribute 'cursors'\" (#49191) (#53445)\n\n* Fix for \"AttributeError: 'module' object has no attribute 'cursors'\" (#49191) (#1)\r\n\r\n* Fix for \"AttributeError: 'module' object has no attribute 'cursors'\" (#49191)\r\n\r\n* Adding changelog fragment for issue #49191 and the following PR.\r\n\r\n* Update lib/ansible/module_utils/mysql.py\r\n\r\nCo-Authored-By: timorunge <timorunge@users.noreply.github.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/mysql.py",
+          "patch": "@@ -35,6 +35,7 @@\n except ImportError:\n     try:\n         import MySQLdb as mysql_driver\n+        import MySQLdb.cursors\n         _mysql_cursor_param = 'cursorclass'\n     except ImportError:\n         mysql_driver = None"
+        }
+      ]
+    },
+    {
+      "sha": "0469134f166aa83a3b736ac694c37c239fa55775",
+      "message": "rhsm_repository: Properly handle no repos (#51938)\n\nWhen no repos are defined, the `repo` variable is undefined. Therefore\r\nappend it only to the result if a repo was found. Otherwise Ansible will\r\nfail with an UnboundLocalError.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/packaging/os/rhsm_repository.py",
+          "patch": "@@ -160,7 +160,7 @@ def get_repository_list(module, list_parameter):\n                 \"enabled\": True if repo_enabled == '1' else False\n             }\n \n-        repo_result.append(repo)\n+            repo_result.append(repo)\n \n     return repo_result\n "
+        }
+      ]
+    },
+    {
+      "sha": "0924a8cf678909d04195a1b3dd5856145b03bace",
+      "message": "Fix dictionary access in os_floating_ip module (#51444)\n\nWhen using `nat_destination` parameter of `os_floating_ip` module, dot\nsyntax (`addr.addr`) is used to access a value in a dictionary,\nresulting in the module crashing with this error:\n\nAttributeError: 'dict' object has no attribute 'addr'\n\nThis is now fixed, when using correct syntax (`addr['addr']`), the\nmodule seems to work fine.\n\nFixes #51443",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/openstack/os_floating_ip.py",
+          "patch": "@@ -185,7 +185,7 @@ def main():\n                 if nat_destination:\n                     nat_floating_addrs = [addr for addr in server.addresses.get(\n                         cloud.get_network(nat_destination)['name'], [])\n-                        if addr.addr == public_ip and\n+                        if addr['addr'] == public_ip and\n                         addr['OS-EXT-IPS:type'] == 'floating']\n \n                     if len(nat_floating_addrs) == 0:"
+        }
+      ]
+    },
+    {
+      "sha": "6d13acf1fff4d2a8acf1da64270bdf44f746c77d",
+      "message": "Ignore AttributeError when trying to import p paramiko (#51243)\n\n* Ignore AttributeError when trying to import p paramiko\r\n\r\n* preserve import error",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/connection/paramiko_ssh.py",
+          "patch": "@@ -168,13 +168,14 @@\n \n # prevent paramiko warning noise -- see http://stackoverflow.com/questions/3920502/\n HAVE_PARAMIKO = False\n+PARAMIKO_IMP_ERR = None\n with warnings.catch_warnings():\n     warnings.simplefilter(\"ignore\")\n     try:\n         import paramiko\n         HAVE_PARAMIKO = True\n-    except ImportError:\n-        pass\n+    except (ImportError, AttributeError) as err:  # paramiko and gssapi are incompatible and raise AttributeError not ImportError\n+        PARAMIKO_IMP_ERR = err\n \n \n class MyAddPolicy(object):\n@@ -305,7 +306,7 @@ def _connect_uncached(self):\n         ''' activates the connection object '''\n \n         if not HAVE_PARAMIKO:\n-            raise AnsibleError(\"paramiko is not installed\")\n+            raise AnsibleError(\"paramiko is not installed: %s\" % to_native(PARAMIKO_IMP_ERR))\n \n         port = self._play_context.port or 22\n         display.vvv(\"ESTABLISH PARAMIKO SSH CONNECTION FOR USER: %s on PORT %s TO %s\" % (self._play_context.remote_user, port, self._play_context.remote_addr),"
+        }
+      ]
+    },
+    {
+      "sha": "104c415543a218d3a7263e210bd2e6b7b63df915",
+      "message": "Fix for AttributeError in network_cli (#50284)\n\n*  Value of prompt_answer is wrongly used as `self.prompt_answer`\r\n   while logging it in message queue",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/connection/network_cli.py",
+          "patch": "@@ -522,7 +522,7 @@ def _handle_prompt(self, resp, prompts, answer, newline, prompt_retry_check=Fals\n                     if newline:\n                         self._ssh_shell.sendall(b'\\r')\n                         prompt_answer += '\\r'\n-                    self._log_messages(\"matched command prompt answer: %s\" % self.prompt_answer)\n+                    self._log_messages(\"matched command prompt answer: %s\" % prompt_answer)\n                 if check_all and prompts and not single_prompt:\n                     prompts.pop(0)\n                     answer.pop(0)"
+        }
+      ]
+    },
+    {
+      "sha": "6200d32c0d577bc965d0111c1bf55aa16bb75ef7",
+      "message": "Use IndexError in exception (#49488)",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/action/reboot.py",
+          "patch": "@@ -185,7 +185,7 @@ def do_until_success_or_timeout(self, action, reboot_timeout, action_desc):\n                 if action_desc:\n                     try:\n                         error = to_text(e).splitlines()[-1]\n-                    except TypeError as e:\n+                    except IndexError as e:\n                         error = to_text(e)\n                     display.debug(\"{0}: {1} fail '{2}', retrying in {3:.4} seconds...\".format(self._task.action, action_desc,\n                                                                                               error, fail_sleep))"
+        }
+      ]
+    },
+    {
+      "sha": "bc741eb2a01111b4cddc7e112958f6c43dfa9199",
+      "message": "ovirt_vm: Fix issue in setting the custom_compatibility_version to NULL\n\nCurrently there is no way to reset the custom_compatibility_version to\nNULL. If we provide a empty string('') to custom_compatibility_version,\nit will fail with error \"IndexError: list index out of range\" at _get_minor\nfunction.\n\nTo reset the custom_compatibility_version, we have to pass None value to\ntypes.Version. The PR fixes the same.",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/ovirt.py",
+          "patch": "@@ -790,14 +790,14 @@ def search_entity(self, search_params=None, list_params=None):\n         return entity\n \n     def _get_major(self, full_version):\n-        if full_version is None:\n+        if full_version is None or full_version == \"\":\n             return None\n         if isinstance(full_version, otypes.Version):\n             return int(full_version.major)\n         return int(full_version.split('.')[0])\n \n     def _get_minor(self, full_version):\n-        if full_version is None:\n+        if full_version is None or full_version == \"\":\n             return None\n         if isinstance(full_version, otypes.Version):\n             return int(full_version.minor)"
+        }
+      ]
+    },
+    {
+      "sha": "739a129322cebf3abe54f1267518c81d99ef75ef",
+      "message": "ldap_attr: typecast values to list (#46818)\n\nAdding a value to an attribute or removing a value from an attribute of a LDAP entry throws the exception TypeError: object of type 'filter' has no len()",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/net_tools/ldap/ldap_attr.py",
+          "patch": "@@ -178,7 +178,7 @@ def __init__(self, module):\n             self.values = [to_bytes(self.module.params['values'])]\n \n     def add(self):\n-        values_to_add = filter(self._is_value_absent, self.values)\n+        values_to_add = list(filter(self._is_value_absent, self.values))\n \n         if len(values_to_add) > 0:\n             modlist = [(ldap.MOD_ADD, self.name, values_to_add)]\n@@ -188,7 +188,7 @@ def add(self):\n         return modlist\n \n     def delete(self):\n-        values_to_delete = filter(self._is_value_present, self.values)\n+        values_to_delete = list(filter(self._is_value_present, self.values))\n \n         if len(values_to_delete) > 0:\n             modlist = [(ldap.MOD_DELETE, self.name, values_to_delete)]"
+        }
+      ]
+    },
+    {
+      "sha": "32397531d0293dab7a92308b1a251ba7fade2d2b",
+      "message": "lambda: fix unboundLocalError in lambda (#46729)\n\nThis fix initializes current_version to None so that\r\nmodule proceeds in check mode.\r\n\r\nFixes: #46654\r\n\r\nSigned-off-by: Abhijeet Kasurde <akasurde@redhat.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/lambda.py",
+          "patch": "@@ -554,6 +554,7 @@ def main():\n                                               'SecurityGroupIds': vpc_security_group_ids}})\n \n         # Finally try to create function\n+        current_version = None\n         try:\n             if not check_mode:\n                 response = client.create_function(**func_kwargs)"
+        }
+      ]
+    },
+    {
+      "sha": "dd73bae51aafab32088a377acac30f355762b45b",
+      "message": "VMware: handle indexError for snapshot details (#42575)\n\nFixes: #42539\n\nSigned-off-by: Abhijeet Kasurde <akasurde@redhat.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/vmware.py",
+          "patch": "@@ -437,8 +437,10 @@ def list_snapshots(vm):\n     result['snapshots'] = list_snapshots_recursively(vm.snapshot.rootSnapshotList)\n     current_snapref = vm.snapshot.currentSnapshot\n     current_snap_obj = get_current_snap_obj(vm.snapshot.rootSnapshotList, current_snapref)\n-    result['current_snapshot'] = deserialize_snapshot_obj(current_snap_obj[0])\n-\n+    if current_snap_obj:\n+        result['current_snapshot'] = deserialize_snapshot_obj(current_snap_obj[0])\n+    else:\n+        result['current_snapshot'] = dict()\n     return result\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "a9b077f763747f44ba692f2adbdf36ac59150b58",
+      "message": "Stop throwing TypeErrors (#43036)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/parted.py",
+          "patch": "@@ -327,7 +327,7 @@ def format_disk_size(size_bytes, unit):\n \n     # Shortcut\n     if size_bytes == 0:\n-        return 0.0\n+        return 0.0, 'b'\n \n     # Cases where we default to 'compact'\n     if unit in ['', 'compact', 'cyl', 'chs']:"
+        }
+      ]
+    },
+    {
+      "sha": "ae96ba0d4f767716c02b83b1e61290f2dfd112b3",
+      "message": "fix a (forgotten?) change in moving createhome -> create_home (#42711)\n\n* fix a (forgotten?) change in moving createhome -> create_home\r\n\r\nFix for following bug on FreeBSD host whith user module:\r\n```\r\nfatal: [webssp]: FAILED! => {\"changed\": false, \"module_stderr\": \"X11 forwarding request failed\r\nTraceback (most recent call last):\r\n  File \\\"/tmp/ansible_2rmlBl/ansible_module_user.py\\\", line 2487, in <module>\r\n    main()\\n  File \\\"/tmp/ansible_2rmlBl/ansible_module_user.py\\\", line 2426, in main\r\n    (rc, out, err) = user.modify_user()\r\n  File \\\"/tmp/ansible_2rmlBl/ansible_module_user.py\\\", line 1011, in modify_user\r\n    if (info[5] != self.home and self.move_home) or (not os.path.exists(self.home) and self.createhome):\r\nAttributeError: 'FreeBsdUser' object has no attribute 'createhome'\r\n\", \"module_stdout\": \"\", \"msg\": \"MODULE FAILURE\", \"rc\": 1}\r\n```\r\nIt happenned with 'createhome' AND with 'create_home' form, with python 2.7 AND python 3.6\r\n\r\n* Add changelog\r\n\r\n\r\nCo-authored-by: dgeo <dgeo@users.noreply.github.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/user.py",
+          "patch": "@@ -1008,7 +1008,7 @@ def modify_user(self):\n             cmd.append(self.comment)\n \n         if self.home is not None:\n-            if (info[5] != self.home and self.move_home) or (not os.path.exists(self.home) and self.createhome):\n+            if (info[5] != self.home and self.move_home) or (not os.path.exists(self.home) and self.create_home):\n                 cmd.append('-m')\n             cmd.append('-d')\n             cmd.append(self.home)"
+        }
+      ]
+    },
+    {
+      "sha": "d255cf42d7eae81ef6656ef9a653f688e2931242",
+      "message": "Fix NameError, value was not available in this context leading to a generic unexpected error. Fixes #33275 (#41856)",
+      "changes": [
+        {
+          "file": "lib/ansible/playbook/base.py",
+          "patch": "@@ -427,6 +427,7 @@ def post_validate(self, templar):\n                 # and assign the massaged value back to the attribute field\n                 setattr(self, name, value)\n             except (TypeError, ValueError) as e:\n+                value = getattr(self, name)\n                 raise AnsibleParserError(\"the field '%s' has an invalid value (%s), and could not be converted to an %s.\"\n                                          \"The error was: %s\" % (name, value, attribute.isa, e), obj=self.get_ds(), orig_exc=e)\n             except (AnsibleUndefinedVariable, UndefinedError) as e:"
+        }
+      ]
+    },
+    {
+      "sha": "3c32b483bc934e2f470e86dff4657bcd43dc62b1",
+      "message": "Fix for NameError (#39665)\n\nIssue : NameError: global name \u2018cnos_devicerules\u2019 is not defined. while running cnos modules. \r\nDevice Rule file validates the range and type of data going into each CLI based on device type it is executed against.\r\nThis has to be backported to 2.5",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/network/cnos/cnos.py",
+          "patch": "@@ -35,8 +35,8 @@\n import socket\n import re\n try:\n-    import cnos_errorcodes\n-    import cnos_devicerules\n+    from ansible.module_utils.network.cnos import cnos_errorcodes\n+    from ansible.module_utils.network.cnos import cnos_devicerules\n     HAS_LIB = True\n except:\n     HAS_LIB = False"
+        }
+      ]
+    },
+    {
+      "sha": "2397ca1a7e15a1a6941b07a5a1e3a52837ee9d7c",
+      "message": "Fix unset ansible_virtualization_role (#39514)\n\nError was:\r\nAttributeError(\"'str' object has no attribute 'startwith'\",)\r\n\r\nCloses #39138",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/facts/virtual/linux.py",
+          "patch": "@@ -242,7 +242,7 @@ def get_virtual_facts(self):\n             if rc == 0:\n                 # Strip out commented lines (specific dmidecode output)\n                 vendor_name = ''.join([line.strip() for line in out.splitlines() if not line.startswith('#')])\n-                if vendor_name.startwith('VMware'):\n+                if vendor_name.startswith('VMware'):\n                     virtual_facts['virtualization_type'] = 'VMware'\n                     virtual_facts['virtualization_role'] = 'guest'\n                     return virtual_facts"
+        }
+      ]
+    },
+    {
+      "sha": "d36537513ed970dcfe3d0c05002375ac361477ad",
+      "message": "[ec2_ami] Add missing parameters while handling botocore Exceptions.  Fixes TypeError exception (#39105)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2_ami.py",
+          "patch": "@@ -626,9 +626,9 @@ def get_image_by_id(module, connection, image_id):\n                 result['ProductCodes'] = connection.describe_image_attribute(Attribute='productCodes', ImageId=image_id)['ProductCodes']\n             except botocore.exceptions.ClientError as e:\n                 if e.response['Error']['Code'] != 'InvalidAMIID.Unavailable':\n-                    module.fail_json_aws(e, msg=\"Error retrieving image attributes\" % image_id)\n+                    module.fail_json_aws(e, msg=\"Error retrieving image attributes %s\" % image_id)\n             except botocore.exceptions.BotoCoreError as e:\n-                module.fail_json_aws(e, msg=\"Error retrieving image attributes\" % image_id)\n+                module.fail_json_aws(e, msg=\"Error retrieving image attributes %s\" % image_id)\n             return result\n         module.fail_json(msg=\"Invalid number of instances (%s) found for image_id: %s.\" % (str(len(images)), image_id))\n     except (botocore.exceptions.BotoCoreError, botocore.exceptions.ClientError) as e:"
+        }
+      ]
+    },
+    {
+      "sha": "db805048395516ca86bac0d769de41e1f5b04fe5",
+      "message": "firewalld: fix AttributeError (#38442)\n\nError was:\r\n  File \"/tmp/ansible_qY_BMb/ansible_module_firewalld.py\", line 703, in <module>\r\n    main()\r\n  File \"/tmp/ansible_qY_BMb/ansible_module_firewalld.py\", line 548, in main\r\n    module.fail(msg='firewall is not currently running, unable to perform immediate actions without a running firewall daemon')\r\nAttributeError: 'AnsibleModule' object has no attribute 'fail'",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/firewalld.py",
+          "patch": "@@ -829,7 +829,7 @@ def main():\n \n     # Verify required params are provided\n     if immediate and fw_offline:\n-        module.fail(msg='firewall is not currently running, unable to perform immediate actions without a running firewall daemon')\n+        module.fail_json(msg='firewall is not currently running, unable to perform immediate actions without a running firewall daemon')\n \n     changed = False\n     msgs = []"
+        }
+      ]
+    },
+    {
+      "sha": "612d0d66343420f3913d372197f3bb7c6a04087b",
+      "message": "Fix interfaces_file for proper file contents (#37818)\n\nThe generated file was completely unusable by the system\r\ntherefore the fix which ensures that diffing the file\r\nprior to changes and after only shows diffs\r\n\r\nFurthermore the code did not work for Python 3.6\r\n>       f.writelines(to_bytes(lines, errors='surrogate_or_strict'))\r\nE       TypeError: a bytes-like object is required, not 'int'\r\n\r\nThe other modifications (lambda variable renaming) is to\r\ncomply with default flake8 rules",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/interfaces_file.py",
+          "patch": "@@ -290,11 +290,11 @@ def setInterfaceOption(module, lines, iface, option, raw_value, state):\n             if option in [\"pre-up\", \"up\", \"down\", \"post-up\"] and value is not None and value != \"None\":\n                 for target_option in filter(lambda i: i['value'] == value, target_options):\n                     changed = True\n-                    lines = list(filter(lambda l: l != target_option, lines))\n+                    lines = list(filter(lambda ln: ln != target_option, lines))\n             else:\n                 changed = True\n                 for target_option in target_options:\n-                    lines = list(filter(lambda l: l != target_option, lines))\n+                    lines = list(filter(lambda ln: ln != target_option, lines))\n     else:\n         module.fail_json(msg=\"Error: unsupported state %s, has to be either present or absent\" % state)\n \n@@ -322,7 +322,7 @@ def write_changes(module, lines, dest):\n \n     tmpfd, tmpfile = tempfile.mkstemp()\n     f = os.fdopen(tmpfd, 'wb')\n-    f.writelines(to_bytes(lines, errors='surrogate_or_strict'))\n+    f.write(to_bytes(''.join(lines), errors='surrogate_or_strict'))\n     f.close()\n     module.atomic_move(tmpfile, os.path.realpath(dest))\n "
+        }
+      ]
+    },
+    {
+      "sha": "b7aa41b9b937df7af6afa1404be5c9c3d85f0948",
+      "message": "Fix crash in py3: 'TypeError: a bytes-like object is required, not 'str' (#37504)\n\n* Fix crash in py3: 'TypeError: a bytes-like object is required, not 'str'\r\n\r\nFixes #37387\r\n\r\n* Review applied https://github.com/ansible/ansible/pull/37504#pullrequestreview-104799823",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/interfaces_file.py",
+          "patch": "@@ -141,6 +141,7 @@\n import tempfile\n \n from ansible.module_utils.basic import AnsibleModule\n+from ansible.module_utils._text import to_bytes\n \n \n def lineDict(line):\n@@ -321,7 +322,7 @@ def write_changes(module, lines, dest):\n \n     tmpfd, tmpfile = tempfile.mkstemp()\n     f = os.fdopen(tmpfd, 'wb')\n-    f.writelines(lines)\n+    f.writelines(to_bytes(lines, errors='surrogate_or_strict'))\n     f.close()\n     module.atomic_move(tmpfile, os.path.realpath(dest))\n "
+        }
+      ]
+    },
+    {
+      "sha": "4b6b2d4206ef9559ddbe56e6c770483e20763795",
+      "message": "vultr: fix py3 compat (#37171)\n\n* vr_server: fix base64 encoding with py3\r\n\r\n* vultr: fix AttributeError with py3",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/vultr/vr_server.py",
+          "patch": "@@ -320,6 +320,7 @@\n import time\n import base64\n from ansible.module_utils.basic import AnsibleModule\n+from ansible.module_utils._text import to_text, to_bytes\n from ansible.module_utils.vultr import (\n     Vultr,\n     vultr_argument_spec,\n@@ -415,7 +416,7 @@ def get_firewall_group(self):\n     def get_user_data(self):\n         user_data = self.module.params.get('user_data')\n         if user_data is not None:\n-            user_data = base64.b64encode(str(user_data))\n+            user_data = to_text(base64.b64encode(to_bytes(user_data)))\n         return user_data\n \n     def get_server_user_data(self, server):"
+        }
+      ]
+    },
+    {
+      "sha": "83aaa8137ac96743aef3ea0528363d6861528d48",
+      "message": "Fix Base64 decode TypeError (#36968)\n\n```\nTypeError: expected bytes-like object, not str\n```",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/digital_ocean/digital_ocean_sshkey.py",
+          "patch": "@@ -239,7 +239,7 @@ def core(module):\n \n def ssh_key_fingerprint(ssh_pub_key):\n     key = ssh_pub_key.split(None, 2)[1]\n-    fingerprint = hashlib.md5(base64.decodestring(key)).hexdigest()\n+    fingerprint = hashlib.md5(base64.b64decode(key)).hexdigest()\n     return ':'.join(a + b for a, b in zip(fingerprint[::2], fingerprint[1::2]))\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "6dcb41b40f3c93c708f6452ba52738970c6c5ea6",
+      "message": "rabbitmq_policy: fix IndexError when no policies exist yet (#33556)\n\nIf the list of existing policies is empty, an IndexError would be raised\r\nsince stdout was blank.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/messaging/rabbitmq_policy.py",
+          "patch": "@@ -113,6 +113,8 @@ def list(self):\n         policies = self._exec(['list_policies'], True)\n \n         for policy in policies:\n+            if not policy:\n+                continue\n             policy_name = policy.split('\\t')[1]\n             if policy_name == self._name:\n                 return True"
+        }
+      ]
+    },
+    {
+      "sha": "347b5d1e50d6e85837695d7637388ed8de889674",
+      "message": "write need bytes object on python 3 (#35143)\n\nOtherwise, it fail with:\n\n    Traceback (most recent call last):\n      File \\\"/tmp/ansible_c1zmq3i9/ansible_module_openssl_certificate.py\\\", line 808, in <module>\n        main()\n      File \\\"/tmp/ansible_c1zmq3i9/ansible_module_openssl_certificate.py\\\", line 787, in main\n        certificate.generate(module)\n      File \\\"/tmp/ansible_c1zmq3i9/ansible_module_openssl_certificate.py\\\", line 692, in generate\n        certfile.write(str(crt))\n    TypeError: a bytes-like object is required, not 'str'",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/crypto/openssl_certificate.py",
+          "patch": "@@ -757,7 +757,7 @@ def generate(self, module):\n                                                             self.challenge_path),\n                                          check_rc=True)[1]\n                 with open(self.path, 'wb') as certfile:\n-                    certfile.write(str(crt))\n+                    certfile.write(to_bytes(crt))\n             except OSError as exc:\n                 raise CertificateError(exc)\n "
+        }
+      ]
+    },
+    {
+      "sha": "b0e7c71716a3ea4434c139530fbbfcc73489fc16",
+      "message": "nxos_interface TypeError fix (#32114)\n\n* nxos_inteface TypeError fix\r\n\r\nSigned-off-by: Trishna Guha <trishnaguha17@gmail.com>\r\n\r\n* Make sure that run_commands does not list of strings for json output\r\n\r\nSigned-off-by: Trishna Guha <trishnaguha17@gmail.com>\r\n\r\n* return default value to handle exception\r\n\r\nSigned-off-by: Trishna Guha <trishnaguha17@gmail.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/nxos.py",
+          "patch": "@@ -34,7 +34,7 @@\n from ansible.module_utils.basic import env_fallback, return_values\n from ansible.module_utils.network_common import to_list, ComplexList\n from ansible.module_utils.connection import exec_command\n-from ansible.module_utils.six import iteritems\n+from ansible.module_utils.six import iteritems, string_types\n from ansible.module_utils.urls import fetch_url\n \n _DEVICE_CONNECTION = None\n@@ -169,6 +169,9 @@ def run_commands(self, commands, check_rc=True):\n                 except ValueError:\n                     out = to_text(out).strip()\n \n+            if item['output'] == 'json' and isinstance(out, string_types):\n+                self._module.fail_json(msg='failed to retrieve output of %s in json format' % item['command'])\n+\n             responses.append(out)\n         return responses\n "
+        }
+      ]
+    },
+    {
+      "sha": "958ad7726a5c495ae3699b8065414c34f9b4235a",
+      "message": "Properly handle user selection of `None` as vars_files (#31313)\n\n* Properly handle user selection of `None` as vars_files\r\n\r\nIn a playbook, if a user has a playbook like:\r\n\r\n```\r\n- hosts: localhost\r\n  connection: local\r\n  vars_files:\r\n  tasks:\r\n  - ....\r\n```\r\n\r\nThen `vars_files` will be none, and cause a `TypeError` in vars-manager when it\r\ntries to iterate over them. To avoid this, I changed the getter to either send\r\nback the vars files from the user, or an empty list when the user passed\r\n`None`.\r\n\r\n* Only replace None with an empty list, not all falsey values\r\n\r\n* Catch error when vars_files isn't iterable\r\n\r\n* Move whole `for` loop into try/except and catch TypeError\r\n\r\n* Line length",
+      "changes": [
+        {
+          "file": "lib/ansible/playbook/play.py",
+          "patch": "@@ -277,6 +277,8 @@ def get_vars(self):\n         return self.vars.copy()\n \n     def get_vars_files(self):\n+        if self.vars_files is None:\n+            return []\n         return self.vars_files\n \n     def get_handlers(self):"
+        }
+      ]
+    },
+    {
+      "sha": "ba99e44b423f64227b94e0f201c4c340a989dc11",
+      "message": "Catch AttributeError if regex is not found. (#30990)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/web_infrastructure/apache2_module.py",
+          "patch": "@@ -166,8 +166,11 @@ def create_apache_identifier(name):\n \n     for search, reexpr in re_workarounds:\n         if search in name:\n-            rematch = re.search(reexpr, name)\n-            return rematch.group(1) + '_module'\n+            try:\n+                rematch = re.search(reexpr, name)\n+                return rematch.group(1) + '_module'\n+            except AttributeError:\n+                pass\n \n     return name + '_module'\n "
+        }
+      ]
+    },
+    {
+      "sha": "92f777e8154f3f8ba3e2bed4d6532acb69722d7b",
+      "message": "module_utils.urls - Encode the proxy connect as binary (#30811)\n\n* module_utils.urls - Encode the proxy connect as binary\r\n\r\nUnder Python3 the sendall method expects binary not a string.\r\n\r\nPrior to this change the below exception was being thrown;\r\nTraceback (most recent call last):\r\n  File \"/tmp/ansible_umxox7_x/ansible_modlib.zip/ansible/module_utils/urls.py\", line 1044, in fetch_url\r\n    client_key=client_key, cookies=cookies)\r\n  File \"/tmp/ansible_umxox7_x/ansible_modlib.zip/ansible/module_utils/urls.py\", line 951, in open_url\r\n    r = urllib_request.urlopen(*urlopen_args)\r\n  File \"/opt/blue-python/3.6/lib/python3.6/urllib/request.py\", line 223, in urlopen\r\n    return opener.open(url, data, timeout)\r\n  File \"/opt/blue-python/3.6/lib/python3.6/urllib/request.py\", line 524, in open\r\n    req = meth(req)\r\n  File \"/tmp/ansible_umxox7_x/ansible_modlib.zip/ansible/module_utils/urls.py\", line 729, in http_request\r\n    s.sendall((self.CONNECT_COMMAND % (self.hostname, self.port)).decode())\r\nAttributeError: 'str' object has no attribute 'decode'\r\n\r\nEncoding the value is inline with the lines below (Proxy-Authorization etc) which are being sent as binary.",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/urls.py",
+          "patch": "@@ -728,7 +728,7 @@ def http_request(self, req):\n                 port = proxy_parts.get('port') or 443\n                 s = socket.create_connection((proxy_parts.get('hostname'), port))\n                 if proxy_parts.get('scheme') == 'http':\n-                    s.sendall(self.CONNECT_COMMAND % (self.hostname, self.port))\n+                    s.sendall(to_bytes(self.CONNECT_COMMAND % (self.hostname, self.port), errors='surrogate_or_strict'))\n                     if proxy_parts.get('username'):\n                         credentials = \"%s:%s\" % (proxy_parts.get('username', ''), proxy_parts.get('password', ''))\n                         s.sendall(b'Proxy-Authorization: Basic %s\\r\\n' % base64.b64encode(to_bytes(credentials, errors='surrogate_or_strict')).strip())"
+        }
+      ]
+    },
+    {
+      "sha": "dca887a6dc3b1b60e6b8b821c54cf5eb926dbcd2",
+      "message": "Use correct variable from response in github_key (#25846)\n\nBefore fix, logic tries to access info from 're' library\r\nwhich raises AttributeError.\r\nFix adds correct variable usage for accessing next/previous\r\nsearch results from github api.\r\n\r\nSigned-off-by: Abhijeet Kasurde <akasurde@redhat.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/source_control/github_key.py",
+          "patch": "@@ -103,7 +103,7 @@ def json(self):\n     def links(self):\n         links = {}\n         if 'link' in self.info:\n-            link_header = re.info['link']\n+            link_header = self.info['link']\n             matches = re.findall('<([^>]+)>; rel=\"([^\"]+)\"', link_header)\n             for url, rel in matches:\n                 links[rel] = url"
+        }
+      ]
+    },
+    {
+      "sha": "be2d4cc1c9eac7a663fcc1ab41396cee39460009",
+      "message": "Check for an existing docker_network before trying to modify it (#24048)\n\nThis eliminates a TypeError in check mode.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/docker/docker_network.py",
+          "patch": "@@ -308,6 +308,8 @@ def connect_containers(self):\n                 self.results['changed'] = True\n \n     def disconnect_missing(self):\n+        if not self.existing_network:\n+            return\n         containers = self.existing_network['Containers']\n         if not containers:\n             return"
+        }
+      ]
+    },
+    {
+      "sha": "f01885130357ea5c54ef62d3f4d5df3e3027c204",
+      "message": "sensu_subscription: Fix return type for 2 cases (#26546)\n\nstate=absent would cause errors in 2 cases resulting in the error:\r\n\"TypeError: 'bool' object is not iterable\"",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/monitoring/sensu_subscription.py",
+          "patch": "@@ -112,15 +112,15 @@ def sensu_subscription(module, path, name, state='present', backup=False):\n     if 'subscriptions' not in config['client']:\n         if state == 'absent':\n             reasons.append('`client.subscriptions\\' did not exist and state is `absent\\'')\n-            return changed\n+            return changed, reasons\n         config['client']['subscriptions'] = []\n         changed = True\n         reasons.append('`client.subscriptions\\' did not exist')\n \n     if name not in config['client']['subscriptions']:\n         if state == 'absent':\n             reasons.append('channel subscription was absent')\n-            return changed\n+            return changed, reasons\n         config['client']['subscriptions'].append(name)\n         changed = True\n         reasons.append('channel subscription was absent and state is `present\\'')"
+        }
+      ]
+    },
+    {
+      "sha": "e9447e9481c6a1677f7276ccdeed986f47b588aa",
+      "message": "ec2_group fix TypeError bug #26291",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2_group.py",
+          "patch": "@@ -277,7 +277,7 @@ def get_target_from_rule(module, ec2, rule, name, group, groups, vpc_id):\n         module.fail_json(msg=\"Specify group_name OR cidr_ip, not both\")\n     elif 'group_id' in rule and 'group_name' in rule:\n         module.fail_json(msg=\"Specify group_id OR group_name, not both\")\n-    elif 'group_id' in rule and re.match(FOREIGN_SECURITY_GROUP_REGEX, rule['group_id']):\n+    elif rule.get('group_id') and re.match(FOREIGN_SECURITY_GROUP_REGEX, rule['group_id']):\n         # this is a foreign Security Group. Since you can't fetch it you must create an instance of it\n         owner_id, group_id, group_name = re.match(FOREIGN_SECURITY_GROUP_REGEX, rule['group_id']).groups()\n         group_instance = SecurityGroup(owner_id=owner_id, name=group_name, id=group_id)"
+        }
+      ]
+    },
+    {
+      "sha": "a4f173808281637b94949baf97f5236323f8c189",
+      "message": "Fail module instead of returning boolean value\n\nFix added to fail module instead of returning boolean value\nwhich raises AttributeError.\n\nFixes #21770\n\nSigned-off-by: Abhijeet Kasurde <akasurde@redhat.com>",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/openstack/os_stack.py",
+          "patch": "@@ -182,7 +182,6 @@ def _create_stack(module, stack, cloud):\n         if stack.stack_status == 'CREATE_COMPLETE':\n             return stack\n         else:\n-            return False\n             module.fail_json(msg=\"Failure in creating stack: {0}\".format(stack))\n     except shade.OpenStackCloudException as e:\n         module.fail_json(msg=str(e))"
+        }
+      ]
+    },
+    {
+      "sha": "80c1765653ceed075327c1cf5db69c1dc91e42ba",
+      "message": "When cleaning up the AnsiBallZ tempdir we need to not fail if the tempdir wasn't created\n\nIf the temp directory creation failed in mkdtemp then temp_path is never\ngiven a value.  This would lead to a NameError exception which would\nobfuscate the original error (out of disk space being a common one).  By\ncatching NameError, python will raise the original exception as we want.\n\nFixes #17215",
+      "changes": [
+        {
+          "file": "lib/ansible/executor/module_common.py",
+          "patch": "@@ -345,7 +345,7 @@ def debug(command, zipped_mod, json_params):\n     finally:\n         try:\n             shutil.rmtree(temp_path)\n-        except OSError:\n+        except (NameError, OSError):\n             # tempdir creation probably failed\n             pass\n     sys.exit(exitcode)"
+        }
+      ]
+    },
+    {
+      "sha": "a5c70dc6725c422fcccd37ea07e8655b6ecbc833",
+      "message": "os_user: fix module undefined\n\nmodule variable in the function is undefined. Pass it.\n\nfix \"NameError: name 'module' is not defined\"",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/openstack/os_user.py",
+          "patch": "@@ -177,7 +177,7 @@ def _get_domain_id(cloud, domain):\n \n     return domain_id\n \n-def _get_default_project_id(cloud, default_project):\n+def _get_default_project_id(cloud, default_project, module):\n     project = cloud.get_project(default_project)\n     if not project:\n         module.fail_json(msg='Default project %s is not valid' % default_project)\n@@ -232,7 +232,7 @@ def main():\n                     module.fail_json(msg=msg)\n             default_project_id = None\n             if default_project:\n-                default_project_id = _get_default_project_id(cloud, default_project)\n+                default_project_id = _get_default_project_id(cloud, default_project, module)\n \n             if user is None:\n                 user = cloud.create_user("
+        }
+      ]
+    },
+    {
+      "sha": "c5adf08c40db740e1481130b97c206ab371b31d0",
+      "message": "Reference correct variable and key for role expiry (#23397)\n\nPreviously, this module could throw the following error message:\r\n    NameError: global name 'current_roles_attrs' is not defined\r\n\r\nThe referencing key should also match the name of the column, which is\r\nrolvaliduntil, not rol_valid_until",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/database/postgresql/postgresql_user.py",
+          "patch": "@@ -321,7 +321,7 @@ def user_alter(cursor, module, user, password, role_attr_flags, encrypted, expir\n                 if current_role_attrs[PRIV_TO_AUTHID_COLUMN[role_attr_name]] != role_attr_value:\n                     role_attr_flags_changing = True\n \n-        expires_changing = (expires is not None and expires == current_roles_attrs['rol_valid_until'])\n+        expires_changing = (expires is not None and expires == current_role_attrs['rolvaliduntil'])\n \n         if not pwchanging and not role_attr_flags_changing and not expires_changing:\n             return False"
+        }
+      ]
+    },
+    {
+      "sha": "44b2859338a430b1e92e575e72a7cb04a21c73d5",
+      "message": "ec2: fix instids and res_list being referenced before assigned - fixes #22692 (#23053)\n\n* add else statement to ensure instids is set\r\n\r\nset res_list to None to avoid UnboundLocalError and fix iteration over a nonetype by adding an empty tuple\r\n\r\n* make res_list empty tuple by default and check for instids before setting tags (fails otherwise)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2.py",
+          "patch": "@@ -1227,12 +1227,15 @@ def create_instances(module, ec2, vpc, override_count=None):\n                 # Now we have to do the intermediate waiting\n                 if wait:\n                     instids = await_spot_requests(module, ec2, res, count)\n+                else:\n+                    instids = []\n         except boto.exception.BotoServerError as e:\n             module.fail_json(msg=\"Instance creation failed => %s: %s\" % (e.error_code, e.error_message))\n \n         # wait here until the instances are up\n         num_running = 0\n         wait_timeout = time.time() + wait_timeout\n+        res_list = ()\n         while wait_timeout > time.time() and num_running < len(instids):\n             try:\n                 res_list = ec2.get_all_instances(instids)\n@@ -1275,7 +1278,7 @@ def create_instances(module, ec2, vpc, override_count=None):\n                 inst.modify_attribute('disableApiTermination', True)\n \n         # Leave this as late as possible to try and avoid InvalidInstanceID.NotFound\n-        if instance_tags:\n+        if instance_tags and instids:\n             try:\n                 ec2.create_tags(instids, instance_tags)\n             except boto.exception.EC2ResponseError as e:"
+        }
+      ]
+    },
+    {
+      "sha": "9173a7727cc60c7679fa42e7e02a46f37094c38b",
+      "message": "Fix issue on nxos modules when transport is passed via provider (#22488)\n\nThe nxos modules read the task level transport variable, thus if\r\nthe user pass it via provider the all fail with an UnboundLocalError.\r\n\r\nFixes #22355",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/action/nxos.py",
+          "patch": "@@ -99,10 +99,7 @@ def run(self, tmp=None, task_vars=None):\n             self._task.args['provider'] = provider_arg\n \n         # make sure a transport value is set in args\n-        transport = self._task.args.get('transport')\n-        provider_transport = (self._task.args.get('provider') or {}).get('transport')\n-        if all((transport is None, provider_transport is None)):\n-            self._task.args['transport'] = 'cli'\n+        self._task.args['transport'] = transport\n \n         return super(ActionModule, self).run(tmp, task_vars)\n "
+        }
+      ]
+    },
+    {
+      "sha": "62c97cdd3e62db2d90388168ca988a521a414f85",
+      "message": "ios_cli: fix load_config exec_command (#20994)\n\nfixes AttributeError: 'AnsibleModule' object has no attribute 'exec_command'",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/ios_cli.py",
+          "patch": "@@ -149,7 +149,7 @@ def load_config(module, commands):\n     for command in to_list(commands):\n         if command == 'end':\n             continue\n-        rc, out, err = module.exec_command(command)\n+        rc, out, err = conn.exec_command(command)\n         if rc != 0:\n             module.fail_json(msg=err, command=command, rc=rc)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e8a00377ae865eda782d9a50fc6b6fbc01ef520f",
+      "message": "additional exception handling\n\n* catches TypeError when trying to load json data",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/connection/network_cli.py",
+          "patch": "@@ -229,7 +229,7 @@ def exec_command(self, cmd):\n         \"\"\"\n         try:\n             obj = json.loads(cmd)\n-        except ValueError:\n+        except (ValueError, TypeError):\n             obj = {'command': str(cmd).strip()}\n \n         if obj['command'] == 'close_shell()':"
+        }
+      ]
+    },
+    {
+      "sha": "15e12d2cf2f3f1449d1b044fd191f0862e19f557",
+      "message": "git ssh wrapper: py3-compatability with strings\n\nWrap the fh.write(str) in b() to ensure the string is of the proper type in py2/py3. Otherwise, the following error occurs when using its ssh_wrapper:\n\n    An exception occurred during task execution. The full traceback is:\n    Traceback (most recent call last):\n      File \"/tmp/ansible_8r299r6t/ansible_module_git.py\", line 1049, in <module>\n        main()\n      File \"/tmp/ansible_8r299r6t/ansible_module_git.py\", line 928, in main\n        ssh_wrapper = write_ssh_wrapper()\n      File \"/tmp/ansible_8r299r6t/ansible_module_git.py\", line 330, in write_ssh_wrapper\n        fh.write(template)\n    TypeError: 'str' does not support the buffer interface",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/source_control/git.py",
+          "patch": "@@ -314,7 +314,7 @@ def write_ssh_wrapper():\n     except (IOError, OSError):\n         fd, wrapper_path = tempfile.mkstemp()\n     fh = os.fdopen(fd, 'w+b')\n-    template = \"\"\"#!/bin/sh\n+    template = b(\"\"\"#!/bin/sh\n if [ -z \"$GIT_SSH_OPTS\" ]; then\n     BASEOPTS=\"\"\n else\n@@ -326,7 +326,7 @@ def write_ssh_wrapper():\n else\n     ssh -i \"$GIT_KEY\" -o IdentitiesOnly=yes $BASEOPTS \"$@\"\n fi\n-\"\"\"\n+\"\"\")\n     fh.write(template)\n     fh.close()\n     st = os.stat(wrapper_path)"
+        }
+      ]
+    },
+    {
+      "sha": "197658aff48be2e378ffaee43e0ab94d7568411e",
+      "message": "Handle when the AMI launch permissions are unset.\n\nUse an empty list to avoid a TypeError because `'NoneType' is not iterable``",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2_ami.py",
+          "patch": "@@ -88,7 +88,10 @@\n     version_added: \"2.0\"\n   launch_permissions:\n     description:\n-      - Users and groups that should be able to launch the ami. Expects dictionary with a key of user_ids and/or group_names. user_ids should be a list of account ids. group_name should be a list of groups, \"all\" is the only acceptable value currently.\n+      - Users and groups that should be able to launch the ami. Expects\n+        dictionary with a key of user_ids and/or group_names. user_ids should\n+        be a list of account ids. group_name should be a list of groups, \"all\"\n+        is the only acceptable value currently.\n     required: false\n     default: null\n     version_added: \"2.0\"\n@@ -488,7 +491,7 @@ def update_image(module, ec2):\n     \"\"\"\n \n     image_id = module.params.get('image_id')\n-    launch_permissions = module.params.get('launch_permissions')\n+    launch_permissions = module.params.get('launch_permissions') or []\n     if 'user_ids' in launch_permissions:\n         launch_permissions['user_ids'] = [str(user_id) for user_id in launch_permissions['user_ids']]\n "
+        }
+      ]
+    },
+    {
+      "sha": "335a28443d0efa8391f4b63213517b8325759281",
+      "message": "timezone: Fix TypeError\n\ncloses #3337",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/system/timezone.py",
+          "patch": "@@ -310,8 +310,8 @@ def __init__(self, module):\n             # Debian/Ubuntu\n             self.update_timezone       = self.module.get_bin_path('dpkg-reconfigure', required=True)\n             self.update_timezone      += ' --frontend noninteractive tzdata'\n-            self.conf_files['name']    = '/etc/timezone',\n-            self.conf_files['hwclock'] = '/etc/default/rcS',\n+            self.conf_files['name']    = '/etc/timezone'\n+            self.conf_files['hwclock'] = '/etc/default/rcS'\n             self.regexps['name']       = re.compile(r'^([^\\s]+)', re.MULTILINE)\n             self.tzline_format         = '%s\\n'\n         else:"
+        }
+      ]
+    },
+    {
+      "sha": "8fb4fd6736b3f27cb8b7228c3eb59f55f10ce18b",
+      "message": "Fix pkgng on python 3\n\nFail with:\n\n    Traceback (most recent call last):\n      File \\\"/tmp/ansible_2rsl4fg1/ansible_module_pkgng.py\\\", line 353, in <module>\n        main()\n      File \\\"/tmp/ansible_2rsl4fg1/ansible_module_pkgng.py\\\", line 330, in main\n        _changed, _msg = install_packages(module, pkgng_path, pkgs, p[\\\"cached\\\"], p[\\\"pkgsite\\\"], dir_arg)\n      File \\\"/tmp/ansible_2rsl4fg1/ansible_module_pkgng.py\\\", line 161, in install_packages\n        old_pkgng = pkgng_older_than(module, pkgng_path, [1, 1, 4])\n      File \\\"/tmp/ansible_2rsl4fg1/ansible_module_pkgng.py\\\", line 121, in pkgng_older_than\n        while compare_version[i] == version[i]:\n    TypeError: 'map' object is not subscriptable",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/packaging/os/pkgng.py",
+          "patch": "@@ -114,7 +114,7 @@ def query_package(module, pkgng_path, name, dir_arg):\n def pkgng_older_than(module, pkgng_path, compare_version):\n \n     rc, out, err = module.run_command(\"%s -v\" % pkgng_path)\n-    version = map(lambda x: int(x), re.split(r'[\\._]', out))\n+    version = [int(x) for x in re.split(r'[\\._]', out)]\n \n     i = 0\n     new_pkgng = True"
+        }
+      ]
+    },
+    {
+      "sha": "c203283889c3ad8a5f5b0539b142ac638b4af8cd",
+      "message": "jenkins_job fix: NameError: global name 'module' is not defined (#2910)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/web_infrastructure/jenkins_job.py",
+          "patch": "@@ -235,7 +235,7 @@ def has_config_changed(self):\n \n     def present_job(self):\n         if self.config is None and self.enabled is None:\n-            module.fail_json(msg='one of the following params is required on state=present: config,enabled')\n+            self.module.fail_json(msg='one of the following params is required on state=present: config,enabled')\n \n         if not self.job_exists():\n             self.create_job()"
+        }
+      ]
+    },
+    {
+      "sha": "bcfab26d7836a13effad1fa766be4a7cf807f42d",
+      "message": "Unchecked index causes IndexError.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/system/crypttab.py",
+          "patch": "@@ -205,6 +205,8 @@ def __str__(self):\n         for line in self._lines:\n             lines.append(str(line))\n         crypttab = '\\n'.join(lines)\n+        if len(crypttab) == 0:\n+            crypttab += '\\n'\n         if crypttab[-1] != '\\n':\n             crypttab += '\\n'\n         return crypttab"
+        }
+      ]
+    },
+    {
+      "sha": "ed48fb0f255fd31af0ef401322f77f51e5ca8650",
+      "message": "fixed python 2.4 compatibility\n\nnf=tempfile.NamedTemporaryFile(delete=False)\nTypeError: NamedTemporaryFile() got an unexpected keyword argument 'delete'",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/system/pam_limits.py",
+          "patch": "@@ -225,11 +225,16 @@ def main():\n         nf.write(new_limit)\n \n     f.close()\n-    nf.close()\n+    nf.flush()\n \n     # Copy tempfile to newfile\n     module.atomic_move(nf.name, f.name)\n \n+    try:\n+        nf.close()\n+    except:\n+        pass\n+   \n     res_args = dict(\n         changed = changed, msg = message\n     )"
+        }
+      ]
+    },
+    {
+      "sha": "33ee8d6f891fb840d4c643db44f2f1aa837f948a",
+      "message": "Correct 'object not iterable' TypeError",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/clustering/znode.py",
+          "patch": "@@ -122,7 +122,7 @@ def main():\n \n     command_type = 'op' if 'op' in module.params and module.params['op'] is not None else 'state'\n     method = module.params[command_type]\n-    result, result_dict = command_dict[command_type][method]\n+    result, result_dict = command_dict[command_type][method]()\n     zoo.shutdown()\n \n     if result:\n@@ -225,4 +225,3 @@ def _wait(self, path, timeout, interval=5):\n from ansible.module_utils.basic import *\n \n main()\n-"
+        }
+      ]
+    },
+    {
+      "sha": "0a2a10e3951dec74bd1fc16ab0d994d76361785b",
+      "message": "Fix json loading in sensu_check\n\nFixes `AttributeError: 'str' object has no attribute 'read'` when the\ncheck path exists",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/monitoring/sensu_check.py",
+          "patch": "@@ -186,7 +186,7 @@ def sensu_check(module, path, name, state='present', backup=False):\n     try:\n         try:\n             stream = open(path, 'r')\n-            config = json.load(stream.read())\n+            config = json.load(stream)\n         except IOError, e:\n             if e.errno is 2:  # File not found, non-fatal\n                 if state == 'absent':"
+        }
+      ]
+    },
+    {
+      "sha": "b40a8af999589b4db70f53d41719ee2c4e9471e9",
+      "message": "Initialise `stream` variable\n\nFixes `UnboundLocalError: local variable 'stream' referenced before\nassignment` when the check path doesnt exist",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/monitoring/sensu_check.py",
+          "patch": "@@ -182,6 +182,7 @@ def sensu_check(module, path, name, state='present', backup=False):\n     except ImportError:\n         import simplejson as json\n \n+    stream = None\n     try:\n         try:\n             stream = open(path, 'r')"
+        }
+      ]
+    },
+    {
+      "sha": "4afb6b73c8b7becfbc4461a3fac56fbcf23d34b2",
+      "message": "Define HAS_LXC even if import lxc doesn't fail.\n\nThis fixes::\n\n    Traceback (most recent call last):\n      File \"/home/jpic/.ansible/tmp/ansible-tmp-1435080800.61-38257321141340/lxc_container\", line 3353, in <module>\n        main()\n      File \"/home/jpic/.ansible/tmp/ansible-tmp-1435080800.61-38257321141340/lxc_container\", line 1712, in main\n        if not HAS_LXC:\n    NameError: global name 'HAS_LXC' is not defined",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/extras/cloud/lxc/lxc_container.py",
+          "patch": "@@ -385,6 +385,8 @@\n     import lxc\n except ImportError:\n     HAS_LXC = False\n+else:\n+    HAS_LXC = True\n \n \n # LXC_COMPRESSION_MAP is a map of available compression types when creating"
+        }
+      ]
+    },
+    {
+      "sha": "d39ae36ab14750207e5afeadd387fc0cc1d86f0f",
+      "message": "Fix 5646 junos_config issue if config format is text (#5658)\n\nIf 'src_format' is not mentioned in playbook\nand config is in text format a list object is\npassed to 'guess_format' function instead\nof string, hence TypeError execption is seen.\nFix is to pass string object instead of list.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/network/junos/junos_config.py",
+          "patch": "@@ -245,7 +245,7 @@ def load_config(module, result):\n     kwargs['commit'] = not module.check_mode\n \n     if module.params['src']:\n-        config_format = module.params['src_format'] or guess_format(candidate)\n+        config_format = module.params['src_format'] or guess_format(str(candidate))\n     elif module.params['lines']:\n         config_format = 'set'\n     kwargs['config_format'] = config_format"
+        }
+      ]
+    },
+    {
+      "sha": "1ecb63f0e077358b60f16b04877ca987a7bbd9f3",
+      "message": "Fix String Type for Python 3 Branch Comparison\n\n* Use the `to_native` conversion method to convert a command output to the\n  appropriate form when looking for branch names in the command output,\n  therefore avoiding a `TypeError` in Python 3.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/source_control/git.py",
+          "patch": "@@ -223,7 +223,7 @@\n from ansible.module_utils.basic import AnsibleModule, get_module_path\n from ansible.module_utils.known_hosts import add_git_host_key\n from ansible.module_utils.six import b, string_types\n-from ansible.module_utils._text import to_bytes, to_native\n+from ansible.module_utils._text import to_native\n \n \n def head_splitter(headfile, remote, module=None, fail_on_error=False):\n@@ -519,7 +519,7 @@ def get_tags(git_path, module, dest):\n def is_remote_branch(git_path, module, dest, remote, version):\n     cmd = '%s ls-remote %s -h refs/heads/%s' % (git_path, remote, version)\n     (rc, out, err) = module.run_command(cmd, check_rc=True, cwd=dest)\n-    if to_bytes(version, errors='surrogate_or_strict') in out:\n+    if to_native(version, errors='surrogate_or_strict') in out:\n         return True\n     else:\n         return False"
+        }
+      ]
+    },
+    {
+      "sha": "ed590257a34b4a65fcad364285beb3194da26278",
+      "message": "Fix code for python 3\n\nSince dict.keys return a dictkeys under python 3, we hav to cast it\nto a list to avoid traceback:\n\n    Traceback (most recent call last):\n      File \"/tmp/ansible_sh16ejbd/ansible_module_authorized_key.py\", line 496, in <module>\n        main()\n      File \"/tmp/ansible_sh16ejbd/ansible_module_authorized_key.py\", line 490, in main\n        results = enforce_state(module, module.params)\n      File \"/tmp/ansible_sh16ejbd/ansible_module_authorized_key.py\", line 410, in enforce_state\n        parsed_new_key = parsekey(module, new_key)\n      File \"/tmp/ansible_sh16ejbd/ansible_module_authorized_key.py\", line 308, in parsekey\n        options = parseoptions(module, options)\n      File \"/tmp/ansible_sh16ejbd/ansible_module_authorized_key.py\", line 259, in parseoptions\n        options_dict[key] = value\n      File \"/tmp/ansible_sh16ejbd/ansible_module_authorized_key.py\", line 164, in __setitem__\n        self.itemlist.append(key)\n    AttributeError: 'dict_keys' object has no attribute 'append'\n\nYet another fix for https://github.com/ansible/ansible/pull/18053",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/authorized_key.py",
+          "patch": "@@ -159,7 +159,7 @@ class keydict(dict):\n \n     def __init__(self, *args, **kw):\n         super(keydict,self).__init__(*args, **kw)\n-        self.itemlist = super(keydict,self).keys()\n+        self.itemlist = list(super(keydict,self).keys())\n     def __setitem__(self, key, value):\n         self.itemlist.append(key)\n         super(keydict,self).__setitem__(key, value)"
+        }
+      ]
+    },
+    {
+      "sha": "f9478c76189865d1544c9e250766694ccd719327",
+      "message": "Make subversion module work on python 3\n\nIn python 3, filter return a iterator and so result in this traceback:\n\n    Traceback (most recent call last):\n      File \\\"/tmp/ansible_kzu72kz5/ansible_module_subversion.py\\\", line 264, in <module>\n        main()\n      File \\\"/tmp/ansible_kzu72kz5/ansible_module_subversion.py\\\", line 243, in main\n        local_mods = svn.has_local_mods()\n      File \\\"/tmp/ansible_kzu72kz5/ansible_module_subversion.py\\\", line 178, in has_local_mods\n        return len(filter(regex.match, lines)) > 0\n    TypeError: object of type 'filter' has no len()",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/source_control/subversion.py",
+          "patch": "@@ -175,7 +175,7 @@ def has_local_mods(self):\n         # Match only revisioned files, i.e. ignore status '?'.\n         regex = re.compile(r'^[^?X]')\n         # Has local mods if more than 0 modified revisioned files.\n-        return len(filter(regex.match, lines)) > 0\n+        return len(list(filter(regex.match, lines))) > 0\n \n     def needs_update(self):\n         curr, url = self.get_revision()"
+        }
+      ]
+    },
+    {
+      "sha": "74be5a40f9d7ae993b72fa2c1765c1ba5deed8bd",
+      "message": "Fix git get_diff TypeError when fetch (#4881)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/source_control/git.py",
+          "patch": "@@ -424,7 +424,8 @@ def get_diff(module, git_path, dest, repo, remote, depth, bare, before, after):\n         return { 'prepared': '>> Newly checked out %s' % after }\n     elif before != after:\n         # Ensure we have the object we are referring to during git diff !\n-        fetch(git_path, module, repo, dest, after, remote, depth, bare, '')\n+        git_version_used = git_version(git_path, module)\n+        fetch(git_path, module, repo, dest, after, remote, depth, bare, '', git_version_used)\n         cmd = '%s diff %s %s' % (git_path, before, after)\n         (rc, out, err) = module.run_command(cmd, cwd=dest)\n         if rc == 0 and out:"
+        }
+      ]
+    },
+    {
+      "sha": "6ae4e50e4740dc17791747c0ef29ad90b73f2347",
+      "message": "Fix failure when powering on/off EC2 instances by tag only. (#4767)\n\nIf you apply `wait=yes` and use `instance_tags` as your filter for\nstopping/starting EC2 instances, this stack trace happens:\n\n```\nAn exception occurred during task execution. The full traceback is:                                                                          \u2502~\nTraceback (most recent call last):                                                                                                           \u2502~\n  File \"/tmp/ryansb/ansible_FwE8VR/ansible_module_ec2.py\", line 1540, in <module>                                                            \u2502~\n    main()                                                                                                                                   \u2502~\n  File \"/tmp/ryansb/ansible_FwE8VR/ansible_module_ec2.py\", line 1514, in main                                                                \u2502~\n    (changed, instance_dict_array, new_instance_ids) = startstop_instances(module, ec2, instance_ids, state, instance_tags)                  \u2502~\n  File \"/tmp/ryansb/ansible_FwE8VR/ansible_module_ec2.py\", line 1343, in startstop_instances                                                 \u2502~\n    if len(matched_instances) < len(instance_ids):                                                                                           \u2502~\nTypeError: object of type 'NoneType' has no len()                                                                                            \u2502~\n                                                                                                                                             \u2502~\nfatal: [localhost -> localhost]: FAILED! => {\"changed\": false, \"failed\": true, \"invocation\": {\"module_name\": \"ec2\"}, \"module_stderr\": \"Traceb\u2502~\nack (most recent call last):\\n  File \\\"/tmp/ryansb/ansible_FwE8VR/ansible_module_ec2.py\\\", line 1540, in <module>\\n    main()\\n  File \\\"/tmp/\u2502~\nryansb/ansible_FwE8VR/ansible_module_ec2.py\\\", line 1514, in main\\n    (changed, instance_dict_array, new_instance_ids) = startstop_instances\u2502~\n(module, ec2, instance_ids, state, instance_tags)\\n  File \\\"/tmp/ryansb/ansible_FwE8VR/ansible_module_ec2.py\\\", line 1343, in startstop_insta\u2502~\nnces\\n    if len(matched_instances) < len(instance_ids):\\nTypeError: object of type 'NoneType' has no len()\\n\", \"module_stdout\": \"\", \"msg\": \"\u2502~\nMODULE FAILURE\", \"parsed\": false}\n```\n\nThat's because the `instance_ids` variable is None if not supplied\nin the task. That means the instances that result from the instance_tags\nquery aren't going to be included in the wait loop. To fix this, a list\nneeds to be kept of instances with matching tags and that list needs to\nbe added to `instance_ids` before the wait loop.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2.py",
+          "patch": "@@ -1302,7 +1302,7 @@ def startstop_instances(module, ec2, instance_ids, state, instance_tags):\n      # Check that our instances are not in the state we want to take\n \n     # Check (and eventually change) instances attributes and instances state\n-    running_instances_array = []\n+    existing_instances_array = []\n     for res in ec2.get_all_instances(instance_ids, filters=filters):\n         for inst in res.instances:\n \n@@ -1327,7 +1327,9 @@ def startstop_instances(module, ec2, instance_ids, state, instance_tags):\n                 except EC2ResponseError as e:\n                     module.fail_json(msg='Unable to change state for instance {0}, error: {1}'.format(inst.id, e))\n                 changed = True\n+            existing_instances_array.append(inst.id)\n \n+    instance_ids = list(set(existing_instances_array + (instance_ids or [])))\n     ## Wait for all the instances to finish starting or stopping\n     wait_timeout = time.time() + wait_timeout\n     while wait and wait_timeout > time.time():"
+        }
+      ]
+    },
+    {
+      "sha": "f2b6c7b6a244451c39d5b3649b444fa06c0e611a",
+      "message": "Fix user module under python3 (#4560)\n\nUsing something like:\n\n    - name: Create ssh keys\n      user:\n        name: root\n        generate_ssh_key: yes\n      register: key\n\nresult into this traceback on F24\n\n    Traceback (most recent call last):\n      File \\\"/tmp/ansible_jm5d4vlh/ansible_module_user.py\\\", line 2170, in <module>\n        main()\n      File \\\"/tmp/ansible_jm5d4vlh/ansible_module_user.py\\\", line 2108, in main\n        (rc, out, err) = user.modify_user()\n      File \\\"/tmp/ansible_jm5d4vlh/ansible_module_user.py\\\", line 660, in modify_user\n        return self.modify_user_usermod()\n      File \\\"/tmp/ansible_jm5d4vlh/ansible_module_user.py\\\", line 417, in modify_user_usermod\n        has_append = self._check_usermod_append()\n      File \\\"/tmp/ansible_jm5d4vlh/ansible_module_user.py\\\", line 405, in _check_usermod_append\n        lines = helpout.split('\\\\n')\n    TypeError: a bytes-like object is required, not 'str'",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/system/user.py",
+          "patch": "@@ -220,6 +220,7 @@\n import platform\n import socket\n import time\n+from ansible.module_utils._text import to_native\n \n try:\n     import spwd\n@@ -401,7 +402,7 @@ def _check_usermod_append(self):\n         helpout = data1 + data2\n \n         # check if --append exists\n-        lines = helpout.split('\\n')\n+        lines = to_native(helpout).split('\\n')\n         for line in lines:\n             if line.strip().startswith('-a, --append'):\n                 return True"
+        }
+      ]
+    },
+    {
+      "sha": "7b66bdc1c437cca6512edece9e8659bf805ffba0",
+      "message": "pip: Fix uninitialized variable during check_mode (#4379)\n\nDuring check_mode (`--check`), the variable change could be\nused uninitialized, yielding this error:\n\n`UnboundLocalError: local variable 'changed' referenced before assignment`\n\nThis changeset simply initializes it to False.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/packaging/language/pip.py",
+          "patch": "@@ -410,6 +410,7 @@ def main():\n             out += out_pip\n             err += err_pip\n \n+            changed = False\n             if name:\n                 for pkg in name:\n                     is_present = _is_present(pkg, version, out.split())"
+        }
+      ]
+    },
+    {
+      "sha": "c901b70a01ae3a7581fffab64974d05ee65cdbb8",
+      "message": "Fixing compile time errors irt (, e => as e, print(), ocat now 0o not 0) exception handling for Python 3 (#3851)\n\n* Fixing compile time errors irt a) exception handling for Python 3 in util, also: b) problem octal usage (fixed) and c) print json_dump -> print(json_dump(xyz) ... et al\n\n* This code was not Python 2.4 compliant. Octal codes and exception handling is now working with Py 2.4, 2.6, & 3.5.\n\n* Fixing formating (or rather reverting an non 2.4 compatible change). Works in compile & runtime checking.\n\n* a) revert to use print sys.stderr not fail_json; b) fixed var name in exception\n\n* Python 3 compatible print (print >>sys.stderr will generate a TypeError - now uses sys.stderr.write instead).",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/utilities/logic/async_status.py",
+          "patch": "@@ -79,7 +79,7 @@ def main():\n     data = file(log_path).read()\n     try:\n         data = json.loads(data)\n-    except Exception, e:\n+    except Exception:\n         if data == '':\n             # file not written yet?  That means it is running\n             module.exit_json(results_file=log_path, ansible_job_id=jid, started=1, finished=0)"
+        }
+      ]
+    },
+    {
+      "sha": "d5fc44610bea4c2bf4750d4cd9e5f32920baa258",
+      "message": "Fixed error in assemble module when validation failed. (#3814)\n\nError was: TypeError: fail_json() takes exactly 1 argument (2 given)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/files/assemble.py",
+          "patch": "@@ -260,8 +260,7 @@ def main():\n             result['validation'] = dict(rc=rc, stdout=out, stderr=err)\n             if rc != 0:\n                 cleanup(path)\n-                result['msg'] = \"failed to validate: rc:%s error:%s\" % (rc, err)\n-                module.fail_json(result)\n+                module.fail_json(msg=\"failed to validate: rc:%s error:%s\" % (rc, err))\n         if backup and dest_hash is not None:\n             result['backup_file'] = module.backup_local(dest)\n "
+        }
+      ]
+    },
+    {
+      "sha": "70b0891f9536fa7be1faac8939efa9141b673e58",
+      "message": "Fix UnboundLocalError if 'access_key_ids' not supplied\n\n'key_ids' is referenced before it is assigned, causing the module to fail with a UnboundLocalError instead of failing gracefully with a helpful error message.  This very small patch moves the assignment of 'key_ids' to before the variable is referenced.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/iam.py",
+          "patch": "@@ -541,12 +541,12 @@ def main():\n     new_path = module.params.get('new_path')\n     key_count = module.params.get('key_count')\n     key_state = module.params.get('access_key_state')\n+    key_ids = module.params.get('access_key_ids')\n     if key_state:\n         key_state = key_state.lower()\n         if any([n in key_state for n in ['active', 'inactive']]) and not key_ids:\n             module.fail_json(changed=False, msg=\"At least one access key has to be defined in order\"\n                                                 \" to use 'active' or 'inactive'\")\n-    key_ids = module.params.get('access_key_ids')\n \n     if iam_type == 'user' and module.params.get('password') is not None:\n         pwd = module.params.get('password')"
+        }
+      ]
+    },
+    {
+      "sha": "51e3c6c49bbf018cc12f7390329451cf6d09754b",
+      "message": "Guard against too old boto library\n\nroute53 creates Record objects using `health check` and `failover`\nparameters. Those parameters only became available in boto 2.28.0.\nAs some prominent LTS Linux releases (e.g.: Ubuntu 14.04) only ship\nolder boto versions (e.g.: 2.20.1 for Ubuntu 14.04), users are getting\nunhelpful error messages like\n\n  TypeError: __init__() got an unexpected keyword argument 'health_check'\n\nwhen running Ansible 2 against their LTS install's default boto.\nWe improve upon this error message by checking the boto version\nbeforehand.\n\nFixes ansible/ansible#13646",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/route53.py",
+          "patch": "@@ -274,10 +274,12 @@\n \n '''\n \n+MINIMUM_BOTO_VERSION = '2.28.0'\n WAIT_RETRY_SLEEP = 5  # how many seconds to wait between propagation status polls\n \n \n import time\n+import distutils.version\n \n try:\n     import boto\n@@ -391,6 +393,9 @@ def main():\n     if not HAS_BOTO:\n         module.fail_json(msg='boto required for this module')\n \n+    if distutils.version.StrictVersion(boto.__version__) < distutils.version.StrictVersion(MINIMUM_BOTO_VERSION):\n+        module.fail_json(msg='Found boto in version %s, but >= %s is required' % (boto.__version__, MINIMUM_BOTO_VERSION))\n+\n     command_in                      = module.params.get('command')\n     zone_in                         = module.params.get('zone').lower()\n     hosted_zone_id_in               = module.params.get('hosted_zone_id')"
+        }
+      ]
+    },
+    {
+      "sha": "94345349a651cc6e3d269c3abda8e021b1ee54d2",
+      "message": "Fixing issue #3057 - AttributeError: 'str' object has no attribute 'items'",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2_tag.py",
+          "patch": "@@ -109,7 +109,6 @@\n     - volumes\n '''\n \n-import sys\n \n try:\n     import boto.ec2\n@@ -122,7 +121,7 @@ def main():\n     argument_spec = ec2_argument_spec()\n     argument_spec.update(dict(\n             resource = dict(required=True),\n-            tags = dict(),\n+            tags = dict(type='dict'),\n             state = dict(default='present', choices=['present', 'absent', 'list']),\n         )\n     )\n@@ -184,4 +183,5 @@ def main():\n from ansible.module_utils.basic import *\n from ansible.module_utils.ec2 import *\n \n-main()\n+if __name__ == '__main__':\n+    main()"
+        }
+      ]
+    },
+    {
+      "sha": "eba767902ccf3b008df993f32eef03e6ed283622",
+      "message": "os_server: Add some error checking for the 'nics' parameter\n\nIf this parameter was not of the right type, the module would fail with a\ntraceback, with a \"AttributeError: 'str' object has no attribute 'get'\"\nexception.\n\nIt now gives a proper error message on type errors.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/openstack/os_server.py",
+          "patch": "@@ -372,7 +372,14 @@ def _network_args(module, cloud):\n     args = []\n     nics = module.params['nics']\n \n+    if type(nics) != list:\n+        module.fail_json(msg='The \\'nics\\' parameter must be a list.')\n+\n     for net in _parse_nics(nics):\n+        if type(net) != dict:\n+            module.fail_json(\n+                msg='Each entry in the \\'nics\\' parameter must be a dict.')\n+\n         if net.get('net-id'):\n             args.append(net)\n         elif net.get('net-name'):"
+        }
+      ]
+    },
+    {
+      "sha": "f0156dda0da211387e59f3d9f4cb45696c3cdee1",
+      "message": "Fixed error message: TypeError: fail_json() takes exactly 1 argument (2 given)",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/iam_policy.py",
+          "patch": "@@ -186,7 +186,7 @@ def role_action(module, iam, name, policy_name, skip, pdoc, state):\n       # Role doesn't exist so it's safe to assume the policy doesn't either\n       module.exit_json(changed=False)\n     else:\n-      module.fail_json(e.message)\n+      module.fail_json(msg=e.message)\n       \n   try:    \n     for pol in current_policies:"
+        }
+      ]
+    },
+    {
+      "sha": "e9071c62ba0ba7812cecd91e38b02651b78876f5",
+      "message": "Add missing variable initializations\n\nWithout this, \u00abec2: state=stopped instance_ids=\u2026\u00bb would fail with a\ntraceback like this:\n\n    if inst.get_attribute('sourceDestCheck')['sourceDestCheck'] != source_dest_check:\nNameError: global name 'source_dest_check' is not defined",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2.py",
+          "patch": "@@ -1223,6 +1223,8 @@ def startstop_instances(module, ec2, instance_ids, state, instance_tags):\n \n     wait = module.params.get('wait')\n     wait_timeout = int(module.params.get('wait_timeout'))\n+    source_dest_check = module.params.get('source_dest_check')\n+    termination_protection = module.params.get('termination_protection')\n     changed = False\n     instance_dict_array = []\n     source_dest_check = module.params.get('source_dest_check')"
+        }
+      ]
+    },
+    {
+      "sha": "c7eb08b217a77303373e7d4db2b5a3fa238f05bf",
+      "message": "Return an iterable instead of None\n\nBy default `.get()` will return `None` on a key that doesn't exist. This\ncauses a `TypeError` in the `for` loop a few lines down. This change simply\nreturns an iterable type to avoid the error.",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/cloud/amazon/ec2_metric_alarm.py",
+          "patch": "@@ -184,7 +184,7 @@ def create_metric_alarm(connection, module):\n         comparisons = {'<=' : 'LessThanOrEqualToThreshold', '<' : 'LessThanThreshold', '>=' : 'GreaterThanOrEqualToThreshold', '>' : 'GreaterThanThreshold'}\n         alarm.comparison = comparisons[comparison]\n \n-        dim1 = module.params.get('dimensions')\n+        dim1 = module.params.get('dimensions', {})\n         dim2 = alarm.dimensions\n \n         for keys in dim1:"
+        }
+      ]
+    },
+    {
+      "sha": "db6c2bac759bdf8853d9de74187ef2f839cf013d",
+      "message": "Add missing import of apt.debfile\n\nIn cases when the python-apt package is not installed, ansible will\nattempt to install it. After this attempt, it tries to import the\nneeded apt modules, but forgets to import the apt.debfile module.\n\nThe result is that playbooks that use the dpkg argument on a machine\nthat does not initially have the python-apt package available will\nfail with the following error\n\nAttributeError: 'module' object has no attribute 'debfile'\n\nThis patch adds the appropriate import to the apt module to ensure\nthat necessary libraries are available in cases when the dpkg argument\nis being used on a system that does not initially have the python-apt\npackage installed",
+      "changes": [
+        {
+          "file": "lib/ansible/modules/packaging/os/apt.py",
+          "patch": "@@ -523,6 +523,7 @@ def main():\n             module.run_command('apt-get update && apt-get install python-apt -y -q', use_unsafe_shell=True, check_rc=True)\n             global apt, apt_pkg\n             import apt\n+            import apt.debfile\n             import apt_pkg\n         except ImportError:\n             module.fail_json(msg=\"Could not import python modules: apt, apt_pkg. Please install python-apt package.\")"
+        }
+      ]
+    },
+    {
+      "sha": "df145df9628b16042ddd1ec5e87bbf924d7812c1",
+      "message": "Make facts detection work on OpenBSD with Python3\n\nThe traceback is the following:\n\n    Traceback (most recent call last):\n      File \\\"/tmp/ansible_8s0bj604/ansible_module_setup.py\\\", line 134, in <module>\n        main()\n      File \\\"/tmp/ansible_8s0bj604/ansible_module_setup.py\\\", line 126, in main\n        data = get_all_facts(module)\n      File \\\"/tmp/ansible_8s0bj604/ansible_modlib.zip/ansible/module_utils/facts.py\\\", line 3641, in get_all_facts\n      File \\\"/tmp/ansible_8s0bj604/ansible_modlib.zip/ansible/module_utils/facts.py\\\", line 3584, in ansible_facts\n      File \\\"/tmp/ansible_8s0bj604/ansible_modlib.zip/ansible/module_utils/facts.py\\\", line 1600, in populate\n      File \\\"/tmp/ansible_8s0bj604/ansible_modlib.zip/ansible/module_utils/facts.py\\\", line 1649, in get_memory_facts\n    TypeError: translate() takes exactly one argument (2 given)\n\nAnd the swapctl output is this:\n\n    # /sbin/swapctl -sk\n    total: 83090 1K-blocks allocated, 0 used, 83090 available\n\nThe only use of the code is to remove prefix in case they are present, so just\nreplacing them with empty space is sufficient.",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/facts.py",
+          "patch": "@@ -1647,10 +1647,10 @@ def get_memory_facts(self):\n         # total: 69268k bytes allocated = 0k used, 69268k available\n         rc, out, err = self.module.run_command(\"/sbin/swapctl -sk\")\n         if rc == 0:\n-            swaptrans = maketrans(' ', ' ')\n+            swaptrans = maketrans('kmg', '   ')\n             data = out.split()\n-            self.facts['swapfree_mb'] = int(data[-2].translate(swaptrans, \"kmg\")) // 1024\n-            self.facts['swaptotal_mb'] = int(data[1].translate(swaptrans, \"kmg\")) // 1024\n+            self.facts['swapfree_mb'] = int(data[-2].translate(swaptrans)) // 1024\n+            self.facts['swaptotal_mb'] = int(data[1].translate(swaptrans)) // 1024\n \n     def get_processor_facts(self):\n         processor = []"
+        }
+      ]
+    },
+    {
+      "sha": "b06fb2022c7534620238a7da00ad26018433156c",
+      "message": "Fix unbound method call for JSONEncoder (#17970)\n\n* Fix unbound method call for JSONEncoder\r\n\r\nThe way it is currently it will lead to unbound method error\r\n\r\n```python\r\nIn [1]: import json\r\n\r\nIn [2]: json.JSONEncoder.default('object_here')\r\n---------------------------------------------------------------------------\r\nTypeError                                 Traceback (most recent call last)\r\n<ipython-input-2-872fdacfda50> in <module>()\r\n----> 1 json.JSONEncoder.default('object_here')\r\n\r\nTypeError: unbound method default() must be called with JSONEncoder instance as first argument (got str instance instead)\r\n\r\n```\r\n\r\nBut what is really wanted is to let the json module to raise the \"is not serializable error\" which demands a bounded instance of `JSONEncoder()`\r\n\r\n```python\r\nIn [3]: json.JSONEncoder().default('object_here')\r\n---------------------------------------------------------------------------\r\nTypeError: 'object_here' is not JSON serializable \r\n\r\n```\r\n\r\n\r\nBTW: I think it would try to call `.to_json` of object before raising as it is a common pattern.\r\n\r\n* Calling JSONEncoder bounded `default` method using super()",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/filter/core.py",
+          "patch": "@@ -67,7 +67,7 @@ def default(self, o):\n         if isinstance(o, HostVars):\n             return dict(o)\n         else:\n-            return json.JSONEncoder.default(o)\n+            return super(AnsibleJSONEncoder, self).default(o)\n \n def to_yaml(a, *args, **kw):\n     '''Make verbose, human readable yaml'''"
+        }
+      ]
+    },
+    {
+      "sha": "07e713e7c66aeaa692c242b8340ae3199edc127b",
+      "message": "Fix NameError on 'ansible-vault view' (#17440)",
+      "changes": [
+        {
+          "file": "lib/ansible/cli/vault.py",
+          "patch": "@@ -163,7 +163,7 @@ def execute_view(self):\n             # unicode here because we are displaying it and therefore can make\n             # the decision that the display doesn't have to be precisely what\n             # the input was (leave that to decrypt instead)\n-            self.pager(ansible.module_utils._text.to_text(self.editor.plaintext(f)))\n+            self.pager(to_text(self.editor.plaintext(f)))\n \n     def execute_rekey(self):\n         for f in self.args:"
+        }
+      ]
+    },
+    {
+      "sha": "439aa353f1f2dc32608627bf3037930048d2c42d",
+      "message": "fixes bug when template is missing src argument\n\nadds AttributeError to exception handling to change missing src argument\n\nfixes #17391",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/action/net_template.py",
+          "patch": "@@ -41,7 +41,7 @@ def run(self, tmp=None, task_vars=None):\n \n         try:\n             self._handle_template()\n-        except ValueError as exc:\n+        except (ValueError, AttributeError) as exc:\n             return dict(failed=True, msg=exc.message)\n \n         result.update(self._execute_module(module_name=self._task.action,\n@@ -75,9 +75,12 @@ def _write_backup(self, host, contents):\n \n     def _handle_template(self):\n         src = self._task.args.get('src')\n+        if not src:\n+            raise ValueError('missing required arguments: src')\n+\n         working_path = self._get_working_path()\n \n-        if os.path.isabs(src) or urlparse.urlsplit('src').scheme:\n+        if os.path.isabs(src) or urlparse.urlsplit(src).scheme:\n             source = src\n         else:\n             source = self._loader.path_dwim_relative(working_path, 'templates', src)"
+        }
+      ]
+    },
+    {
+      "sha": "dbf7df443922a9b80583ac483407cecc783a4424",
+      "message": "fix pycharm debugger issue on missing fileno\n\nUnder pycharm debugger, stdin has no fileno, but throws AttributeError instead of ValueError. Account for both.",
+      "changes": [
+        {
+          "file": "lib/ansible/executor/process/worker.py",
+          "patch": "@@ -89,7 +89,7 @@ def __init__(self, rslt_q, task_vars, host, task, play_context, loader, variable\n                     # not a valid file descriptor, so we just rely on\n                     # using the one that was passed in\n                     pass\n-        except ValueError:\n+        except AttributeError, ValueError:\n             # couldn't get stdin's fileno, so we just carry on\n             pass\n "
+        }
+      ]
+    },
+    {
+      "sha": "b2476e7d99222e33baaf2d8b34191d72b7b1d40f",
+      "message": "Fix errors when using -vvvv with python 3 (#17186)\n\nTraceback (most recent call last):\r\n      File \"/tmp/ansible_tpehdgt7/ansible_module_setup.py\", line 134, in <module>\r\n        main()\r\n      File \"/tmp/ansible_tpehdgt7/ansible_module_setup.py\", line 124, in main\r\n        supports_check_mode = True,\r\n      File \"/tmp/ansible_tpehdgt7/ansible_modlib.zip/ansible/module_utils/basic.py\", line 696, in __init__\r\n      File \"/tmp/ansible_tpehdgt7/ansible_modlib.zip/ansible/module_utils/basic.py\", line 1670, in _log_invocation\r\n      File \"/tmp/ansible_tpehdgt7/ansible_modlib.zip/ansible/module_utils/basic.py\", line 469, in heuristic_log_sanitize\r\n    TypeError: 'str' does not support the buffer interface",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/basic.py",
+          "patch": "@@ -457,6 +457,8 @@ def heuristic_log_sanitize(data, no_log_values=None):\n     # prev_begin: where in the overall string to start a search for\n     #   a passwd\n     # sep_search_end: where in the string to end a search for the sep\n+    data = to_native(data)\n+\n     output = []\n     begin = len(data)\n     prev_begin = begin"
+        }
+      ]
+    },
+    {
+      "sha": "bed24689ec01f3d6bdb4c120932fef7e8bc06287",
+      "message": "Fix syntax error in json/jsonarg type parser\n\nThe lack of a comma caused the statement to always evaluate as a\n`TypeError` when python interpreted `value (list, tuple, dict)` to call\nvalue with the arguments list, tuple, and dict.",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/basic.py",
+          "patch": "@@ -1474,7 +1474,7 @@ def _check_type_jsonarg(self, value):\n         if isinstance(value, (unicode, bytes)):\n             return value.strip()\n         else:\n-            if isinstance(value (list, tuple, dict)):\n+            if isinstance(value, (list, tuple, dict)):\n                 return json.dumps(value)\n         raise TypeError('%s cannot be converted to a json string' % type(value))\n "
+        }
+      ]
+    },
+    {
+      "sha": "38590fbab9288bb591a819b9ef1ac16b6f7ff87d",
+      "message": "Fix string coercion problem in error handling code                                                                                                                                                                                                                                           10:50 (#16270)\n\nManifests as the following stack trace\r\n  File \"/usr/local/Cellar/ansible/2.0.1.0/libexec/lib/python2.7/site-packages/ansible/utils/display.py\", line 259, in error\r\n      new_msg = u\"ERROR! \" + msg\r\n      TypeError: coercing to Unicode: need string or buffer, AnsibleParserError found",
+      "changes": [
+        {
+          "file": "lib/ansible/utils/display.py",
+          "patch": "@@ -278,7 +278,7 @@ def error(self, msg, wrap_text=True):\n             wrapped = textwrap.wrap(new_msg, self.columns)\n             new_msg = u\"\\n\".join(wrapped) + u\"\\n\"\n         else:\n-            new_msg = u\"ERROR! \" + msg\n+            new_msg = u\"ERROR! %s\" % msg\n         if new_msg not in self._errors:\n             self.display(new_msg, color=C.COLOR_ERROR, stderr=True)\n             self._errors[new_msg] = 1"
+        }
+      ]
+    },
+    {
+      "sha": "e1d248dddf2a6cfcb61eb18290cc19d39d4ae8b5",
+      "message": "fix error message (#16264)\n\nThe error was: TypeError: fail_json() takes exactly 1 argument (2 given)",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/ec2.py",
+          "patch": "@@ -151,7 +151,7 @@ def get_aws_connection_info(module, boto3=False):\n                 # here we don't need to make an additional call, will default to 'us-east-1' if the below evaluates to None.\n                 region = botocore.session.get_session().get_config_variable('region')\n             else:\n-                module.fail_json(\"Boto3 is required for this module. Please install boto3 and try again\")\n+                module.fail_json(msg=\"Boto3 is required for this module. Please install boto3 and try again\")\n \n     if not security_token:\n         if 'AWS_SECURITY_TOKEN' in os.environ:"
+        }
+      ]
+    },
+    {
+      "sha": "a7f89cac63d22c2b33f7ce7c6f0846c47e77d8a8",
+      "message": "fix TypeError: coercing to Unicode: need string or buffer, AnsibleParserError found",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/strategy/linear.py",
+          "patch": "@@ -29,6 +29,7 @@\n from ansible.plugins import action_loader\n from ansible.plugins.strategy import StrategyBase\n from ansible.template import Templar\n+from ansible.utils.unicode import to_unicode\n \n try:\n     from __main__ import display\n@@ -330,7 +331,7 @@ def run(self, iterator, play_context):\n                             for host in included_file._hosts:\n                                 self._tqm._failed_hosts[host.name] = True\n                                 iterator.mark_host_failed(host)\n-                            display.error(e, wrap_text=False)\n+                            display.error(to_unicode(e), wrap_text=False)\n                             include_failure = True\n                             continue\n "
+        }
+      ]
+    },
+    {
+      "sha": "85e843baeeeb2f88dd17c7c987dcdbb992b29553",
+      "message": "Revert \"fix TypeError: coercing to Unicode: need string or buffer, AnsibleParserError found\"\n\nThis reverts commit d1e0719e4cd16fdd9d85dcf59a5c5c3741fa6583.",
+      "changes": [
+        {
+          "file": "lib/ansible/utils/display.py",
+          "patch": "@@ -108,7 +108,7 @@ def display(self, msg, color=None, stderr=False, screen_only=False, log_only=Fal\n         \"\"\" Display a message to the user\n \n         Note: msg *must* be a unicode string to prevent UnicodeError tracebacks.\n-        \"\"\"\n+        \"\"\" \n \n         # FIXME: this needs to be implemented\n         #msg = utils.sanitize_output(msg)\n@@ -273,7 +273,7 @@ def error(self, msg, wrap_text=True):\n             wrapped = textwrap.wrap(new_msg, self.columns)\n             new_msg = u\"\\n\".join(wrapped) + u\"\\n\"\n         else:\n-            new_msg = u\"ERROR! %s\" % msg\n+            new_msg = u\"ERROR! \" + msg\n         if new_msg not in self._errors:\n             self.display(new_msg, color=C.COLOR_ERROR, stderr=True)\n             self._errors[new_msg] = 1"
+        }
+      ]
+    },
+    {
+      "sha": "d1e0719e4cd16fdd9d85dcf59a5c5c3741fa6583",
+      "message": "fix TypeError: coercing to Unicode: need string or buffer, AnsibleParserError found",
+      "changes": [
+        {
+          "file": "lib/ansible/utils/display.py",
+          "patch": "@@ -108,7 +108,7 @@ def display(self, msg, color=None, stderr=False, screen_only=False, log_only=Fal\n         \"\"\" Display a message to the user\n \n         Note: msg *must* be a unicode string to prevent UnicodeError tracebacks.\n-        \"\"\" \n+        \"\"\"\n \n         # FIXME: this needs to be implemented\n         #msg = utils.sanitize_output(msg)\n@@ -273,7 +273,7 @@ def error(self, msg, wrap_text=True):\n             wrapped = textwrap.wrap(new_msg, self.columns)\n             new_msg = u\"\\n\".join(wrapped) + u\"\\n\"\n         else:\n-            new_msg = u\"ERROR! \" + msg\n+            new_msg = u\"ERROR! %s\" % msg\n         if new_msg not in self._errors:\n             self.display(new_msg, color=C.COLOR_ERROR, stderr=True)\n             self._errors[new_msg] = 1"
+        }
+      ]
+    },
+    {
+      "sha": "5975296770681de396838beeaa3dc1bfde841fb0",
+      "message": "Fix AWS EC2 external inventory script config read\n\nEC2 inventory scripts reads configuration from an INI file. The `instance_filters` option controls which EC2 instances are retrieved for inventory. Filling this option and running the inventory script with Python 3 crashes with the following error:\n\n```python\nTraceback (most recent call last):\n  File \"./contrib/inventory/ec2.py\", line 1328, in <module>\n    Ec2Inventory()\n  File \"./contrib/inventory/ec2.py\", line 163, in __init__\n    self.read_settings()\n  File \"./contrib/inventory/ec2.py\", line 393, in read_settings\n    for instance_filter in config.get('ec2', 'instance_filters', '').split(','):\nTypeError: get() takes 3 positional arguments but 4 were given\n```\n\nThe problem is the last parameter of config.get() call, because `fallback` keyword argument is not specified.\n\nThe fix handles epmpty `instance_filers` in case of Python 2&3",
+      "changes": [
+        {
+          "file": "contrib/inventory/ec2.py",
+          "patch": "@@ -388,7 +388,10 @@ def read_settings(self):\n         # Instance filters (see boto and EC2 API docs). Ignore invalid filters.\n         self.ec2_instance_filters = defaultdict(list)\n         if config.has_option('ec2', 'instance_filters'):\n-            for instance_filter in config.get('ec2', 'instance_filters', '').split(','):\n+\n+            filters = [tag for tag in config.get('ec2', 'instance_filters').split(',') if tag]\n+\n+            for instance_filter in filters:\n                 instance_filter = instance_filter.strip()\n                 if not instance_filter or '=' not in instance_filter:\n                     continue"
+        }
+      ]
+    },
+    {
+      "sha": "66347c9449486a63d9be3f5e003e2aac2d8578ff",
+      "message": "Fix NameError when using loops\n\nvars_copy disappeared in 3d1255d19009aa084fd2635917916fd9396ea898.\n\nFixes #13213.",
+      "changes": [
+        {
+          "file": "lib/ansible/executor/task_executor.py",
+          "patch": "@@ -188,7 +188,7 @@ def _get_loop_items(self):\n                         else:\n                             raise\n                 items = self._shared_loader_obj.lookup_loader.get(self._task.loop, loader=self._loader,\n-                        templar=templar).run(terms=loop_terms, variables=vars_copy)\n+                        templar=templar).run(terms=loop_terms, variables=self._job_vars)\n             else:\n                 raise AnsibleError(\"Unexpected failure in finding the lookup named '%s' in the available lookup plugins\" % self._task.loop)\n "
+        }
+      ]
+    },
+    {
+      "sha": "9aae1d5810377c2b919a8cb63ed26668fe3e4fe6",
+      "message": "Fixed Spelling Error on Line 67\n\nNoticed while running Ansible from Tip.\r\nThrows: NameError: global name 'tself' is not defined",
+      "changes": [
+        {
+          "file": "lib/ansible/plugins/action/unarchive.py",
+          "patch": "@@ -64,7 +64,7 @@ def run(self, tmp=None, task_vars=dict()):\n                 if self._task._role is not None:\n                     source = self._loader.path_dwim_relative(self._task._role._role_path, 'files', source)\n                 else:\n-                    source = self._loader.path_dwim_relative(tself._loader.get_basedir(), 'files', source)\n+                    source = self._loader.path_dwim_relative(self._loader.get_basedir(), 'files', source)\n \n         remote_checksum = self._remote_checksum(tmp, dest, all_vars=task_vars)\n         if remote_checksum != '3':"
+        }
+      ]
+    },
+    {
+      "sha": "0858d97c44b1e0d2bf2b08165169aa4f11cdc6fa",
+      "message": "also captures typeerrors for when not getting a proper string in output",
+      "changes": [
+        {
+          "file": "lib/ansible/executor/task_executor.py",
+          "patch": "@@ -295,7 +295,7 @@ def _execute(self, variables=None):\n                 # response, so we parse it here and replace the result\n                 try:\n                     result = json.loads(result.get('stdout'))\n-                except ValueError, e:\n+                except (TypeError, ValueError) as e:\n                     return dict(failed=True, msg=\"The async task did not return valid JSON: %s\" % str(e))\n \n                 if self._task.poll > 0:"
+        }
+      ]
+    },
+    {
+      "sha": "a899f8f01655bdaca349c19e73d4e9bc0d04e095",
+      "message": "Fix for task_executor on OS X\n\nI get this exception during the setup task:\n\nAttributeError: 'ConnectionInformation' object has no attribute 'remote_pass'\n\nI believe it is supposed to be looking at the password attribute. Either that\nor we should create a remote_pass attribute in ConnectionInformation.",
+      "changes": [
+        {
+          "file": "lib/ansible/executor/task_executor.py",
+          "patch": "@@ -380,7 +380,7 @@ def _get_connection(self, variables):\n         conn_type = self._connection_info.connection\n         if conn_type == 'smart':\n             conn_type = 'ssh'\n-            if sys.platform.startswith('darwin') and self._connection_info.remote_pass:\n+            if sys.platform.startswith('darwin') and self._connection_info.password:\n                 # due to a current bug in sshpass on OSX, which can trigger\n                 # a kernel panic even for non-privileged users, we revert to\n                 # paramiko on that OS when a SSH password is specified"
+        }
+      ]
+    },
+    {
+      "sha": "4755bde28d05a8dcafe979e95bf2da937d180c16",
+      "message": "adding for loop on list to to handle the return of none when the list is empty. With the previous method if the list was empty the script died. See http://stackoverflow.com/questions/18852324/typeerror-sequence-item-0-expected-string-nonetype-found",
+      "changes": [
+        {
+          "file": "plugins/inventory/ec2.py",
+          "patch": "@@ -622,8 +622,8 @@ def get_host_info_dict_from_instance(self, instance):\n                 for group in value:\n                     group_ids.append(group.id)\n                     group_names.append(group.name)\n-                instance_vars[\"ec2_security_group_ids\"] = ','.join(group_ids)\n-                instance_vars[\"ec2_security_group_names\"] = ','.join(group_names)\n+                instance_vars[\"ec2_security_group_ids\"] = ','.join([str(i) for i in group_ids])\n+                instance_vars[\"ec2_security_group_names\"] = ','.join([str(i) for i in group_names])\n             else:\n                 pass\n                 # TODO Product codes if someone finds them useful"
+        }
+      ]
+    },
+    {
+      "sha": "b9f7da7b4443ad35eb3268af595480b679e76a8e",
+      "message": "Docker client occasionally returns a NoneType, so we have to catch the TypeError",
+      "changes": [
+        {
+          "file": "plugins/inventory/docker.py",
+          "patch": "@@ -299,7 +299,7 @@ def list_groups():\n \n             try:\n                 port = client.port(container, ssh_port)[0]\n-            except (IndexError, AttributeError):\n+            except (IndexError, AttributeError, TypeError):\n                 port = dict()\n \n             try:"
+        }
+      ]
+    },
+    {
+      "sha": "ef6b437d0d00c50c0c9b012c70aa1293c2a94374",
+      "message": "Fix TypeError when using old simplejson lib.\n\nOn some very old simplejson does not support the 'encoding' and give\nfollowing exception:\n\n   TypeError: __init__() got an unexpected keyword argument 'encoding'\n\nThis fix runs json.dump with no encoding key (such as before #a023cb) on\nTypeError exception only.",
+      "changes": [
+        {
+          "file": "lib/ansible/module_utils/basic.py",
+          "patch": "@@ -884,6 +884,9 @@ def jsonify(self, data):\n         for encoding in (\"utf-8\", \"latin-1\", \"unicode_escape\"):\n             try:\n                 return json.dumps(data, encoding=encoding)\n+            # Old systems using simplejson module does not support encoding keyword.\n+            except TypeError, e:\n+                return json.dumps(data)\n             except UnicodeDecodeError, e:\n                 continue\n         self.fail_json(msg='Invalid unicode encoding encountered')"
+        }
+      ]
+    },
+    {
+      "sha": "761fe8cc040cf4392c8676c96ba4519323f253a4",
+      "message": "Fix an issue where git-pull fails with AttributeError\n\nAs part of 94f3b9bfab69feefa37bb006bf75f4a1b8acb19f the code was changed to support dynamically adding localhost to the inventory. This change introduced an crash when run via ansible-pull\n\n```\nStarting ansible-pull at 2014-01-20 23:09:57\nTraceback (most recent call last):\n  File \"/tmp/ansible/bin/ansible\", line 157, in <module>\n    (runner, results) = cli.run(options, args)\n  File \"/tmp/ansible/bin/ansible\", line 82, in run\n    hosts = inventory_manager.list_hosts(pattern)\n  File \"/tmp/ansible/lib/ansible/inventory/__init__.py\", line 372, in list_hosts\n    result = [ h.name for h in self.get_hosts(pattern) ]\n  File \"/tmp/ansible/lib/ansible/inventory/__init__.py\", line 136, in get_hosts\n    subset = self._get_hosts(self._subset)\n  File \"/tmp/ansible/lib/ansible/inventory/__init__.py\", line 177, in _get_hosts\n    that = self.__get_hosts(p)\n  File \"/tmp/ansible/lib/ansible/inventory/__init__.py\", line 198, in __get_hosts\n    hpat = self._hosts_in_unenumerated_pattern(name)\n  File \"/tmp/ansible/lib/ansible/inventory/__init__.py\", line 275, in _hosts_in_unenumerated_pattern\n    ungrouped.add_host(new_host)\nAttributeError: 'NoneType' object has no attribute 'add_host'\n```\n\nThe root cause is there is no group for the host to be added to. I fixed this case by creating the ungrouped group when it doesn't exist and then adding the host to the newly added group. This fixes the regression for me.",
+      "changes": [
+        {
+          "file": "lib/ansible/inventory/__init__.py",
+          "patch": "@@ -272,6 +272,10 @@ def _hosts_in_unenumerated_pattern(self, pattern):\n             new_host.set_variable(\"ansible_python_interpreter\", sys.executable)\n             new_host.set_variable(\"ansible_connection\", \"local\")\n             ungrouped = self.get_group(\"ungrouped\")\n+            if ungrouped is None:\n+                self.add_group(Group('ungrouped'))\n+                ungrouped = self.get_group('ungrouped')\n+\n             ungrouped.add_host(new_host)\n             results.append(new_host)\n         return results"
+        }
+      ]
+    },
+    {
+      "sha": "fa07604d43f9f75109f29193360ff34b8c0eb956",
+      "message": "Fix CliRunnerCallbacks.on_file_diff in callbacks.py\n\nWhen running ansible -C, I get a traceback that ends with\n    AttributeError: Values instance has no attribute 'diff'\nThis fixes on_file_diff to behave similar to\nPlaybookRunnerCallbacks.on_file_diff().",
+      "changes": [
+        {
+          "file": "lib/ansible/callbacks.py",
+          "patch": "@@ -285,8 +285,7 @@ def _on_any(self, host, result):\n             utils.write_tree_file(self.options.tree, host, utils.jsonify(result2,format=True))\n     \n     def on_file_diff(self, host, diff):\n-        if self.options.diff:\n-            print utils.get_diff(diff)\n+        print utils.get_diff(diff)\n         super(CliRunnerCallbacks, self).on_file_diff(host, diff)\n \n ########################################################################"
+        }
+      ]
+    },
+    {
+      "sha": "70d5dad72611871beb97f27ec4c02d88848eaae8",
+      "message": "Also catch NameErrors which would indicate missing quotes",
+      "changes": [
+        {
+          "file": "lib/ansible/utils/__init__.py",
+          "patch": "@@ -156,7 +156,7 @@ def is_unset(var):\n \n     try:\n         return eval(conditional.replace(\"\\n\", \"\\\\n\"))\n-    except SyntaxError as e:\n+    except (NameError, SyntaxError):\n         raise errors.AnsibleError(\"Could not evaluate the expression: \" + conditional)\n \n def is_executable(path):"
+        }
+      ]
+    },
+    {
+      "sha": "dd4ac463974403c7fe96267f4c09bbc841ecb1e7",
+      "message": "Import errno to avoid 'NameError: global name 'errno' is not defined'\n\nI hit the following exception because errno is referenced but not imported.\n\n```\nfatal: [system01] => failed to parse: Traceback (most recent call last):\n  File \"/root/.ansible/tmp/ansible-1354644532.37-246102819320352/copy\", line 782, in <module>\n    main()\n  File \"/root/.ansible/tmp/ansible-1354644532.37-246102819320352/copy\", line 117, in main\n    module.atomic_replace(dest_tmp, dest)\n  File \"/root/.ansible/tmp/ansible-1354644532.37-246102819320352/copy\", line 772, in atomic_replace\n    if e.errno != errno.EPERM:\nNameError: global name 'errno' is not defined\n```",
+      "changes": [
+        {
+          "file": "lib/ansible/module_common.py",
+          "patch": "@@ -56,6 +56,7 @@\n import grp\n import pwd\n import platform\n+import errno\n \n HAVE_SELINUX=False\n try:"
+        }
+      ]
+    }
+  ]
+}

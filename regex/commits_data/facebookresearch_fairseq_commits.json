@@ -1,0 +1,33 @@
+{
+  "repo_name": "facebookresearch/fairseq",
+  "commits": [
+    {
+      "sha": "6a7eb6ce05678d8cab1bea260830f2d1eb766cfe",
+      "message": "bugfix data not in args\n\nSummary:\nD15214049 introduced a bug such that if a tasks args does not contain data, then it will give error\n```\nFile \"/data/users/jaym/fbsource/fbcode/buck-out/dev/gen/deeplearning/projects/fairspeq/train#link-tree/train.py\", line 119, in reload_train\n   if len(args.data.split(\":\")) == 1:\nAttributeError: 'Namespace' object has no attribute 'data'\n```\n\nThis diff checks if data is in args to avoid above error.\n\nReviewed By: myleott, jmp84\n\nDifferential Revision: D15253373\n\nfbshipit-source-id: 14fb9ad878ee50f1b7583349bb17e29c03c40815",
+      "changes": [
+        {
+          "file": "train.py",
+          "patch": "@@ -116,7 +116,7 @@ def main(args, init_distributed=False):\n \n def reload_train(args, epoch_itr, max_positions, task):\n     # nothing needs to be done when the dataset is not sharded.\n-    if len(args.data.split(\":\")) == 1:\n+    if \"data\" not in args or (\"data\" in args and len(args.data.split(\":\")) == 1):\n         return epoch_itr\n     print(\"| Reloading shard of train data at epoch: \", epoch_itr.epoch)\n     task.load_dataset(args.train_subset, combine=True, epoch=epoch_itr.epoch)"
+        }
+      ]
+    },
+    {
+      "sha": "34c9ebf07327875013b5fa309e548493e65ea175",
+      "message": "Fixing a bug of DynamicConv in the unfolding mode (#593)\n\nSummary:\nThe unfold1d.py has the same name as the function `unfold1d` function, which will cause an error when using DynamicConv1dTBC with `unfold=True`.\nThis doesn't affect the NMT models which don't use the unfolding mode though.\n\nI rename `unfold1d.py` as `unfold.py` to fix this bug.\n\nOriginally we would get `TypeError` when running this code:\n```\nimport torch\nfrom fairseq.modules import LightweightConv1dTBC, DynamicConv1dTBC\n\nx = torch.rand(4, 10, 8)\nm = LightweightConv1dTBC(8, 4, 3)\no = m(x, unfold=True)\n\nm = DynamicConv1dTBC(8, 4, 3)\no = m(x, unfold=True)\n```\nPull Request resolved: https://github.com/pytorch/fairseq/pull/593\n\nDifferential Revision: D14597117\n\nPulled By: myleott\n\nfbshipit-source-id: 59752fd7ff62c53a4aba8b56b83155291e5f5792",
+      "changes": [
+        {
+          "file": "fairseq/modules/__init__.py",
+          "patch": "@@ -23,7 +23,7 @@\n from .multihead_attention import MultiheadAttention\n from .scalar_bias import ScalarBias\n from .sinusoidal_positional_embedding import SinusoidalPositionalEmbedding\n-from .unfold1d import unfold1d\n+from .unfold import unfold1d\n \n __all__ = [\n     'AdaptiveInput',"
+        },
+        {
+          "file": "fairseq/modules/dynamic_convolution.py",
+          "patch": "@@ -10,7 +10,7 @@\n import torch.nn.functional as F\n \n from fairseq import utils\n-from fairseq.modules import unfold1d\n+from .unfold import unfold1d\n \n \n def Linear(in_features, out_features, bias=True):"
+        },
+        {
+          "file": "fairseq/modules/lightweight_convolution.py",
+          "patch": "@@ -12,7 +12,7 @@\n import torch.nn.functional as F\n \n from fairseq import utils\n-from fairseq.modules import unfold1d\n+from .unfold import unfold1d\n \n \n class LightweightConv1d(nn.Module):"
+        }
+      ]
+    }
+  ]
+}

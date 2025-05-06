@@ -1,0 +1,225 @@
+{
+  "repo_name": "pytorch/pytorch",
+  "commits": [
+    {
+      "sha": "fb24f7c4adbd3469f552f3aa0db006317889f88f",
+      "message": "catch all exceptions in converting default values to ivalues (#31398)\n\nSummary:\nPreviously we would only catch `py::cast_error` which led to incomprehensible error messages like: `TypeError: 'NoneType' object is not iterable`. We are running arbitrary pybind code here, and not doing anything with the error message, so we should be less restrictive with the types of errors we catch.\nPull Request resolved: https://github.com/pytorch/pytorch/pull/31398\n\nDifferential Revision: D19166655\n\nPulled By: eellison\n\nfbshipit-source-id: 84db8b3714c718b475913f2f4bb6f19e62f2d9ec",
+      "changes": [
+        {
+          "file": "test/test_jit.py",
+          "patch": "@@ -3544,6 +3544,12 @@ def hints(x, a=0.5, b=10):\n             def hints_bad_types(x, a=10, b=0.5):  # noqa: T484\n                 # type: (Tensor, float, int) -> Tensor\n                 return x + a + b\n+        with self.assertRaisesRegex(RuntimeError, \"Expected a default value\"):\n+            @torch.jit.script\n+            def bad_no_optional(x=None):\n+                # type: (Dict[str, int]) -> Dict[str, int]\n+                return x\n+\n \n     def test_module_default_values(self):\n         four = torch.tensor(4)"
+        }
+      ]
+    },
+    {
+      "sha": "a5aeb37493831871aa9b48c06f4336784b7347cf",
+      "message": "Don't throw when type is used in TorchScript (#28053)\n\nSummary:\nType objects in python have an attribute `__abstractmethods__` that throws when it is accessed, so we were failing with an AttributeError whenever a type was used in TorchScript.\n\nThis pr prevents that error from happening. We can't just throw when a type is used because it could be used to access a static method: https://github.com/pytorch/pytorch/pull/27163\nPull Request resolved: https://github.com/pytorch/pytorch/pull/28053\n\nDifferential Revision: D18332347\n\nPulled By: eellison\n\nfbshipit-source-id: 9c7f2220f92674ad4d903621d9762cecc566ab0d",
+      "changes": [
+        {
+          "file": "torch/_jit_internal.py",
+          "patch": "@@ -140,7 +140,8 @@ def can_compile_class(cls):\n     # be compiled and is probably a builtin / bound from C\n     if is_ignored_fn(cls):\n         return False\n-    fns = [getattr(cls, name) for name in cls.__dict__ if inspect.isroutine(getattr(cls, name))]\n+    names = cls.__dict__\n+    fns = [getattr(cls, name) for name in names if inspect.isroutine(getattr(cls, name, None))]\n     has_code = [hasattr(fn, '__code__') for fn in fns]\n     return all(has_code)\n "
+        }
+      ]
+    },
+    {
+      "sha": "02dd9a40586051dedb74ab8219a8b5a287d5435c",
+      "message": "Fix CUDNN location related build issue on Antergos Linux (based on Arch) (#24300)\n\nSummary:\nThe issue is that `python setup.py install` will fail right at the end\nof the build, with:\n\n```\n  File \"setup.py\", line 380, in run\n    report('-- Detected cuDNN at ' + CUDNN_LIBRARY + ', ' + CUDNN_INCLUDE_DIR)\nTypeError: must be str, not NoneType\n```\n\nThis is due to `USE_CUDNN` being True, but CUDNN library and include dir\nnot being auto-detected.  On this distro, the CUDA install goes into\n`/opt/cuda/` while CUDNN goes into `/usr/lib`.\n\n```\n$ locate libcudnn.so\n...\n/usr/lib/libcudnn.so\n/usr/lib/libcudnn.so.7\n/usr/lib/libcudnn.so.7.6.1\n\n$ locate libcublas.so  # targets/... symlinked from /opt/cuda/lib64\n...\n/opt/cuda/targets/x86_64-linux/lib/libcublas.so\n```\n\nOne could work around this by setting `CUDNN_LIB_DIR`, but that's\nannoying and you only find out after running into this.\n\nThe path is added after `CUDA_HOME`, so should not be a problem on\nsystems which have multiple CUDA installs and select one via `CUDA_HOME`\nPull Request resolved: https://github.com/pytorch/pytorch/pull/24300\n\nDifferential Revision: D16839323\n\nPulled By: soumith\n\nfbshipit-source-id: 5285fff604584ccfbe6368c5ee5a066f8fc10802",
+      "changes": [
+        {
+          "file": "tools/setup_helpers/cudnn.py",
+          "patch": "@@ -18,6 +18,7 @@\n         '/usr/lib/x86_64-linux-gnu/',\n         '/usr/lib/powerpc64le-linux-gnu/',\n         '/usr/lib/aarch64-linux-gnu/',\n+        '/usr/lib/',\n     ] + gather_paths([\n         'LIBRARY_PATH',\n     ]) + gather_paths(["
+        }
+      ]
+    },
+    {
+      "sha": "ed19580dc4adb4e4e44e706473c6bde2b8d689e6",
+      "message": "Fix dataloader._shutdown_workers if not all workers are started (#23761)\n\nSummary:\nOtherwise you may see errors like\n```\nException ignored in: <function _MultiProcessingDataLoaderIter.__del__ at 0x000001F99F5CB9D8>\nTraceback (most recent call last):\n  File \"C:\\Users\\Divyansh J\\Anaconda3\\envs\\pytorch\\lib\\site-packages\\torch\\utils\\data\\dataloader.py\", line 883, in __del__\n    self._shutdown_workers()\n  File \"C:\\Users\\Divyansh J\\Anaconda3\\envs\\pytorch\\lib\\site-packages\\torch\\utils\\data\\dataloader.py\", line 860, in _shutdown_workers\n    if self.workers_status[worker_id]:\nIndexError: list index out of range\n```\n\ne.g. https://discuss.pytorch.org/t/how-to-construct-dataset-with-iterator-for-multi-process-dataloader/49612/5\nPull Request resolved: https://github.com/pytorch/pytorch/pull/23761\n\nDifferential Revision: D16644687\n\nPulled By: soumith\n\nfbshipit-source-id: a60e847431264525079456ff422317af1ac2be4b",
+      "changes": [
+        {
+          "file": "torch/utils/data/dataloader.py",
+          "patch": "@@ -896,7 +896,10 @@ def _shutdown_workers(self):\n \n                 # Exit workers now.\n                 self.workers_done_event.set()\n-                for worker_id in range(self.num_workers):\n+                for worker_id in range(len(self.workers)):\n+                    # Get number of workers from `len(self.workers)` instead of\n+                    # `self.num_workers` in case we error before starting all\n+                    # workers.\n                     if self.workers_status[worker_id]:\n                         self._shutdown_worker(worker_id)\n                 for w in self.workers:"
+        }
+      ]
+    },
+    {
+      "sha": "d9eec4ef0d7fcd7840e53f44c226dae902fd9e0d",
+      "message": "backend.py: _getattr__ must raise AttributeError (#21763)\n\nSummary:\nPull Request resolved: https://github.com/pytorch/pytorch/pull/21763\n\nCustom __getattr__ functions can only raise AttributeError. This code throwed NotImplementedError which caused upstream troubles when hasattr() was called.\n\nDifferential Revision: D15815176\n\nfbshipit-source-id: 0982e2382de4578d3fc05c5d2a63f624d6b4765e",
+      "changes": [
+        {
+          "file": "torch/nn/backends/backend.py",
+          "patch": "@@ -7,7 +7,7 @@ def __init__(self):\n     def __getattr__(self, name):\n         fn = self.function_classes.get(name)\n         if fn is None:\n-            raise NotImplementedError(\n+            raise AttributeError(\n                 \"Could not find function class for [{}]\".format(name))\n         return fn\n "
+        }
+      ]
+    },
+    {
+      "sha": "ef1fdc27a3779586efad631d698cec2d6d19503f",
+      "message": "Raise TypeError when the argument to isinf and isfinite is not a tensor (#20817)\n\nSummary:\nCurrently when the argument to isinf and isfinite is not tensor, a ValueError is raised. This, however, should be a TypeError, because the error is a type mismatch.\n\nIn the error message, \"str(tensor)\" is replaced by \"repr(tensor)\" because, when an error occurs, a printable representation of the object is likely more useful than the \"informal\" string version of the object.\nPull Request resolved: https://github.com/pytorch/pytorch/pull/20817\n\nDifferential Revision: D15495624\n\nPulled By: ezyang\n\nfbshipit-source-id: 514198dcd723a7031818e50a87e187b22d51af73",
+      "changes": [
+        {
+          "file": "torch/functional.py",
+          "patch": "@@ -226,7 +226,7 @@ def isfinite(tensor):\n         tensor([ 1,  0,  1,  0,  0], dtype=torch.uint8)\n     \"\"\"\n     if not isinstance(tensor, torch.Tensor):\n-        raise ValueError(\"The argument is not a tensor\", str(tensor))\n+        raise TypeError(\"The argument is not a tensor: {}\".format(repr(tensor)))\n \n     # Support int input, nan and inf are concepts in floating point numbers.\n     # Numpy uses type 'Object' when the int overflows long, but we don't\n@@ -252,7 +252,7 @@ def isinf(tensor):\n         tensor([ 0,  1,  0,  1,  0], dtype=torch.uint8)\n     \"\"\"\n     if not isinstance(tensor, torch.Tensor):\n-        raise ValueError(\"The argument is not a tensor\", str(tensor))\n+        raise TypeError(\"The argument is not a tensor: {}\".format(repr(tensor)))\n     if tensor.dtype in [torch.uint8, torch.int8, torch.int16, torch.int32, torch.int64]:\n         return torch.zeros_like(tensor, dtype=torch.uint8)\n     return tensor.abs() == inf"
+        }
+      ]
+    },
+    {
+      "sha": "877b7c1b8d31cfd660e770418d64aca7dc712f6c",
+      "message": "Fix NameError with PYTORCH_JIT=0 (#20120)\n\nSummary:\nRight now using `PYTORCH_JIT=0` gives this error:\n\n`NameError: name '_CachedForward' is not defined`](https://our.intern.facebook.com/intern/diff/15210046/)\nPull Request resolved: https://github.com/pytorch/pytorch/pull/20120\n\nPulled By: driazati\n\nDifferential Revision: D15210046\n\nfbshipit-source-id: 493716d38e0078bfe96fab3dc624ec029988cf1c",
+      "changes": [
+        {
+          "file": "torch/jit/__init__.py",
+          "patch": "@@ -1630,8 +1630,9 @@ def __setattr__(self, attr, value):\n         raise RuntimeError(\"Cannot set new properties on a traced module.\")\n \n \n-class TopLevelTracedModule(TracedModule):\n-    forward = _CachedForward()\n+if _enabled:\n+    class TopLevelTracedModule(TracedModule):\n+        forward = _CachedForward()\n \n \n class _ConstModuleList(ScriptModule):"
+        }
+      ]
+    },
+    {
+      "sha": "e4e9b738d3511bc2a9359514e115600de219e587",
+      "message": "Followup to #17049: change more instances of RuntimeError to IndexError\n\nSummary: Pull Request resolved: https://github.com/pytorch/pytorch/pull/17114\n\nDifferential Revision: D14150890\n\nPulled By: gchanan\n\nfbshipit-source-id: 579ca71665166c6a904b894598a0b334f0d8acc7",
+      "changes": [
+        {
+          "file": "test/test_torch.py",
+          "patch": "@@ -6919,7 +6919,7 @@ def test_flatten(self):\n         self.assertEqual(flat, src)\n \n         # out of bounds index\n-        with self.assertRaisesRegex(RuntimeError, 'Dimension out of range'):\n+        with self.assertRaisesRegex(IndexError, 'Dimension out of range'):\n             src.flatten(5, 10)\n \n         # invalid start and end\n@@ -7986,10 +7986,11 @@ def _test_flip(self, use_cuda=False):\n         self.assertRaises(RuntimeError, lambda: data.flip(0, 1, 1))\n         # not allow empty list as input\n         self.assertRaises(TypeError, lambda: data.flip())\n+\n         # not allow size of flip dim > total dims\n-        self.assertRaises(RuntimeError, lambda: data.flip(0, 1, 2, 3))\n+        self.assertRaises(IndexError, lambda: data.flip(0, 1, 2, 3))\n         # not allow dim > max dim\n-        self.assertRaises(RuntimeError, lambda: data.flip(3))\n+        self.assertRaises(IndexError, lambda: data.flip(3))\n \n         # test for non-contiguous case\n         expanded_data = torch.arange(1, 4, device=device).view(3, 1).expand(3, 2)"
+        }
+      ]
+    },
+    {
+      "sha": "a5e7b1d03268cc2afbce4109206dcf6a57b0f4fd",
+      "message": "Use IndexError instead of RuntimeError in ATen CPU kernels\n\nSummary: Pull Request resolved: https://github.com/pytorch/pytorch/pull/17049\n\nReviewed By: ezyang\n\nDifferential Revision: D14064700\n\nPulled By: fmassa\n\nfbshipit-source-id: 3575db103bba5a7d82f574cbb082beca419151ec",
+      "changes": [
+        {
+          "file": "test/test_torch.py",
+          "patch": "@@ -6440,9 +6440,9 @@ def ri(indices):\n             for err_idx in (10, -11):\n                 with self.assertRaisesRegex(IndexError, r'out of'):\n                     reference[err_idx]\n-                with self.assertRaisesRegex(RuntimeError, r'out of'):\n+                with self.assertRaisesRegex(IndexError, r'out of'):\n                     reference[conv_fn(torch.LongTensor([err_idx]))]\n-                with self.assertRaisesRegex(RuntimeError, r'out of'):\n+                with self.assertRaisesRegex(IndexError, r'out of'):\n                     reference[[err_idx]]\n \n         if TEST_NUMPY:"
+        }
+      ]
+    },
+    {
+      "sha": "cc3cecdba0cd74cdd7c0cb3d97f70c6f81bebf14",
+      "message": "Fix the bug when compile using nvcc compiler. (#13509)\n\nSummary:\nI found a bug about compiling the cuda file when I install maskrcnn-benchmark lib.\n\n`python setup.py build develop` will throw the error:\n```\n  File \"/usr/local/lib/python2.7/dist-packages/torch/utils/cpp_extension.py\", line 214, in unix_wrap_compile\n    original_compile(obj, src, ext, cc_args, cflags, pp_opts)\n  File \"/usr/lib/python2.7/distutils/unixccompiler.py\", line 125, in _compile\n    self.spawn(compiler_so + cc_args + [src, '-o', obj] +\nTypeError: coercing to Unicode: need string or buffer, list found\n```\n\nFor more information, please see [issue](https://github.com/facebookresearch/maskrcnn-benchmark/issues/99).\nPull Request resolved: https://github.com/pytorch/pytorch/pull/13509\n\nDifferential Revision: D12902675\n\nPulled By: soumith\n\nfbshipit-source-id: b9149f5de21ae29f94670cb2bbc93fa368f4e0f7",
+      "changes": [
+        {
+          "file": "torch/utils/cpp_extension.py",
+          "patch": "@@ -230,6 +230,8 @@ def unix_wrap_compile(obj, src, ext, cc_args, extra_postargs, pp_opts):\n                 original_compiler = self.compiler.compiler_so\n                 if _is_cuda_file(src):\n                     nvcc = _join_cuda_home('bin', 'nvcc')\n+                    if not isinstance(nvcc, list):\n+                        nvcc = [nvcc]\n                     self.compiler.set_executable('compiler_so', nvcc)\n                     if isinstance(cflags, dict):\n                         cflags = cflags['nvcc']"
+        }
+      ]
+    },
+    {
+      "sha": "94938be367cf72cb5758abdd2deab2d5786bae3f",
+      "message": "Support dtypes in legacy new constructors. (#5343)\n\n* Support dtypes in legacy new constructors.\r\n\r\n* Add comment about why we don't have dtype for sparse (indices, values).\r\n\r\n* separate legacy tensor ctor vs new (new includes dtypes).\r\n\r\n* Use TypeError.",
+      "changes": [
+        {
+          "file": "test/test_sparse.py",
+          "patch": "@@ -872,6 +872,9 @@ def do_test(x, indices, values):\n         from torch.autograd import Variable\n         do_test(Variable(x), Variable(i), Variable(v))\n \n+        self.assertIs(torch.sparse.uint8, Variable(x).new(dtype=torch.sparse.uint8).dtype)\n+        self.assertIs(torch.sparse.uint8, Variable(x).new(1, 2, dtype=torch.sparse.uint8).dtype)\n+\n     @cpu_only  # not really, but we only really want to run this once\n     def test_dtypes(self):\n         cpum = torch.sparse"
+        }
+      ]
+    },
+    {
+      "sha": "f2fd38c53c1e0c86cc6061371813e9134ca5adda",
+      "message": "Use TypeError in PythonArgParser (#4966)\n\nUses TypeError from torch/csrc/Exceptions.h in python_arg_parser.cpp so\r\nthat the exception is interpreted as a Python TypeError instead of\r\nRuntimeError.",
+      "changes": [
+        {
+          "file": "test/test_nn.py",
+          "patch": "@@ -2149,7 +2149,7 @@ def test_Conv2d_deterministic_cudnn(self):\n \n     def test_Conv2d_missing_argument(self):\n         c = nn.Conv2d(3, 3, 3)\n-        self.assertRaises(RuntimeError, lambda: c(None))\n+        self.assertRaises(TypeError, lambda: c(None))\n \n     def test_Conv2d_backward_twice(self):\n         input = Variable(torch.randn(2, 3, 5, 5))"
+        }
+      ]
+    },
+    {
+      "sha": "26168e22cd01cc2c8976ee9669e351a3f45b7968",
+      "message": "fix NameError in torch/nn/rnn.py",
+      "changes": [
+        {
+          "file": "torch/nn/modules/rnn.py",
+          "patch": "@@ -138,7 +138,7 @@ def check_forward_args(self, input, hidden, batch_sizes):\n         if self.input_size != input.size(-1):\n             raise RuntimeError(\n                 'input.size(-1) must be equal to input_size. Expected {}, got {}'.format(\n-                    fn.input_size, input.size(-1)))\n+                    self.input_size, input.size(-1)))\n \n         if is_input_packed:\n             mini_batch = batch_sizes[0]"
+        }
+      ]
+    },
+    {
+      "sha": "5f5270d4bfe6c944ca82ec79cf52b30a4f59d59b",
+      "message": "raise AttributeError from __getattr__ for hasattr to work\n\nSummary:\n- hasattr is misbehaving in python 3\n- python2: `This is implemented by calling getattr(object, name) and seeing whether it raises an exception or not`\n- python3: `This is implemented by calling getattr(object, name) and seeing whether it raises an AttributeError or not.`\n\nReviewed By: azzolini\n\nDifferential Revision: D5973797\n\nfbshipit-source-id: 0b6a413e6ebacd9bdd197c46feab256ab383ace2",
+      "changes": [
+        {
+          "file": "caffe2/python/model_helper.py",
+          "patch": "@@ -458,14 +458,14 @@ def __getattr__(self, op_type):\n             raise AttributeError(op_type)\n \n         if not core.IsOperator(op_type):\n-            raise RuntimeError(\n+            raise AttributeError(\n                 'Method ' + op_type + ' is not a registered operator.' +\n                 ' Did you mean: [' +\n                 ','.join(workspace.C.nearby_opnames(op_type)) + ']'\n             )\n         if op_type not in _known_working_ops:\n             if not self.allow_not_known_ops:\n-                raise RuntimeError(\n+                raise AttributeError(\n                     \"Operator {} is not known to be safe\".format(op_type))\n \n             logging.warning(\"You are creating an op that the ModelHelper \""
+        }
+      ]
+    },
+    {
+      "sha": "b7a6e823a99874d08b706dfa22f162364c787903",
+      "message": "Fix TypeError of prod when BP to GPU tensor (#2353)",
+      "changes": [
+        {
+          "file": "torch/autograd/_functions/reduce.py",
+          "patch": "@@ -71,7 +71,8 @@ def safe_zeros_backward(inp, dim):\n             exclusive_normal = exclusive_normal_nocp.cumprod(dim)\n \n             def reverse_dim(var, dim):\n-                return var.index_select(dim, Variable(torch.arange(var.size(dim) - 1, -1, -1)).long())\n+                index = Variable(torch.arange(var.size(dim) - 1, -1, -1, out=var.data.new().long()))\n+                return var.index_select(dim, index)\n \n             narrow_reverse = reverse_dim(inp.narrow(dim, 1, inp.size(dim) - 1), dim)\n             exclusive_reverse_nocp = torch.cat((ones, narrow_reverse), dim)"
+        }
+      ]
+    },
+    {
+      "sha": "0a95613cef99bf7f1b51b8391a6e4d3fc9f2d2f6",
+      "message": "Improve error message when accessing attributes that don't exist (#1936)\n\nNew:\r\n   >>> torch.autograd.Variable(torch.randn(3, 3)).foobar\r\n   AttributeError: 'Variable' object has no attribute 'foobar'\r\n\r\nOld:\r\n   >>> torch.autograd.Variable(torch.randn(3, 3)).foobar\r\n   AttributeError: foobar",
+      "changes": [
+        {
+          "file": "torch/autograd/variable.py",
+          "patch": "@@ -61,7 +61,7 @@ class Variable(_C._VariableBase):\n     def __getattr__(self, name):\n         if name in self._fallthrough_methods:\n             return getattr(self.data, name)\n-        raise AttributeError(name)\n+        return object.__getattribute__(self, name)\n \n     def __getitem__(self, key):\n         if torch.is_tensor(key):"
+        }
+      ]
+    },
+    {
+      "sha": "172a356668da88b911f2ce44f75a8897326ec51a",
+      "message": "forgotten import in variables.py\n\nFixing error on line 661: \r\nwarnings.warn(\"masked_copy_ is deprecated and renamed to masked_scatter_, and will be removed in v0.3\")\r\nNameError: name 'warnings' is not defined",
+      "changes": [
+        {
+          "file": "torch/autograd/variable.py",
+          "patch": "@@ -4,6 +4,7 @@\n from collections import OrderedDict\n import torch.sparse as sparse\n import torch.utils.hooks as hooks\n+import warnings\n \n \n class Variable(_C._VariableBase):"
+        }
+      ]
+    },
+    {
+      "sha": "8ef12951e0911db830c55ad11fd603c5b11551ca",
+      "message": "Fix for protobuf with unicode_literals\n\nSummary:\nPython 2.7, Protobuf 2.6\n\n    >                   op.ClearField('uuid')\n    E                   TypeError: field name must be a string\n\nFix: http://python-future.org/imports.html#should-i-import-unicode-literals\n\n/cc salexspb tomdz\nCloses https://github.com/caffe2/caffe2/pull/804\n\nDifferential Revision: D5258494\n\nPulled By: akyrola\n\nfbshipit-source-id: 04c473c1e55bf8caac0bfde7d86171c9f95e71a1",
+      "changes": [
+        {
+          "file": "caffe2/python/core_gradients_test.py",
+          "patch": "@@ -3,6 +3,7 @@\n from __future__ import print_function\n from __future__ import unicode_literals\n \n+from future.utils import bytes_to_native_str\n from hypothesis import given\n import hypothesis.strategies as st\n import unittest\n@@ -88,7 +89,7 @@ def assertEqual(self, op_list1, op_list2):\n         if isinstance(op_list1, list) and isinstance(op_list2, list):\n             for op in op_list1 + op_list2:\n                 if isinstance(op, caffe2_pb2.OperatorDef):\n-                    op.ClearField('uuid')\n+                    op.ClearField(bytes_to_native_str(b'uuid'))\n         return super(TestGradientCalculation, self).assertEqual(\n             op_list1, op_list2)\n "
+        }
+      ]
+    },
+    {
+      "sha": "97159810c9e5e66a3a9f740885a050988e1da560",
+      "message": "Restore compatibility with protobuf2\n\nSummary:\nAddresses an issue with https://github.com/caffe2/caffe2/commit/417f74509e265d89511c740bcb0ff03d78d97fd0.\n```\n>               operators.append(proto.op.pop())\nE               AttributeError: 'RepeatedCompositeFieldContainer' object has no attribute 'pop'\n```\n/cc jhcross\nCloses https://github.com/caffe2/caffe2/pull/658\n\nReviewed By: dzhulgakov\n\nDifferential Revision: D5130382\n\nPulled By: salexspb\n\nfbshipit-source-id: 34e0c39aad5f339c1aaa1506af3e7495193565f4",
+      "changes": [
+        {
+          "file": "caffe2/python/recurrent.py",
+          "patch": "@@ -236,7 +236,9 @@ def unpack_triple(x):\n         proto = backward_cell_net.Proto()\n         operators = []\n         while len(proto.op) > 0:\n-            operators.append(proto.op.pop())\n+            op = proto.op[-1]\n+            proto.op.remove(op)\n+            operators.append(op)\n         for op in operators[::-1]:\n             proto.op.extend([op])\n             for j, output_blob in enumerate(op.output):"
+        }
+      ]
+    },
+    {
+      "sha": "c8f444237f8c58ca3aa1ae2c6f441631cca1cfd1",
+      "message": "net_drawer: --input is required\n\nSummary:\nBefore:\n```\n$ python -m caffe2.python.net_drawer\nTraceback (most recent call last):\n  File \"/usr/lib/python2.7/runpy.py\", line 174, in _run_module_as_main\n    \"__main__\", fname, loader, pkg_name)\n  File \"/usr/lib/python2.7/runpy.py\", line 72, in _run_code\n    exec code in run_globals\n  File \"/data/caffe2/install/caffe2/python/net_drawer.py\", line 403, in <module>\n    main()\n  File \"/data/caffe2/install/caffe2/python/net_drawer.py\", line 365, in main\n    with open(args.input, 'r') as fid:\nTypeError: coercing to Unicode: need string or buffer, NoneType found\n```\nAfter:\n```\n$ python -m caffe2.python.net_drawer\nusage: net_drawer.py [-h] --input INPUT [--output_prefix OUTPUT_PREFIX]\n                     [--minimal] [--minimal_dependency] [--append_output]\n                     [--rankdir RANKDIR]\nnet_drawer.py: error: argument --input is required\n```\nCloses https://github.com/caffe2/caffe2/pull/479\n\nDifferential Revision: D5003898\n\nPulled By: pietern\n\nfbshipit-source-id: d121c331411ba4bbded81f9658ec787fa2fd3dc1",
+      "changes": [
+        {
+          "file": "caffe2/python/net_drawer.py",
+          "patch": "@@ -340,7 +340,7 @@ def main():\n     parser = argparse.ArgumentParser(description=\"Caffe2 net drawer.\")\n     parser.add_argument(\n         \"--input\",\n-        type=str,\n+        type=str, required=True,\n         help=\"The input protobuf file.\"\n     )\n     parser.add_argument("
+        }
+      ]
+    },
+    {
+      "sha": "2d1122739c9b714904f5c5dcdc0d33fc1d4a005c",
+      "message": "Raise AttributeError in Module.__getattr__",
+      "changes": [
+        {
+          "file": "torch/nn/modules/module.py",
+          "patch": "@@ -234,7 +234,8 @@ def __getattr__(self, name):\n             modules = self.__dict__['_modules']\n             if name in modules:\n                 return modules[name]\n-        return object.__getattr__(self, name)\n+        raise AttributeError(\"'{}' object has no attribute '{}'\".format(\n+            type(self).__name__, name))\n \n     def __setattr__(self, name, value):\n         def remove_from(*dicts):"
+        }
+      ]
+    },
+    {
+      "sha": "a5a5d00b87bcaa4349749454bf85f4fcf93b6956",
+      "message": "Fixed a bug: 'ModelTrainerLog instance has no attribute 'external_loggers''\n\nSummary: Fixed a bug (AttributeError: ModelTrainerLog instance has no attribute 'external_loggers', at File \"caffe2/python/experiment_util.py\", line 101) when no external_loggers is passed to ModelTrainerLog().\n\nDifferential Revision: D4697197\n\nfbshipit-source-id: 1c770c366d87ea474bcf40ab289b67c76648d48b",
+      "changes": [
+        {
+          "file": "caffe2/python/experiment_util.py",
+          "patch": "@@ -57,6 +57,7 @@ def __init__(self, expname, runtime_args, external_loggers=None):\n         self.start_time = time.time()\n         self.last_time = self.start_time\n         self.last_input_count = 0\n+        self.external_loggers = None\n \n         if external_loggers is not None:\n             self.external_loggers = external_loggers"
+        }
+      ]
+    }
+  ]
+}

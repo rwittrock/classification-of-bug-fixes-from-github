@@ -1,0 +1,401 @@
+{
+  "repo_name": "home-assistant/core",
+  "commits": [
+    {
+      "sha": "b64ac5be8564d8d11778e1b64fcb46293985bd2c",
+      "message": "fix issue setting scan_interval (#26165)\n\nI was getting the following error when i set the scan_interval\r\n```\r\n    self.scan_interval = timedelta(seconds=config.get(CONF_SCAN_INTERVAL, 60))\r\nTypeError: unsupported type for timedelta seconds component: datetime.timedelta\r\n```\r\nit turns out `config.get(CONF_SCAN_INTERVAL)` already returns `timedelta`\r\n\r\n```('scan_interval', datetime.timedelta(seconds=180))```",
+      "changes": [
+        {
+          "file": "homeassistant/components/google_maps/device_tracker.py",
+          "patch": "@@ -52,7 +52,7 @@ def __init__(self, hass, config: ConfigType, see) -> None:\n         self.see = see\n         self.username = config[CONF_USERNAME]\n         self.max_gps_accuracy = config[CONF_MAX_GPS_ACCURACY]\n-        self.scan_interval = timedelta(seconds=config.get(CONF_SCAN_INTERVAL, 60))\n+        self.scan_interval = config.get(CONF_SCAN_INTERVAL) or timedelta(60)\n \n         credfile = \"{}.{}\".format(\n             hass.config.path(CREDENTIALS_FILE), slugify(self.username)"
+        }
+      ]
+    },
+    {
+      "sha": "3deeac6bf7863bccb6df096cd168b87179ffe983",
+      "message": "fix issue setting scan_interval (#26165)\n\nI was getting the following error when i set the scan_interval\r\n```\r\n    self.scan_interval = timedelta(seconds=config.get(CONF_SCAN_INTERVAL, 60))\r\nTypeError: unsupported type for timedelta seconds component: datetime.timedelta\r\n```\r\nit turns out `config.get(CONF_SCAN_INTERVAL)` already returns `timedelta`\r\n\r\n```('scan_interval', datetime.timedelta(seconds=180))```",
+      "changes": [
+        {
+          "file": "homeassistant/components/google_maps/device_tracker.py",
+          "patch": "@@ -52,7 +52,7 @@ def __init__(self, hass, config: ConfigType, see) -> None:\n         self.see = see\n         self.username = config[CONF_USERNAME]\n         self.max_gps_accuracy = config[CONF_MAX_GPS_ACCURACY]\n-        self.scan_interval = timedelta(seconds=config.get(CONF_SCAN_INTERVAL, 60))\n+        self.scan_interval = config.get(CONF_SCAN_INTERVAL) or timedelta(60)\n \n         credfile = \"{}.{}\".format(\n             hass.config.path(CREDENTIALS_FILE), slugify(self.username)"
+        }
+      ]
+    },
+    {
+      "sha": "ffce593cc8bb736cfe451ee34eada7ec65596090",
+      "message": "Fix geniushub issue #24530 (via a client bump) & handle edge cases (#24546)\n\n* bump client library to workaround #24530\r\n\r\n* bump client library to workaround #24530 2/2\r\n\r\n* bump client library to workaround #24530\r\n\r\n* bump client library to workaround #24530 2/2\r\n\r\n* bugfix: ghost devices cause TypeError: 'NoneType' object is not subscriptable\r\n\r\n* bugfix: broken HW zones cause AttributeError: 'GeniusZone' object has no attribute 'temperature'\r\n\r\n* delint",
+      "changes": [
+        {
+          "file": "homeassistant/components/geniushub/binary_sensor.py",
+          "patch": "@@ -18,8 +18,9 @@ async def async_setup_platform(hass, config, async_add_entities,\n     \"\"\"Set up the Genius Hub sensor entities.\"\"\"\n     client = hass.data[DOMAIN]['client']\n \n+    devices = [d for d in client.hub.device_objs if d.type is not None]\n     switches = [GeniusBinarySensor(client, d)\n-                for d in client.hub.device_objs if d.type[:21] in GH_IS_SWITCH]\n+                for d in devices if d.type[:21] in GH_IS_SWITCH]\n \n     async_add_entities(switches)\n "
+        },
+        {
+          "file": "homeassistant/components/geniushub/water_heater.py",
+          "patch": "@@ -94,7 +94,10 @@ def should_poll(self) -> bool:\n     @property\n     def current_temperature(self):\n         \"\"\"Return the current temperature.\"\"\"\n-        return self._boiler.temperature\n+        try:\n+            return self._boiler.temperature\n+        except AttributeError:\n+            return None\n \n     @property\n     def target_temperature(self):"
+        }
+      ]
+    },
+    {
+      "sha": "ddefb7421509d170d201ece7a007d25894e42ebb",
+      "message": "Fix TypeError in current_temperature if no temperature is known. (#22112)\n\nDon't set opentherm_gw climate temperatures to 0 on init.",
+      "changes": [
+        {
+          "file": "homeassistant/components/opentherm_gw/climate.py",
+          "patch": "@@ -37,8 +37,8 @@ def __init__(self, hass, config):\n         self.floor_temp = config.get(CONF_FLOOR_TEMP)\n         self.temp_precision = config.get(CONF_PRECISION)\n         self._current_operation = STATE_IDLE\n-        self._current_temperature = 0.0\n-        self._target_temperature = 0.0\n+        self._current_temperature = None\n+        self._target_temperature = None\n         self._away_mode_a = None\n         self._away_mode_b = None\n         self._away_state_a = False\n@@ -124,6 +124,8 @@ def current_operation(self):\n     @property\n     def current_temperature(self):\n         \"\"\"Return the current temperature.\"\"\"\n+        if self._current_temperature is None:\n+            return\n         if self.floor_temp is True:\n             if self.temp_precision == PRECISION_HALVES:\n                 return int(2 * self._current_temperature) / 2"
+        }
+      ]
+    },
+    {
+      "sha": "9b1491a98d4152ddecee467753709ae4d2a9dd11",
+      "message": "Fix AttributeError traceback with darksky (#22101)\n\n* Update darksky.py\r\n\r\n* fixes",
+      "changes": [
+        {
+          "file": "homeassistant/components/weather/darksky.py",
+          "patch": "@@ -232,4 +232,6 @@ def update(self):\n     @property\n     def units(self):\n         \"\"\"Get the unit system of returned data.\"\"\"\n+        if self.data is None:\n+            return None\n         return self.data.json.get('flags').get('units')"
+        }
+      ]
+    },
+    {
+      "sha": "4423572682a24f8de7a832ab6ae46590594b7e1e",
+      "message": "Fix TypeError in current_temperature if no temperature is known. (#22112)\n\nDon't set opentherm_gw climate temperatures to 0 on init.",
+      "changes": [
+        {
+          "file": "homeassistant/components/opentherm_gw/climate.py",
+          "patch": "@@ -37,8 +37,8 @@ def __init__(self, hass, config):\n         self.floor_temp = config.get(CONF_FLOOR_TEMP)\n         self.temp_precision = config.get(CONF_PRECISION)\n         self._current_operation = STATE_IDLE\n-        self._current_temperature = 0.0\n-        self._target_temperature = 0.0\n+        self._current_temperature = None\n+        self._target_temperature = None\n         self._away_mode_a = None\n         self._away_mode_b = None\n         self._away_state_a = False\n@@ -124,6 +124,8 @@ def current_operation(self):\n     @property\n     def current_temperature(self):\n         \"\"\"Return the current temperature.\"\"\"\n+        if self._current_temperature is None:\n+            return\n         if self.floor_temp is True:\n             if self.temp_precision == PRECISION_HALVES:\n                 return int(2 * self._current_temperature) / 2"
+        }
+      ]
+    },
+    {
+      "sha": "2208563de44d6655e44f8608889f292ff4a565e3",
+      "message": "catch TypeError's in addition to ValueError's for unifi direct device tracker (#19994)\n\n* catch TypeError's in addition to ValueError's in response from unifi access point\r\n\r\nsometimes unifi's access point returns incomplete json which results in a TypeError because ssid_table is None\r\n\r\n* fix syntax error",
+      "changes": [
+        {
+          "file": "homeassistant/components/device_tracker/unifi_direct.py",
+          "patch": "@@ -131,6 +131,6 @@ def _response_to_json(response):\n                 active_clients[client.get(\"mac\")] = client\n \n         return active_clients\n-    except ValueError:\n+    except (ValueError, TypeError):\n         _LOGGER.error(\"Failed to decode response from AP.\")\n         return {}"
+        }
+      ]
+    },
+    {
+      "sha": "cee51ecb2b38943ab03299b95f9e6a63d0768191",
+      "message": "Remove spurious libzwave error (#19928)\n\nIf a network_key is not configuired, the following error is logged:\r\nTypeError: expected bytes, NoneType found\r\nException ignored in: 'libopenzwave.str_to_cppstr'\r\nTypeError: expected bytes, NoneType found\r\n\r\nWe don't need to set the key if it's None, let's skip in that case.",
+      "changes": [
+        {
+          "file": "homeassistant/components/zwave/__init__.py",
+          "patch": "@@ -284,7 +284,7 @@ async def async_setup_entry(hass, config_entry):\n \n     options.set_console_output(use_debug)\n \n-    if CONF_NETWORK_KEY in config_entry.data:\n+    if config_entry.data.get(CONF_NETWORK_KEY):\n         options.addOption(\"NetworkKey\", config_entry.data[CONF_NETWORK_KEY])\n \n     await hass.async_add_executor_job(options.lock)"
+        }
+      ]
+    },
+    {
+      "sha": "7def587c9305646f46ca5f8474bb6d46c7aebfb4",
+      "message": "Only strip from the bluetooth name if it isn't None (#17719)\n\nThis prevents the following traceback that will otherwise occur.\r\n\r\n    Traceback (most recent call last):\r\n      File \"/usr/local/lib/python3.6/concurrent/futures/thread.py\", line 56, in run\r\n        result = self.fn(*self.args, **self.kwargs)\r\n      File \"/usr/local/lib/python3.6/site-packages/homeassistant/components/device_tracker/bluetooth_le_tracker.py\", line 107, in update_ble\r\n        see_device(address, devs[address], new_device=True)\r\n      File \"/usr/local/lib/python3.6/site-packages/homeassistant/components/device_tracker/bluetooth_le_tracker.py\", line 47, in see_device\r\n        see(mac=BLE_PREFIX + address, host_name=name.strip(\"\\x00\"),\r\n    AttributeError: 'NoneType' object has no attribute 'strip'",
+      "changes": [
+        {
+          "file": "homeassistant/components/device_tracker/bluetooth_le_tracker.py",
+          "patch": "@@ -44,7 +44,10 @@ def see_device(address, name, new_device=False):\n                 new_devices[address] = 1\n                 return\n \n-        see(mac=BLE_PREFIX + address, host_name=name.strip(\"\\x00\"),\n+        if name is not None:\n+            name = name.strip(\"\\x00\")\n+\n+        see(mac=BLE_PREFIX + address, host_name=name,\n             source_type=SOURCE_TYPE_BLUETOOTH_LE)\n \n     def discover_ble_devices():"
+        }
+      ]
+    },
+    {
+      "sha": "2d0e3c14021d51ce7c780720d61ec303718dce90",
+      "message": "Ignore NaN values for influxdb (#14347)\n\n* Ignore NaN values for influxdb\r\n\r\n* Catch TypeError",
+      "changes": [
+        {
+          "file": "tests/components/test_influxdb.py",
+          "patch": "@@ -217,7 +217,7 @@ def test_event_listener_inf(self, mock_client):\n         \"\"\"Test the event listener for missing units.\"\"\"\n         self._setup()\n \n-        attrs = {'bignumstring':  \"9\" * 999}\n+        attrs = {'bignumstring':  '9' * 999, 'nonumstring': 'nan'}\n         state = mock.MagicMock(\n             state=8, domain='fake', entity_id='fake.entity-id',\n             object_id='entity', attributes=attrs)"
+        }
+      ]
+    },
+    {
+      "sha": "d43e6a28883dc3a513b9dc99002de4f15703c58d",
+      "message": "Ignore NaN values for influxdb (#14347)\n\n* Ignore NaN values for influxdb\r\n\r\n* Catch TypeError",
+      "changes": [
+        {
+          "file": "tests/components/test_influxdb.py",
+          "patch": "@@ -217,7 +217,7 @@ def test_event_listener_inf(self, mock_client):\n         \"\"\"Test the event listener for missing units.\"\"\"\n         self._setup()\n \n-        attrs = {'bignumstring':  \"9\" * 999}\n+        attrs = {'bignumstring':  '9' * 999, 'nonumstring': 'nan'}\n         state = mock.MagicMock(\n             state=8, domain='fake', entity_id='fake.entity-id',\n             object_id='entity', attributes=attrs)"
+        }
+      ]
+    },
+    {
+      "sha": "6e0a3abf66d89833394d55b2ac25af4068ab2a01",
+      "message": "Fix TypeError on round(self.humidity) (fixes #13116) (#14174)\n\n* Fix TypeError on round(self.humidity)\r\n\r\nSome weather platforms postpone the first data fetch for a while on init. As a result round(self.humidity is called before it is assigned a value, producing an error. This is a fix for that.\r\n\r\n* Rewrite to avoid false negative evaluation\r\n\r\nAs per the suggestion from @OttoWinter, rewrite to avoid matching e.g. 0.0 as false.",
+      "changes": [
+        {
+          "file": "homeassistant/components/weather/__init__.py",
+          "patch": "@@ -113,9 +113,12 @@ def state_attributes(self):\n             ATTR_WEATHER_TEMPERATURE: show_temp(\n                 self.hass, self.temperature, self.temperature_unit,\n                 self.precision),\n-            ATTR_WEATHER_HUMIDITY: round(self.humidity)\n         }\n \n+        humidity = self.humidity\n+        if humidity is not None:\n+            data[ATTR_WEATHER_HUMIDITY] = round(humidity)\n+\n         ozone = self.ozone\n         if ozone is not None:\n             data[ATTR_WEATHER_OZONE] = ozone"
+        }
+      ]
+    },
+    {
+      "sha": "c69f37500a9d14bf2e16f275cdc3d8d8e3a52ee7",
+      "message": "Restore typeerror check for units sans energy tracking (#13824)",
+      "changes": [
+        {
+          "file": "homeassistant/components/switch/edimax.py",
+          "patch": "@@ -84,12 +84,12 @@ def update(self):\n         \"\"\"Update edimax switch.\"\"\"\n         try:\n             self._now_power = float(self.smartplug.now_power)\n-        except ValueError:\n+        except (TypeError, ValueError):\n             self._now_power = None\n \n         try:\n             self._now_energy_day = float(self.smartplug.now_energy_day)\n-        except ValueError:\n+        except (TypeError, ValueError):\n             self._now_energy_day = None\n \n         self._state = self.smartplug.state == 'ON'"
+        }
+      ]
+    },
+    {
+      "sha": "bfb49c2e58429e5c4860cc4787c92feacf3fcb80",
+      "message": "Update plex.py (#13659)\n\nfixed IndexError on line 131",
+      "changes": [
+        {
+          "file": "homeassistant/components/sensor/plex.py",
+          "patch": "@@ -128,7 +128,7 @@ def update(self):\n                     season_title += \" ({0})\".format(sess.show().year)\n                 season_episode = \"S{0}\".format(sess.parentIndex)\n                 if sess.index is not None:\n-                    season_episode += \" \u00b7 E{1}\".format(sess.index)\n+                    season_episode += \" \u00b7 E{0}\".format(sess.index)\n                 episode_title = sess.title\n                 now_playing_title = \"{0} - {1} - {2}\".format(season_title,\n                                                              season_episode,"
+        }
+      ]
+    },
+    {
+      "sha": "7d8a309017f9969b52cd46344f204c48689f9454",
+      "message": "IndexError (list index out of range) fixed. (#12858)",
+      "changes": [
+        {
+          "file": "homeassistant/components/sensor/xiaomi_aqara.py",
+          "patch": "@@ -10,8 +10,8 @@\n SENSOR_TYPES = {\n     'temperature': [TEMP_CELSIUS, 'mdi:thermometer'],\n     'humidity': ['%', 'mdi:water-percent'],\n-    'illumination': ['lm'],\n-    'lux': ['lx'],\n+    'illumination': ['lm', 'mdi:weather-sunset'],\n+    'lux': ['lx', 'mdi:weather-sunset'],\n     'pressure': ['hPa', 'mdi:gauge']\n }\n "
+        }
+      ]
+    },
+    {
+      "sha": "9fed3acc90c9c4cd585069ccf21ab050cbc8d416",
+      "message": "Fix asuswrt AttributeError on neigh for unknown device (#11960)",
+      "changes": [
+        {
+          "file": "homeassistant/components/device_tracker/asuswrt.py",
+          "patch": "@@ -214,7 +214,8 @@ def _get_neigh(self, cur_devices):\n         for device in result:\n             if device['mac'] is not None:\n                 mac = device['mac'].upper()\n-                old_ip = cur_devices.get(mac, {}).ip or None\n+                old_device = cur_devices.get(mac)\n+                old_ip = old_device.ip if old_device else None\n                 devices[mac] = Device(mac, device.get('ip', old_ip), None)\n         return devices\n "
+        },
+        {
+          "file": "tests/components/device_tracker/test_asuswrt.py",
+          "patch": "@@ -447,6 +447,9 @@ def test_get_neigh(self, mocked_ssh):\n         scanner = get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)\n         scanner.connection = mocked_ssh\n         self.assertEqual(NEIGH_DEVICES, scanner._get_neigh(ARP_DEVICES.copy()))\n+        self.assertEqual(NEIGH_DEVICES, scanner._get_neigh({\n+            'UN:KN:WN:DE:VI:CE': Device('UN:KN:WN:DE:VI:CE', None, None),\n+        }))\n         mocked_ssh.run_command.return_value = ''\n         self.assertEqual({}, scanner._get_neigh(ARP_DEVICES.copy()))\n "
+        }
+      ]
+    },
+    {
+      "sha": "3af7c67bf1a66b43b982f4598420c34c3d4fcfb4",
+      "message": "Fix asuswrt AttributeError on neigh for unknown device (#11960)",
+      "changes": [
+        {
+          "file": "homeassistant/components/device_tracker/asuswrt.py",
+          "patch": "@@ -214,7 +214,8 @@ def _get_neigh(self, cur_devices):\n         for device in result:\n             if device['mac'] is not None:\n                 mac = device['mac'].upper()\n-                old_ip = cur_devices.get(mac, {}).ip or None\n+                old_device = cur_devices.get(mac)\n+                old_ip = old_device.ip if old_device else None\n                 devices[mac] = Device(mac, device.get('ip', old_ip), None)\n         return devices\n "
+        },
+        {
+          "file": "tests/components/device_tracker/test_asuswrt.py",
+          "patch": "@@ -447,6 +447,9 @@ def test_get_neigh(self, mocked_ssh):\n         scanner = get_scanner(self.hass, VALID_CONFIG_ROUTER_SSH)\n         scanner.connection = mocked_ssh\n         self.assertEqual(NEIGH_DEVICES, scanner._get_neigh(ARP_DEVICES.copy()))\n+        self.assertEqual(NEIGH_DEVICES, scanner._get_neigh({\n+            'UN:KN:WN:DE:VI:CE': Device('UN:KN:WN:DE:VI:CE', None, None),\n+        }))\n         mocked_ssh.run_command.return_value = ''\n         self.assertEqual({}, scanner._get_neigh(ARP_DEVICES.copy()))\n "
+        }
+      ]
+    },
+    {
+      "sha": "cf04a81f70d57e8734c06fe3f491e8c3ddfc3795",
+      "message": "Fix error on entity_config missing (#11561)\n\nIf the `google_assistant` key exists in the config but has no\r\n`entity_config` key under it you'll get an error.\r\n\r\n```\r\n  File \"/Users/pkates/src/home-assistant/homeassistant/components/google_assistant/http.py\", line 51, in is_exposed\r\n    entity_config.get(entity.entity_id, {}).get(CONF_EXPOSE)\r\nAttributeError: 'NoneType' object has no attribute 'get'\r\n```",
+      "changes": [
+        {
+          "file": "homeassistant/components/google_assistant/http.py",
+          "patch": "@@ -39,7 +39,7 @@ def async_register_http(hass, cfg):\n     expose_by_default = cfg.get(CONF_EXPOSE_BY_DEFAULT)\n     exposed_domains = cfg.get(CONF_EXPOSED_DOMAINS)\n     agent_user_id = cfg.get(CONF_AGENT_USER_ID)\n-    entity_config = cfg.get(CONF_ENTITY_CONFIG)\n+    entity_config = cfg.get(CONF_ENTITY_CONFIG) or {}\n \n     def is_exposed(entity) -> bool:\n         \"\"\"Determine if an entity should be exposed to Google Assistant.\"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "86e1d0f9522cd3dd55d295008684a24d330b6564",
+      "message": "Account for User-Agent being non-existent, causing a TypeError (#11064)\n\n* Account for User-Agent being non-existent, causing a TypeError\r\n\r\n* Actually fix case of no user-agent with last resort\r\n\r\n* Return es5 as last resort\r\n\r\n* Update __init__.py\r\n\r\n* Update __init__.py",
+      "changes": [
+        {
+          "file": "homeassistant/components/frontend/__init__.py",
+          "patch": "@@ -579,8 +579,12 @@ def _is_latest(js_option, request):\n     if js_option != 'auto':\n         return js_option == 'latest'\n \n+    useragent = request.headers.get('User-Agent')\n+    if not useragent:\n+        return False\n+\n     from user_agents import parse\n-    useragent = parse(request.headers.get('User-Agent'))\n+    useragent = parse(useragent)\n \n     # on iOS every browser is a Safari which we support from version 10.\n     if useragent.os.family == 'iOS':"
+        }
+      ]
+    },
+    {
+      "sha": "45620d68922b856b0f24eab11c5e8346a59e76ee",
+      "message": "Fix for TypeError in synology camera (#9754)",
+      "changes": [
+        {
+          "file": "homeassistant/components/camera/synology.py",
+          "patch": "@@ -20,7 +20,7 @@\n     async_aiohttp_proxy_web)\n import homeassistant.helpers.config_validation as cv\n \n-REQUIREMENTS = ['py-synology==0.1.1']\n+REQUIREMENTS = ['py-synology==0.1.3']\n \n _LOGGER = logging.getLogger(__name__)\n "
+        }
+      ]
+    },
+    {
+      "sha": "26cb67dec26b1b277a09d044d0abfd3181db9bbd",
+      "message": "minimal fixes in the owntracks mqtt device tracker (#9866)\n\n* fix UnboundLocalError when unable to parse payload, and show bad topics that cannot be parsed ok\r\n\r\n* Update owntracks.py",
+      "changes": [
+        {
+          "file": "homeassistant/components/device_tracker/owntracks.py",
+          "patch": "@@ -75,6 +75,7 @@ def async_handle_mqtt_message(topic, payload, qos):\n         except ValueError:\n             # If invalid JSON\n             _LOGGER.error(\"Unable to parse payload as JSON: %s\", payload)\n+            return\n \n         message['topic'] = topic\n \n@@ -91,7 +92,11 @@ def _parse_topic(topic):\n \n     Async friendly.\n     \"\"\"\n-    _, user, device, *_ = topic.split('/', 3)\n+    try:\n+        _, user, device, *_ = topic.split('/', 3)\n+    except ValueError:\n+        _LOGGER.error(\"Can't parse topic: '%s'\", topic)\n+        raise\n \n     return user, device\n "
+        }
+      ]
+    },
+    {
+      "sha": "e89e64263cd3933637f02c41a33eaec87e519a14",
+      "message": "Fix for TypeError in synology camera (#9754)",
+      "changes": [
+        {
+          "file": "homeassistant/components/camera/synology.py",
+          "patch": "@@ -20,7 +20,7 @@\n     async_aiohttp_proxy_web)\n import homeassistant.helpers.config_validation as cv\n \n-REQUIREMENTS = ['py-synology==0.1.1']\n+REQUIREMENTS = ['py-synology==0.1.3']\n \n _LOGGER = logging.getLogger(__name__)\n "
+        }
+      ]
+    },
+    {
+      "sha": "32b7f4d16f3c790d3370df3f4bcaf1a1462c8944",
+      "message": "Fixes UnboundLocalError: local variable 'setting' referenced before assignment (#8782)",
+      "changes": [
+        {
+          "file": "homeassistant/components/climate/tado.py",
+          "patch": "@@ -288,7 +288,7 @@ def update(self):\n \n             if 'setting' in overlay_data:\n                 setting_data = overlay_data['setting']\n-                setting = setting is not None\n+                setting = setting_data is not None\n \n             if setting:\n                 if 'mode' in setting_data:"
+        }
+      ]
+    },
+    {
+      "sha": "419d97fc0654123a5fe2e3305e8f00b7282bfe23",
+      "message": "Fixed potential AttributeError when checking for deleted sources (#7502)",
+      "changes": [
+        {
+          "file": "homeassistant/components/media_player/denonavr.py",
+          "patch": "@@ -19,7 +19,7 @@\n     CONF_NAME, STATE_ON)\n import homeassistant.helpers.config_validation as cv\n \n-REQUIREMENTS = ['denonavr==0.4.0']\n+REQUIREMENTS = ['denonavr==0.4.1']\n \n _LOGGER = logging.getLogger(__name__)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e2559fd6cf80fc981b45ed3a7a4b25eaa9eedb8a",
+      "message": "Fix object type for default KNX port\n\n#7429 describes a TypeError that is raised if the port is omitted in the config for the KNX component (integer is required (got type str)). This commit changes the default port from a string to an integer. I expect this will resolve that issue...",
+      "changes": [
+        {
+          "file": "homeassistant/components/knx.py",
+          "patch": "@@ -18,7 +18,7 @@\n _LOGGER = logging.getLogger(__name__)\n \n DEFAULT_HOST = '0.0.0.0'\n-DEFAULT_PORT = '3671'\n+DEFAULT_PORT = 3671\n DOMAIN = 'knx'\n \n EVENT_KNX_FRAME_RECEIVED = 'knx_frame_received'"
+        }
+      ]
+    },
+    {
+      "sha": "2971a24c56048ce7dd819c65732acc36347da2f3",
+      "message": "Fix object type for default KNX port\n\n#7429 describes a TypeError that is raised if the port is omitted in the config for the KNX component (integer is required (got type str)). This commit changes the default port from a string to an integer. I expect this will resolve that issue...",
+      "changes": [
+        {
+          "file": "homeassistant/components/knx.py",
+          "patch": "@@ -18,7 +18,7 @@\n _LOGGER = logging.getLogger(__name__)\n \n DEFAULT_HOST = '0.0.0.0'\n-DEFAULT_PORT = '3671'\n+DEFAULT_PORT = 3671\n DOMAIN = 'knx'\n \n EVENT_KNX_FRAME_RECEIVED = 'knx_frame_received'"
+        }
+      ]
+    },
+    {
+      "sha": "4f5ec3e36080d0001c4d2340220efbcefc3ab72a",
+      "message": "Update aiolifx (#7279)\n\nThis contains a fix for TypeError bug seen only with LIFX Z.",
+      "changes": [
+        {
+          "file": "homeassistant/components/light/lifx/__init__.py",
+          "patch": "@@ -31,7 +31,7 @@\n \n _LOGGER = logging.getLogger(__name__)\n \n-REQUIREMENTS = ['aiolifx==0.4.4']\n+REQUIREMENTS = ['aiolifx==0.4.5']\n \n UDP_BROADCAST_PORT = 56700\n "
+        }
+      ]
+    },
+    {
+      "sha": "50cc2ed97ca3e960bfa0bb4d7dbffd5a3794b665",
+      "message": "Bump Amcrest module to 1.1.8 (#6990)\n\nFixed traceback when calculating SD card percent storage\r\n\r\n   self._state = self._camera.percent(sd_used[0], sd_total[0])\r\nAttributeError: 'Http' object has no attribute 'percent'",
+      "changes": [
+        {
+          "file": "homeassistant/components/camera/amcrest.py",
+          "patch": "@@ -18,7 +18,7 @@\n from homeassistant.helpers.aiohttp_client import (\n     async_get_clientsession, async_aiohttp_proxy_web)\n \n-REQUIREMENTS = ['amcrest==1.1.5']\n+REQUIREMENTS = ['amcrest==1.1.8']\n \n _LOGGER = logging.getLogger(__name__)\n "
+        },
+        {
+          "file": "homeassistant/components/sensor/amcrest.py",
+          "patch": "@@ -19,7 +19,7 @@\n \n from requests.exceptions import HTTPError, ConnectTimeout\n \n-REQUIREMENTS = ['amcrest==1.1.5']\n+REQUIREMENTS = ['amcrest==1.1.8']\n \n _LOGGER = logging.getLogger(__name__)\n \n@@ -146,4 +146,4 @@ def update(self):\n             sd_total = self._camera.storage_total\n             self._attrs['Total'] = '{0} {1}'.format(*sd_total)\n             self._attrs['Used'] = '{0} {1}'.format(*sd_used)\n-            self._state = self._camera.percent(sd_used[0], sd_total[0])\n+            self._state = self._camera.storage_used_percent"
+        }
+      ]
+    },
+    {
+      "sha": "c5d89499fa5801dd89812b9f5b71a1e31680f87c",
+      "message": "Bump Amcrest module to 1.1.8 (#6990)\n\nFixed traceback when calculating SD card percent storage\r\n\r\n   self._state = self._camera.percent(sd_used[0], sd_total[0])\r\nAttributeError: 'Http' object has no attribute 'percent'",
+      "changes": [
+        {
+          "file": "homeassistant/components/camera/amcrest.py",
+          "patch": "@@ -18,7 +18,7 @@\n from homeassistant.helpers.aiohttp_client import (\n     async_get_clientsession, async_aiohttp_proxy_web)\n \n-REQUIREMENTS = ['amcrest==1.1.5']\n+REQUIREMENTS = ['amcrest==1.1.8']\n \n _LOGGER = logging.getLogger(__name__)\n "
+        },
+        {
+          "file": "homeassistant/components/sensor/amcrest.py",
+          "patch": "@@ -19,7 +19,7 @@\n \n from requests.exceptions import HTTPError, ConnectTimeout\n \n-REQUIREMENTS = ['amcrest==1.1.5']\n+REQUIREMENTS = ['amcrest==1.1.8']\n \n _LOGGER = logging.getLogger(__name__)\n \n@@ -146,4 +146,4 @@ def update(self):\n             sd_total = self._camera.storage_total\n             self._attrs['Total'] = '{0} {1}'.format(*sd_total)\n             self._attrs['Used'] = '{0} {1}'.format(*sd_used)\n-            self._state = self._camera.percent(sd_used[0], sd_total[0])\n+            self._state = self._camera.storage_used_percent"
+        }
+      ]
+    },
+    {
+      "sha": "7748867732b4314db6d84d3ffeca4c0cf93b2f23",
+      "message": "Avoid TypeError for state (#4897)",
+      "changes": [
+        {
+          "file": "homeassistant/components/sensor/coinmarketcap.py",
+          "patch": "@@ -77,7 +77,7 @@ def name(self):\n     @property\n     def state(self):\n         \"\"\"Return the state of the sensor.\"\"\"\n-        return round(self._ticker.get('price_usd'), 2)\n+        return round(float(self._ticker.get('price_usd')), 2)\n \n     @property\n     def unit_of_measurement(self):"
+        }
+      ]
+    },
+    {
+      "sha": "95124c7ddb5ce9383e92dced3646cfe3bd97edd1",
+      "message": "Revert \"Catch AttributeError on Wink PubNub update\" (#4263)",
+      "changes": [
+        {
+          "file": "homeassistant/components/binary_sensor/wink.py",
+          "patch": "@@ -61,7 +61,7 @@ def _pubnub_update(self, message, channel):\n                 json_data = message\n             self.wink.pubnub_update(json.loads(json_data))\n             self.update_ha_state()\n-        except (AttributeError, KeyError, AttributeError):\n+        except (AttributeError, KeyError):\n             error = \"Pubnub returned invalid json for \" + self.name\n             logging.getLogger(__name__).error(error)\n             self.update_ha_state(True)"
+        },
+        {
+          "file": "homeassistant/components/wink.py",
+          "patch": "@@ -111,7 +111,7 @@ def _pubnub_update(self, message, channel):\n         try:\n             self.wink.pubnub_update(json.loads(message))\n             self.update_ha_state()\n-        except (AttributeError, KeyError, AttributeError):\n+        except (AttributeError, KeyError):\n             error = \"Pubnub returned invalid json for \" + self.name\n             logging.getLogger(__name__).error(error)\n             self.update_ha_state(True)"
+        }
+      ]
+    },
+    {
+      "sha": "0aba227300fdf292b86cf3365e7736d522d5e11d",
+      "message": "Catch AttributeError (#4253)",
+      "changes": [
+        {
+          "file": "homeassistant/components/binary_sensor/wink.py",
+          "patch": "@@ -61,7 +61,7 @@ def _pubnub_update(self, message, channel):\n                 json_data = message\n             self.wink.pubnub_update(json.loads(json_data))\n             self.update_ha_state()\n-        except (AttributeError, KeyError):\n+        except (AttributeError, KeyError, AttributeError):\n             error = \"Pubnub returned invalid json for \" + self.name\n             logging.getLogger(__name__).error(error)\n             self.update_ha_state(True)"
+        },
+        {
+          "file": "homeassistant/components/wink.py",
+          "patch": "@@ -111,7 +111,7 @@ def _pubnub_update(self, message, channel):\n         try:\n             self.wink.pubnub_update(json.loads(message))\n             self.update_ha_state()\n-        except (AttributeError, KeyError):\n+        except (AttributeError, KeyError, AttributeError):\n             error = \"Pubnub returned invalid json for \" + self.name\n             logging.getLogger(__name__).error(error)\n             self.update_ha_state(True)"
+        }
+      ]
+    },
+    {
+      "sha": "705814cb08a4683a8316170fc5c901ac10ac9135",
+      "message": "Catch all errors when doing mqtt message unicode-decode. (#4143)\n\n* catch all errors when doing mqtt message unicode-decode.\r\n\r\n* added AttributeError and UnicodeDecodeError to exception when decoding an mqtt message payload",
+      "changes": [
+        {
+          "file": "homeassistant/components/mqtt/__init__.py",
+          "patch": "@@ -399,7 +399,7 @@ def _mqtt_on_message(self, _mqttc, _userdata, msg):\n         \"\"\"Message received callback.\"\"\"\n         try:\n             payload = msg.payload.decode('utf-8')\n-        except AttributeError:\n+        except (AttributeError, UnicodeDecodeError):\n             _LOGGER.error(\"Illegal utf-8 unicode payload from \"\n                           \"MQTT topic: %s, Payload: %s\", msg.topic,\n                           msg.payload)"
+        }
+      ]
+    },
+    {
+      "sha": "4c45e9211679b54e11651daadb121610e81b2095",
+      "message": "modbus update, add error log instead of AttributeError exception (#3517)",
+      "changes": [
+        {
+          "file": "homeassistant/components/sensor/modbus.py",
+          "patch": "@@ -93,6 +93,12 @@ def update(self):\n             self._register,\n             self._count)\n         val = 0\n+        if not result:\n+            _LOGGER.error(\n+                'No response from modbus slave %s register %s',\n+                self._slave,\n+                self._register)\n+            return\n         for i, res in enumerate(result.registers):\n             val += res * (2**(i*16))\n         self._value = format("
+        },
+        {
+          "file": "homeassistant/components/switch/modbus.py",
+          "patch": "@@ -72,4 +72,10 @@ def turn_off(self, **kwargs):\n     def update(self):\n         \"\"\"Update the state of the switch.\"\"\"\n         result = modbus.HUB.read_coils(self._slave, self._coil, 1)\n+        if not result:\n+            _LOGGER.error(\n+                'No response from modbus slave %s coil %s',\n+                self._slave,\n+                self._coil)\n+            return\n         self._is_on = bool(result.bits[0])"
+        }
+      ]
+    },
+    {
+      "sha": "1dae22a465f0f67229da9c984a0c721cb357fed4",
+      "message": "Fix device_state_attributes\n\n* Return a dict with keys as the names of the enum members instead of\n\tthe member values.\n* This fixes a TypeError: unorderable types: int() < str()",
+      "changes": [
+        {
+          "file": "homeassistant/components/sensor/mysensors.py",
+          "patch": "@@ -153,8 +153,10 @@ def unit_of_measurement(self):\n     @property\n     def device_state_attributes(self):\n         \"\"\"Return device specific state attributes.\"\"\"\n-        device_attr = dict(self._values)\n-        device_attr.pop(self.value_type, None)\n+        device_attr = {}\n+        for value_type, value in self._values.items():\n+            if value_type != self.value_type:\n+                device_attr[self.gateway.const.SetReq(value_type).name] = value\n         return device_attr\n \n     @property"
+        },
+        {
+          "file": "homeassistant/components/switch/mysensors.py",
+          "patch": "@@ -103,8 +103,10 @@ def name(self):\n     @property\n     def device_state_attributes(self):\n         \"\"\"Return device specific state attributes.\"\"\"\n-        device_attr = dict(self._values)\n-        device_attr.pop(self.value_type, None)\n+        device_attr = {}\n+        for value_type, value in self._values.items():\n+            if value_type != self.value_type:\n+                device_attr[self.gateway.const.SetReq(value_type).name] = value\n         return device_attr\n \n     @property"
+        }
+      ]
+    },
+    {
+      "sha": "cda821e649e08c9660c4005b0f7706b0eaf7a101",
+      "message": "Update __init__.py\n\nUpdated to fix the following error when loading sensors:\r\n\r\n\"home-assistant/homeassistant/components/sensor/__init__.py\", line 87, in setup\r\n    hass.track_time_change(update_sensor_states, seconds=range(0, 60, 3))\r\nTypeError: track_time_change() got an unexpected keyword argument 'seconds'\"\r\n\r\nthe named parameter was using seconds instead of second",
+      "changes": [
+        {
+          "file": "homeassistant/components/sensor/__init__.py",
+          "patch": "@@ -84,6 +84,6 @@ def sensor_discovered(service, info):\n     discovery.listen(hass, DISCOVERY_PLATFORMS.keys(), sensor_discovered)\n \n     # Fire every 3 seconds\n-    hass.track_time_change(update_sensor_states, seconds=range(0, 60, 3))\n+    hass.track_time_change(update_sensor_states, second=range(0, 60, 3))\n \n     return True"
+        }
+      ]
+    }
+  ]
+}

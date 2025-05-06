@@ -1,0 +1,35 @@
+{
+  "repo_name": "explosion/spaCy",
+  "commits": [
+    {
+      "sha": "73e095923f93b81fe40b80c384be644d2a829749",
+      "message": "\ud83d\udcab Improve error message when model.from_bytes() dies (#4014)\n\n* Improve error message when model.from_bytes() dies\r\n\r\nWhen Thinc's model.from_bytes() is called with a mismatched model, often\r\nwe get a particularly ungraceful error,\r\n\r\ne.g. \"AttributeError: FunctionLayer has no attribute G\"\r\n\r\nThis is because we're trying to load the parameters for something like\r\na LayerNorm layer, and the model architecture has some other layer there\r\ninstead. This is obviously terrible, especially since the error *type*\r\nis wrong.\r\n\r\nI've changed it to raise a ValueError. The error message is still\r\nprobably a bit terse, but it's hard to be sure exactly what's gone\r\nwrong.\r\n\r\n* Update spacy/pipeline/pipes.pyx\r\n\r\n* Update spacy/pipeline/pipes.pyx\r\n\r\n* Update spacy/pipeline/pipes.pyx\r\n\r\n* Update spacy/syntax/nn_parser.pyx\r\n\r\n* Update spacy/syntax/nn_parser.pyx\r\n\r\n* Update spacy/pipeline/pipes.pyx\r\n\r\nCo-Authored-By: Matthew Honnibal <honnibal+gh@gmail.com>\r\n\r\n* Update spacy/pipeline/pipes.pyx\r\n\r\nCo-Authored-By: Matthew Honnibal <honnibal+gh@gmail.com>\r\n\r\n\r\nCo-authored-by: Ines Montani <ines@ines.io>",
+      "changes": [
+        {
+          "file": "spacy/errors.py",
+          "patch": "@@ -413,7 +413,8 @@ class Errors(object):\n             \"This is likely a bug in spaCy, so feel free to open an issue.\")\n     E148 = (\"Expected {ents} KB identifiers but got {ids}. Make sure that each entity in `doc.ents` \"\n             \"is assigned to a KB identifier.\")\n-\n+    E149 = (\"Error deserializing model. Check that the config used to create the \"\n+            \"component matches the model being loaded.\")\n \n @add_codes\n class TempErrors(object):"
+        }
+      ]
+    },
+    {
+      "sha": "ba8a840f8448cd5ff6965e4a518adf879a433835",
+      "message": "spacy.cli.evaluate: fix TypeError (#3101)",
+      "changes": [
+        {
+          "file": "spacy/cli/evaluate.py",
+          "patch": "@@ -49,9 +49,9 @@ def evaluate(\n     end = timer()\n     nwords = sum(len(doc_gold[0]) for doc_gold in dev_docs)\n     results = {\n-        \"Time\": \"%.2f s\" % end - begin,\n+        \"Time\": \"%.2f s\" % (end - begin),\n         \"Words\": nwords,\n-        \"Words/s\": \"%.0f\" % nwords / (end - begin),\n+        \"Words/s\": \"%.0f\" % (nwords / (end - begin)),\n         \"TOK\": \"%.2f\" % scorer.token_acc,\n         \"POS\": \"%.2f\" % scorer.tags_acc,\n         \"UAS\": \"%.2f\" % scorer.uas,"
+        }
+      ]
+    },
+    {
+      "sha": "c8d3694e2d5ce4173304cead3c69d18f1a7c8bcc",
+      "message": "Ch lex.repvec to lex.vector\n\nFor preventing the AttributeError: `File \"spacy/lexeme.pyx\", line 159, in spacy.lexeme.Lexeme.repvec.__get__ (spacy/lexeme.cpp:5016)\r\nAttributeError: lex.repvec has been renamed to lex.vector`",
+      "changes": [
+        {
+          "file": "examples/nn_text_class.py",
+          "patch": "@@ -56,7 +56,7 @@ def bow2vec(self, bow, E):\n         self.vector.fill(0)\n         n = 0\n         for orth_id, freq in bow.items():\n-            self.vector += self.nlp.vocab[self.nlp.vocab.strings[orth_id]].repvec * freq\n+            self.vector += self.nlp.vocab[self.nlp.vocab.strings[orth_id]].vector * freq\n             # Apply the fine-tuning we've learned\n             if orth_id < E.shape[0]:\n                 self.vector += E[orth_id] * freq"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+{
+  "repo_name": "python-pillow/Pillow",
+  "commits": [
+    {
+      "sha": "d61921455e7e9d384dd93a783b459146c6a76d61",
+      "message": "Prevent TypeError for JPEG2000 parser feed",
+      "changes": [
+        {
+          "file": "src/PIL/Jpeg2KImagePlugin.py",
+          "patch": "@@ -192,7 +192,7 @@ def _open(self):\n                 length = -1\n \n         self.tile = [('jpeg2k', (0, 0) + self.size, 0,\n-                      (self.codec, self.reduce, self.layers, fd, length, self.fp))]\n+                      (self.codec, self.reduce, self.layers, fd, length))]\n \n     def load(self):\n         if self.reduce:"
+        }
+      ]
+    },
+    {
+      "sha": "8edbc79e7f5cf32307caf609b1a346456f8d9fb4",
+      "message": "Fix \"TypeError: 'NoneType' object is not iterable\" for PPC and CRUX",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -368,7 +368,7 @@ def build_extensions(self):\n \n                 for platform_ in arch_tp:\n                     dirs = libdirs.get(platform_, None)\n-                    if not platform_:\n+                    if not dirs:\n                         continue\n                     for path in dirs:\n                         _add_directory(library_dirs, path)"
+        }
+      ]
+    },
+    {
+      "sha": "001bee40ab42373cb3d120f6b7143d2b39aabff3",
+      "message": "[PIL] Image add support fromarray LA mode\n\nfix:\r\n\r\n>>> img = np.zeros((40,40,2), 'uint8')\r\n>>> Image.fromarray(img)\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"/usr/lib/python2.7/dist-packages/PIL/Image.py\", line 1929, in fromarray\r\n    raise TypeError(\"Cannot handle this data type\")\r\nTypeError: Cannot handle this data type",
+      "changes": [
+        {
+          "file": "PIL/Image.py",
+          "patch": "@@ -2215,6 +2215,7 @@ def fromqpixmap(im):\n     ((1, 1), \">f4\"): (\"F\", \"F;32BF\"),\n     ((1, 1), \"<f8\"): (\"F\", \"F;64F\"),\n     ((1, 1), \">f8\"): (\"F\", \"F;64BF\"),\n+    ((1, 1, 2), \"|u1\"): (\"LA\", \"LA\"),\n     ((1, 1, 3), \"|u1\"): (\"RGB\", \"RGB\"),\n     ((1, 1, 4), \"|u1\"): (\"RGBA\", \"RGBA\"),\n     }"
+        }
+      ]
+    },
+    {
+      "sha": "43b4b8d664ba1a3cb509b82a8cd0039c27ee5c57",
+      "message": "Fix for UnboundLocalError with corrupt jpeg2k file",
+      "changes": [
+        {
+          "file": "PIL/Jpeg2KImagePlugin.py",
+          "patch": "@@ -84,7 +84,8 @@ def _parse_jp2_header(fp):\n     size = None\n     mode = None\n     bpc = None\n-\n+    nc = None\n+    \n     hio = io.BytesIO(header)\n     while True:\n         lbox, tbox = struct.unpack('>I4s', hio.read(8))\n@@ -141,6 +142,9 @@ def _parse_jp2_header(fp):\n                         mode = 'RGBA'\n                     break\n \n+    if size is None or mode is None:\n+        raise SyntaxError(\"Malformed jp2 header\")\n+    \n     return (size, mode)\n \n ##"
+        }
+      ]
+    },
+    {
+      "sha": "0c3e2245377f7a5be21628176540880ab5fb1306",
+      "message": "Throw TypeError if no cursors were found in .cur file",
+      "changes": [
+        {
+          "file": "PIL/CurImagePlugin.py",
+          "patch": "@@ -66,6 +66,8 @@ def _open(self):\n             # print \"hotspot y\", i16(s[6:])\n             # print \"bytes\", i32(s[8:])\n             # print \"offset\", i32(s[12:])\n+        if not m:\n+            raise TypeError(\"No cursors were found\")\n \n         # load as bitmap\n         self._bitmap(i32(m[12:]) + offset)"
+        }
+      ]
+    },
+    {
+      "sha": "87d00fe441b74d1da981236c9232adbb07fd2d8b",
+      "message": "Catch TypeError in _getexif file seek",
+      "changes": [
+        {
+          "file": "PIL/JpegImagePlugin.py",
+          "patch": "@@ -423,7 +423,7 @@ def _getexif(self):\n     # get exif extension\n     try:\n         file.seek(exif[0x8769])\n-    except KeyError:\n+    except (KeyError, TypeError):\n         pass\n     else:\n         info = TiffImagePlugin.ImageFileDirectory(head)"
+        }
+      ]
+    },
+    {
+      "sha": "735d34260814f9180b773723fd741a7da73047ed",
+      "message": "Add support for HTTP response objects to Image.open()\n\nHTTP response objects returned from `urllib2.urlopen(url)` or\n`requests.get(url, stream=True).raw` are 'file-like' but do not\nsupport `.seek()` operations. As a result PIL is unable to\nopen them as images, requiring a wrap in `cStringIO` or `BytesIO`.\n\nThis commit adds this functionality to `Image.open()` by way of\nan `.seek(0)` check and catch on exception\n`AttributeError` or `io.UnsupportedOperation`. If this is caught\nwe attempt to wrap the object using `io.BytesIO` (which will\nonly work on buffer-file-like objects).\n\nThis allows opening of files using both `urllib2` and `requests`, e.g.\n\n    Image.open(urllib2.urlopen(url))\n    Image.open(requests.get(url, stream=True).raw)",
+      "changes": [
+        {
+          "file": "PIL/Image.py",
+          "patch": "@@ -109,6 +109,7 @@ def __getattr__(self, id):\n \n import os\n import sys\n+import io\n \n # type stuff\n import collections\n@@ -2248,6 +2249,11 @@ def open(fp, mode=\"r\"):\n     else:\n         filename = \"\"\n \n+    try:\n+        fp.seek(0)\n+    except (AttributeError, io.UnsupportedOperation):\n+        fp = io.BytesIO(fp.read())\n+\n     prefix = fp.read(16)\n \n     preinit()"
+        }
+      ]
+    },
+    {
+      "sha": "5a49375d4fb0ed2c7b9d37fab49aec7db21d76ad",
+      "message": "Fix UnboundLocalError in ImageFile",
+      "changes": [
+        {
+          "file": "PIL/ImageFile.py",
+          "patch": "@@ -202,6 +202,7 @@ def load(self):\n                 try:\n                     d.setimage(self.im, e)\n                 except ValueError:\n+                    t = None\n                     continue\n                 b = prefix\n                 t = len(b)"
+        }
+      ]
+    },
+    {
+      "sha": "29a65c1373b0f85d9caa627e182afc43e39f8393",
+      "message": "FIX: fix error for setup.py for Python 3\n\nThe subprocess command in Python 3 returns a bytes object.  If the\nhomebrew subprocess check returns a not-empty result, then setup crashes\ntrying to combine the bytes with the string constants with and error\nlike \"TypeError: Can't mix strings and bytes in path components.\"",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -210,7 +210,9 @@ def build_extensions(self):\n             # if Homebrew is installed, use its lib and include directories\n             import subprocess\n             try:\n-                prefix = subprocess.check_output(['brew', '--prefix']).strip()\n+                prefix = subprocess.check_output(\n+                    ['brew', '--prefix']\n+                ).strip().decode('latin1')\n             except:\n                 # Homebrew not installed\n                 prefix = None"
+        }
+      ]
+    },
+    {
+      "sha": "a5ae40c1b43ab97df21ff3655caebf5e66c8813b",
+      "message": "Fix AttributeError: class Image has no attribute 'DEBUG'",
+      "changes": [
+        {
+          "file": "PIL/Image.py",
+          "patch": "@@ -539,7 +539,7 @@ def close(self):\n         try:\n             self.fp.close()\n         except Exception as msg:\n-            if Image.DEBUG:\n+            if DEBUG:\n                 print (\"Error closing: %s\" % msg)\n \n         # Instead of simply setting to None, we're setting up a"
+        }
+      ]
+    },
+    {
+      "sha": "0a256f9e56140311ec10abbff3123586f1b541a6",
+      "message": "fix UnboundLocalError: local variable 't' referenced before assignment",
+      "changes": [
+        {
+          "file": "PIL/ImageFile.py",
+          "patch": "@@ -229,7 +229,7 @@ def load(self):\n \n         self.fp = None # might be shared\n \n-        if (not LOAD_TRUNCATED_IMAGES or t == 0) and not self.map and e < 0:\n+        if not self.map and (not LOAD_TRUNCATED_IMAGES or t == 0) and e < 0:\n             # still raised if decoder fails to return anything\n             raise_ioerror(e)\n "
+        }
+      ]
+    },
+    {
+      "sha": "caba4e33bac66c1271912535ba85f835f0d7f006",
+      "message": "Fix AttributeError: 'module' object has no attribute 'spawn'",
+      "changes": [
+        {
+          "file": "PIL/EpsImagePlugin.py",
+          "patch": "@@ -35,13 +35,13 @@\n \n gs_windows_binary = None\n import sys\n-if sys.platform[:3].lower() == 'win':\n+if sys.platform.startswith('win'):\n     import shutil\n     if hasattr(shutil, 'which'):\n         which = shutil.which\n     else:\n         # Python < 3.3\n-        import distutils\n+        import distutils.spawn\n         which = distutils.spawn.find_executable\n     for binary in ('gswin32c', 'gswin64c', 'gs'):\n         if which(binary) is not None:"
+        }
+      ]
+    },
+    {
+      "sha": "bb4eb53859d48c7e57687bc1ffe8eb4bd39d90e4",
+      "message": "fix UnboundLocalError errors",
+      "changes": [
+        {
+          "file": "PIL/ImageFile.py",
+          "patch": "@@ -205,10 +205,10 @@ def load(self):\n                             break\n                         else:\n                             raise IndexError(ie)\n-                            \n+\n                     if not s: # truncated jpeg\n                         self.tile = []\n-                        \n+\n                         if LOAD_TRUNCATED_IMAGES:\n                             break\n                         else:\n@@ -226,7 +226,7 @@ def load(self):\n \n         self.fp = None # might be shared\n \n-        if (t == 0 or not LOAD_TRUNCATED_IMAGES) and not self.map and e < 0:\n+        if (not LOAD_TRUNCATED_IMAGES or t == 0) and not self.map and e < 0:\n             # still raised if decoder fails to return anything\n             raise_ioerror(e)\n "
+        }
+      ]
+    }
+  ]
+}

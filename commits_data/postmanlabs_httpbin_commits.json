@@ -1,0 +1,15 @@
+{
+  "repo_name": "postmanlabs/httpbin",
+  "commits": [
+    {
+      "sha": "0826ed75d9ed282a53d8a6df0aaebd05e8cda208",
+      "message": "this can raise IndexError but not KeyError",
+      "changes": [
+        {
+          "file": "run_httpbin.py",
+          "patch": "@@ -8,7 +8,7 @@\n \n try:\n     port = int(sys.argv[1])\n-except (KeyError, ValueError):\n+except (IndexError, ValueError):\n     port = 5000\n \n print 'Starting httpbin on port {0}'.format(port)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "repo_name": "fortra/impacket",
+  "commits": [
+    {
+      "sha": "9c7780b31b1dff5a904d6ec96037c63c97257e72",
+      "message": "Catching TypeError as well",
+      "changes": [
+        {
+          "file": "impacket/smb.py",
+          "patch": "@@ -563,14 +563,14 @@ def __init__(self, ctime, atime, mtime, filesize, allocsize, attribs, shortname,\n                 self.__shortname = shortname[:shortname.index(b'\\0')]\n             else:\n                 self.__shortname = shortname[:shortname.index('\\0')]\n-        except ValueError:\n+        except (ValueError, TypeError):\n             self.__shortname = shortname\n         try:\n             if isinstance(shortname,bytes):\n                 self.__longname = longname[:longname.index(b'\\0')]\n             else:\n                 self.__longname = longname[:longname.index('\\0')]\n-        except ValueError:\n+        except (ValueError, TypeError):\n             self.__longname = longname\n \n     def get_ctime(self):"
+        }
+      ]
+    },
+    {
+      "sha": "d8f139435e282ce2d6a5df58f9d8bc9a3b028fac",
+      "message": "Don't forget self...  Undefined name: data --> self.data\n\nPartial fix for #494.  __data__ is an _undefined name_ in this context which will probably raise a NameError at runtime but each __Address__ object has a __self.data__ attribute.",
+      "changes": [
+        {
+          "file": "impacket/krb5/types.py",
+          "patch": "@@ -161,16 +161,16 @@ def family(self):\n             return socket.AF_INET\n         elif self.type == constants.AddressType.IPv4.value:\n             return socket.AF_INET6\n-            self.address = socket.inet_pton(self.family, data)\n+            self.address = socket.inet_pton(self.family, self.data)\n         else:\n             return None\n \n     @property\n     def address(self):\n         if self.type == constants.AddressType.IPv4.value:\n-            return socket.inet_pton(self.family, data)\n+            return socket.inet_pton(self.family, self.data)\n         elif self.type == constants.AddressType.IPv4.value:\n-            return socket.inet_pton(self.family, data)\n+            return socket.inet_pton(self.family, self.data)\n         else:\n             return None\n "
+        }
+      ]
+    }
+  ]
+}

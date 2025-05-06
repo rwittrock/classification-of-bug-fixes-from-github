@@ -1,0 +1,15 @@
+{
+  "repo_name": "eriklindernoren/PyTorch-GAN",
+  "commits": [
+    {
+      "sha": "d8dee6400b6aebc67c788ffd19e6927d271d143e",
+      "message": "Fix apparent copy-paste bugs that made it crash with NameErrors",
+      "changes": [
+        {
+          "file": "implementations/bgan/bgan.py",
+          "patch": "@@ -102,7 +102,7 @@ def boundary_seeking_loss(y_pred, y_true):\n if cuda:\n     generator.cuda()\n     discriminator.cuda()\n-    adversarial_loss.cuda()\n+    discriminator_loss.cuda()\n \n # Initialize weights\n generator.apply(weights_init_normal)\n@@ -171,6 +171,6 @@ def boundary_seeking_loss(y_pred, y_true):\n         print (\"[Epoch %d/%d] [Batch %d/%d] [D loss: %f] [G loss: %f]\" % (epoch, opt.n_epochs, i, len(mnist_loader),\n                                                             d_loss.data[0], g_loss.data[0]))\n \n-        batches_done = epoch * len(dataloader) + i\n+        batches_done = epoch * len(mnist_loader) + i\n         if batches_done % opt.sample_interval == 0:\n             save_image(gen_imgs.data[:25], 'images/%d.png' % batches_done, nrow=5, normalize=True)"
+        }
+      ]
+    }
+  ]
+}

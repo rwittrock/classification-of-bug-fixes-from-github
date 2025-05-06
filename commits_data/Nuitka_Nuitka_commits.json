@@ -1,0 +1,45 @@
+{
+  "repo_name": "Nuitka/Nuitka",
+  "commits": [
+    {
+      "sha": "5aa4427ee6212046d2b43e37971a0d0c4e1229dd",
+      "message": "Python3.6: Fix, need to check assignment unpacking for too short sequences\n\n* We were giving an \"IndexError\", where a \"ValueError\" should have been\n  given.\n\n* Make it easier to directly create an exception raise statement from\n  the templated exception expression.\n\n* Added factory function for conditional statements that takes care of\n  wrapping single statements with a statement sequence. We should that\n  in all the places.",
+      "changes": [
+        {
+          "file": "nuitka/codegen/Contexts.py",
+          "patch": "@@ -1090,7 +1090,8 @@ def __init__(self, parent, function):\n         self.frame_handle = None\n \n     def __repr__(self):\n-        return \"<PythonFunctionContext for %s '%s'>\" % (\n+        return \"<%s for %s '%s'>\" % (\n+            self.__class__.__name__,\n             \"function\" if not self.function.isExpressionClassBody() else \"class\",\n             self.function.getName()\n         )"
+        }
+      ]
+    },
+    {
+      "sha": "c93914d3007cb1a39cc52485cd7cefc8c53d89cd",
+      "message": "fix for TypeError: not all arguments converted during string formatting",
+      "changes": [
+        {
+          "file": "nuitka/Importing.py",
+          "patch": "@@ -86,7 +86,7 @@ def findModule( source_ref, module_name, parent_package, level, warn ):\n                     elif level == -1:\n                         level_desc = \"as relative or absolute import\"\n                     elif level == 1:\n-                        level_desc = \"one package level up\" % level\n+                        level_desc = \"%d package level up\" % level\n                     else:\n                         level_desc = \"%d package levels up\" % level\n "
+        }
+      ]
+    },
+    {
+      "sha": "a452c6f701445140f1eef61918e070197c6153da",
+      "message": "Fixes for Issue#30 and Issue#31.\n\n* There was no \"getCodeDropRef\" for local variables, crashing the compileter\n* And for shared variables it was damaging the reference count, giving either\n  a later runtime crash or a UnboundLocalError that wasn't correct.",
+      "changes": [
+        {
+          "file": "nuitka/Options.py",
+          "patch": "@@ -29,7 +29,7 @@\n \"\"\" Options module \"\"\"\n \n version_string = \"\"\"\\\n-Nuitka V0.3.19\n+Nuitka V0.3.19.1\n Copyright (C) 2012 Kay Hayen.\"\"\"\n \n from . import Utils"
+        }
+      ]
+    },
+    {
+      "sha": "974be576f987dd32006c1fad5aacc637687f6ac9",
+      "message": "Fix, when attempting to recurse into a module, it might give a SyntaxError or IndentationError exception.\n\nSimply skip to embedd the module in this case.",
+      "changes": [
+        {
+          "file": "nuitka/Options.py",
+          "patch": "@@ -31,7 +31,7 @@\n \"\"\" Options module \"\"\"\n \n version_string = \"\"\"\\\n-Nuitka V0.3.12a\n+Nuitka V0.3.12b\n Copyright (C) 2011 Kay Hayen.\"\"\"\n \n from . import Utils, Tracing"
+        }
+      ]
+    }
+  ]
+}

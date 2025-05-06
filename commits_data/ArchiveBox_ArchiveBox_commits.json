@@ -1,0 +1,25 @@
+{
+  "repo_name": "ArchiveBox/ArchiveBox",
+  "commits": [
+    {
+      "sha": "f072c7e22a93570465cc0b1b9b0991a1586eaa7f",
+      "message": "Treat AttributeError as an expected parse failure",
+      "changes": [
+        {
+          "file": "parse.py",
+          "patch": "@@ -52,7 +52,7 @@ def parse_links(path):\n                 links += list(parser_func(file))\n                 if links:\n                     break\n-            except (ValueError, TypeError, IndexError, etree.ParseError):\n+            except (ValueError, TypeError, IndexError, AttributeError, etree.ParseError):\n                 # parser not supported on this file\n                 pass\n "
+        }
+      ]
+    },
+    {
+      "sha": "71159bdcaa0e3e165fc0443b7d872d407044aa1e",
+      "message": "Fix Pinboard JSON duplicate timestamps error\n\nIf the JSON exported by Pinboard contains duplicate timestamps, Python\nreturns a TypeError exception:\n\n`TypeError: argument of type 'float' is not iterable`\n\nThis is because `time.mktime()` returns a floating point number.\nEncasing `time.mktime()` in `str()` fixes the data type not being\niterable.\n\n`time.mktime()` has also been encased in `int()` to remove the\nunnecessary decimal value (`.0`) that gets returned for each time value,\nand to keep the script consistent with the other export functions.",
+      "changes": [
+        {
+          "file": "archive.py",
+          "patch": "@@ -114,8 +114,8 @@ def parse_json_export(json_file):\n                 'url': erg['href'],\n                 'domain': erg['href'].replace('http://', '').replace('https://', '').split('/')[0],\n                 'base_url': erg['href'].replace('https://', '').replace('http://', '').split('?')[0],\n-                'time': datetime.fromtimestamp(time.mktime(time.strptime(erg['time'].split(',')[0], '%Y-%m-%dT%H:%M:%SZ'))),\n-                'timestamp': time.mktime(time.strptime(erg['time'].split(',')[0], '%Y-%m-%dT%H:%M:%SZ')),\n+                'time': datetime.fromtimestamp(int(time.mktime(time.strptime(erg['time'].split(',')[0], '%Y-%m-%dT%H:%M:%SZ')))),\n+                'timestamp': str(int(time.mktime(time.strptime(erg['time'].split(',')[0], '%Y-%m-%dT%H:%M:%SZ')))),\n                 'tags': erg['tags'],\n                 'title': erg['description'].replace(' \u2014 Readability', ''),\n             }"
+        }
+      ]
+    }
+  ]
+}

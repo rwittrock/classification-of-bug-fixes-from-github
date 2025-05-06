@@ -1,0 +1,55 @@
+{
+  "repo_name": "soimort/you-get",
+  "commits": [
+    {
+      "sha": "e614cda733f76ab80ed008d51a14b4520a38daf3",
+      "message": "avoid AttributeError in json_output.py",
+      "changes": [
+        {
+          "file": "src/you_get/json_output.py",
+          "patch": "@@ -17,9 +17,9 @@ def output(video_extractor, pretty_print=True):\n     except AttributeError:\n         pass\n     extra = {}\n-    if ve.referer is not None:\n+    if getattr(ve, 'referer', None) is not None:\n         extra[\"referer\"] = ve.referer\n-    if ve.ua is not None:\n+    if getattr(ve, 'ua', None) is not None:\n         extra[\"ua\"] = ve.ua\n     if extra:\n         out[\"extra\"] = extra"
+        }
+      ]
+    },
+    {
+      "sha": "2b7a5419cbfa1596e19e0f17a6acc29a7601f1a1",
+      "message": "Change \"NameError\" to \"AttributeError\"",
+      "changes": [
+        {
+          "file": "src/you_get/json_output.py",
+          "patch": "@@ -14,7 +14,7 @@ def output(video_extractor, pretty_print=True):\n     try:\n         if ve.audiolang:\n             out['audiolang'] = ve.audiolang\n-    except NameError:\n+    except AttributeError:\n         pass\n     if pretty_print:\n         print(json.dumps(out, indent=4, sort_keys=True, ensure_ascii=False))"
+        }
+      ]
+    },
+    {
+      "sha": "8e150e69897724d315c3e31cbc187511a0d2d54c",
+      "message": "fix for NameError: name 'output_json' is not defined",
+      "changes": [
+        {
+          "file": "src/you_get/extractors/qq.py",
+          "patch": "@@ -56,12 +56,12 @@ def qq_download_by_vid(vid, title, output_dir='.', merge=True, info_only=False):\n             if not info_only:\n                 download_urls(part_urls, parts_ti, ext, total_size, output_dir=output_dir, merge=merge)\n         else:\n-            fvkey = output_json['vl']['vi'][0]['fvkey']\n-            mp4 = output_json['vl']['vi'][0]['cl'].get('ci', None)\n+            fvkey = video_json['vl']['vi'][0]['fvkey']\n+            mp4 = video_json['vl']['vi'][0]['cl'].get('ci', None)\n             if mp4:\n                 mp4 = mp4[0]['keyid'].replace('.10', '.p') + '.mp4'\n             else:\n-                mp4 = output_json['vl']['vi'][0]['fn']\n+                mp4 = video_json['vl']['vi'][0]['fn']\n             url = '%s/%s?vkey=%s' % ( parts_prefix, mp4, fvkey )\n             _, ext, size = url_info(url, faker=True)\n "
+        }
+      ]
+    },
+    {
+      "sha": "db63b86df8da9899b91d2008bff79592c015bb57",
+      "message": "[youtube] fix AttributeError: 'YouTube' object has no attribute 'js'",
+      "changes": [
+        {
+          "file": "src/you_get/extractors/youtube.py",
+          "patch": "@@ -341,8 +341,9 @@ def extract(self, **kwargs):\n                 sig = self.streams[stream_id]['sig']\n                 src += '&signature={}'.format(sig)\n             elif self.streams[stream_id]['s'] is not None:\n+                if not hasattr(self, 'js'):\n+                    self.js = get_content(self.html5player)\n                 s = self.streams[stream_id]['s']\n-                if not self.js: self.js = get_content(self.html5player)\n                 sig = self.__class__.decipher(self.js, s)\n                 src += '&signature={}'.format(sig)\n "
+        }
+      ]
+    },
+    {
+      "sha": "8a032df683f6674f8ec4a92223d0d8ffa46fdda3",
+      "message": "fix NameError: name get_version is not defined",
+      "changes": [
+        {
+          "file": "src/you_get/common.py",
+          "patch": "@@ -800,7 +800,7 @@ def download_main(download, download_playlist, urls, playlist, **kwargs):\n             download(url, **kwargs)\n \n def script_main(script_name, download, download_playlist = None):\n-    version = 'You-Get %s, a video downloader.' % get_version()\n+    version = 'You-Get, a video downloader.'\n     help = 'Usage: %s [OPTION]... [URL]...\\n' % script_name\n     help += '''\\nStartup options:\n     -V | --version                           Display the version and exit."
+        }
+      ]
+    }
+  ]
+}

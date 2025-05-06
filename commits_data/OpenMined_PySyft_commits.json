@@ -1,0 +1,55 @@
+{
+  "repo_name": "OpenMined/PySyft",
+  "commits": [
+    {
+      "sha": "e8df99e847e0d71527c08e4a318839926ab4c006",
+      "message": "Fix TypeError when doing remainder (#2612)\n\n* Fix TypeError when doing remainder\r\n\r\n* Black",
+      "changes": [
+        {
+          "file": "syft/frameworks/torch/tensors/interpreters/large_precision.py",
+          "patch": "@@ -74,7 +74,8 @@ def _create_internal_representation(self):\n \n         # floor is applied otherwise, long float is not accurate\n         self_scaled = np.vectorize(math.floor)(self_scaled)\n-        self_scaled %= self.field\n+        # https://github.com/numpy/numpy/issues/6464\n+        self_scaled = np.remainder(self_scaled, np.array(self.field), casting=\"unsafe\")\n \n         # self_scaled can be an array of floats. As multiplying an array of int with an int\n         # still gives an array of int, I think it should be because self.child is a float tensor at this point."
+        }
+      ]
+    },
+    {
+      "sha": "c986e4ea61558fe243607ab1bfbf06472500eb60",
+      "message": "fix: TypeError in spdz_mul",
+      "changes": [
+        {
+          "file": "syft/frameworks/torch/crypto/spdz.py",
+          "patch": "@@ -42,7 +42,7 @@ def spdz_mul(cmd: Callable, x_sh, y_sh, crypto_provider: AbstractWorker, field:\n     if len(locations) == 2:\n         j = sy.MultiPointerTensor(children=[j1, j0])\n     else:\n-        j = sy.MultiPointerTensor(children=[j1] + j0.child.values())\n+        j = sy.MultiPointerTensor(children=[j1] + list(j0.child.values()))\n \n     delta_b = cmd(delta, b)\n     a_epsilon = cmd(a, epsilon)"
+        }
+      ]
+    },
+    {
+      "sha": "3d5f5e58930ececbe24c78694424f007536f2b16",
+      "message": "Fixed TypeError while computing data_ind_log_mmf",
+      "changes": [
+        {
+          "file": "syft/frameworks/torch/differential_privacy/pate.py",
+          "patch": "@@ -437,7 +437,7 @@ def perform_analysis_torch(preds, indices, noise_eps=0.1, delta=1e-5, moments=8,\n \n     data_ind_log_mgf = torch.tensor([0.0 for _ in l_list])\n     data_ind_log_mgf += num_examples * torch.tensor(\n-        [logmgf_exact_torch(1.0, 2.0 * noise_eps, l) for l in l_list]\n+        tensors_to_literals([logmgf_exact_torch(1.0, 2.0 * noise_eps, l) for l in l_list])\n     )\n \n     data_ind_eps_list = (data_ind_log_mgf - math.log(delta)) / l_list"
+        }
+      ]
+    },
+    {
+      "sha": "d93477dcd66850743d7689fc431cd04238d22f3d",
+      "message": "Communication between unknown workers results on TypeError Exception (Fix #1760).",
+      "changes": [
+        {
+          "file": "syft/core/workers/base.py",
+          "patch": "@@ -607,10 +607,11 @@ def get_worker(self, id_or_worker):\n             if id_or_worker in self._known_workers:\n                 return self._known_workers[id_or_worker]\n             else:\n-                logging.warning(\n-                    \"Worker\", self.id, \"couldnt recognize worker\", id_or_worker\n+                raise TypeError(\n+                    \"Worker {} couldnt recognize worker {}\".format(\n+                        self.id, id_or_worker\n+                    )\n                 )\n-                return id_or_worker\n         else:\n             if id_or_worker.id not in self._known_workers:\n                 self.add_worker(id_or_worker)"
+        }
+      ]
+    },
+    {
+      "sha": "266a13d53fd4642106185bab2583e8fcb9687666",
+      "message": "Changed PaillierTensor `__sub__` to avoid 'AttributeError' (#271)\n\nChanged `__sub__` analogically to `__add__` to avoid AttributeError: 'EncryptedNumber' object has no attribute 'data'.\r\nIf previous behaviour is intended - please feel free to reject the PR.",
+      "changes": [
+        {
+          "file": "syft/he/paillier/basic.py",
+          "patch": "@@ -27,7 +27,6 @@ def __add__(self, tensor):\n         if(not isinstance(tensor, TensorBase)):\n             # try encrypting it\n             tensor = PaillierTensor(self.public_key, np.array([tensor]).astype('float'))\n-\n             return PaillierTensor(self.public_key, self.data + tensor.data, False)\n \n         if(type(tensor) == TensorBase):\n@@ -42,7 +41,7 @@ def __sub__(self, tensor):\n \n         if(not isinstance(tensor, TensorBase)):\n             # try encrypting it\n-            tensor = self.public_key.encrypt(tensor)\n+            tensor = PaillierTensor(self.public_key, np.array([tensor]).astype('float'))\n             return PaillierTensor(self.public_key, self.data - tensor.data, False)\n \n         if(type(tensor) == TensorBase):"
+        }
+      ]
+    }
+  ]
+}

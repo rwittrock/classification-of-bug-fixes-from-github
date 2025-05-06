@@ -1,0 +1,25 @@
+{
+  "repo_name": "facebookresearch/Detectron",
+  "commits": [
+    {
+      "sha": "cf1c54ae6d1368fd6710472a3da82468ea4ca279",
+      "message": "Fix errors in vis.py (#555)\n\nSummary:\nFixing error:\nTypeError: Layout of the output array img is incompatible with cv::Mat (step[ndims-1] != elemsize or step[1] != elemsize*nchannels)\n\nin vis_class(..) and vis_bbox(..) methods when calling vis_one_image_opencv(..).\nPull Request resolved: https://github.com/facebookresearch/Detectron/pull/555\n\nReviewed By: rbgirshick\n\nDifferential Revision: D10027949\n\nPulled By: ir413\n\nfbshipit-source-id: e34b8b881ffe231984f270910f778c5abe79e489",
+      "changes": [
+        {
+          "file": "detectron/utils/vis.py",
+          "patch": "@@ -113,6 +113,7 @@ def vis_mask(img, mask, col, alpha=0.4, show_border=True, border_thick=1):\n \n def vis_class(img, pos, class_str, font_scale=0.35):\n     \"\"\"Visualizes the class.\"\"\"\n+    img = img.astype(np.uint8)\n     x0, y0 = int(pos[0]), int(pos[1])\n     # Compute text size.\n     txt = class_str\n@@ -130,6 +131,7 @@ def vis_class(img, pos, class_str, font_scale=0.35):\n \n def vis_bbox(img, bbox, thick=1):\n     \"\"\"Visualizes a bounding box.\"\"\"\n+    img = img.astype(np.uint8)\n     (x0, y0, w, h) = bbox\n     x1, y1 = int(x0 + w), int(y0 + h)\n     x0, y0 = int(x0), int(y0)"
+        }
+      ]
+    },
+    {
+      "sha": "de55ea30e4d3d6b4f25db9137acdc31a1000a314",
+      "message": "Fix RoIFeatureTransform Methods with ArgMax\n\nSummary:\nFor RoIFeatureTransform Methods with ArgMax (RoIPoolF/RoIPoolLateQuantization), the current pipeline will report\n```\nTypeError: I/O blob #0 of unsupported type: (BlobReference(\"gpu_0/roi_features\"), BlobReference(\"gpu_0/_argmax_roi_features\")) of type <type 'tuple'>\n```\nas in the example training: https://our.intern.facebook.com/intern/fblearner/details/51149202/\n\nReviewed By: viswanathgs\n\nDifferential Revision: D7907518\n\nfbshipit-source-id: 38caa51c955f5a577d11c04688b9061cb6dd3c22",
+      "changes": [
+        {
+          "file": "detectron/modeling/detector.py",
+          "patch": "@@ -298,7 +298,7 @@ def RoIFeatureTransform(\n                 sampling_ratio=sampling_ratio\n             )\n         # Only return the first blob (the transformed features)\n-        return xform_out\n+        return xform_out[0] if isinstance(xform_out, tuple) else xform_out\n \n     def ConvShared(\n         self,"
+        }
+      ]
+    }
+  ]
+}

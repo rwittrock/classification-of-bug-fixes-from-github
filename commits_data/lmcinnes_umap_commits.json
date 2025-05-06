@@ -1,0 +1,15 @@
+{
+  "repo_name": "lmcinnes/umap",
+  "commits": [
+    {
+      "sha": "d746aeb3dd61ed15c1bb2315ee2891ddc805e4e1",
+      "message": "Add check for sparse matrix in fit\n\nThis check avoids a TypeError being thrown from checking the length of a sparse matrix.",
+      "changes": [
+        {
+          "file": "umap/umap_.py",
+          "patch": "@@ -1509,10 +1509,11 @@ def fit(self, X, y=None):\n                 # )\n \n         if y is not None:\n-            if len(X) != len(y):\n+            len_X = len(X) if not scipy.sparse.issparse(X) else X.shape[0]\n+            if len_X != len(y):\n                 raise ValueError(\n                     \"Length of x = {len_x}, length of y = {len_y}, while it must be equal.\".format(\n-                        len_x=len(X), len_y=len(y)\n+                        len_x=len_X, len_y=len(y)\n                     )\n                 )\n             y_ = check_array(y, ensure_2d=False)"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "repo_name": "apache/tvm",
+  "commits": [
+    {
+      "sha": "9955602d389031d34fcb20ef8df280896f0d7059",
+      "message": "Send list as argument to schedule_conv2d (#4358)\n\nWhen getting cuda schedule passing single tensor seem to work but after changing target to \"llvm\" causes assert.\r\nSending list on other hand makes both cuda and llvm targets happy.\r\nSee https://discuss.tvm.ai/t/solved-simple-example-error-attributeerror-tensorslice-object-has-no-attribute-op/2245/3",
+      "changes": [
+        {
+          "file": "tutorials/topi/intro_topi.py",
+          "patch": "@@ -135,7 +135,7 @@\n with tvm.target.create(\"cuda\"):\n     conv = topi.nn.conv2d(data, kernel, strides=1, padding=2, dilation=1)\n     out = topi.nn.relu(conv)\n-    sconv = topi.generic.nn.schedule_conv2d_nchw(out)\n+    sconv = topi.generic.nn.schedule_conv2d_nchw([out])\n     print(tvm.lower(sconv, [data, kernel], simple_mode=True))\n \n ######################################################################"
+        }
+      ]
+    },
+    {
+      "sha": "eed28f581553525646a4312d377edd87fe827f42",
+      "message": "Fix UnboundLocalError: local variable 'tensor' referenced before assignment (#3074)",
+      "changes": [
+        {
+          "file": "topi/python/topi/opengl/pooling.py",
+          "patch": "@@ -107,8 +107,8 @@ def traverse(OP):\n         if tag.is_broadcast(OP.tag):\n             if OP not in s.outputs:\n                 s[OP].compute_inline()\n-            for tensor in OP.input_tensors and tensor.op not in scheduled_ops:\n-                if tensor.op.input_tensors:\n+            for tensor in OP.input_tensors:\n+                if tensor.op not in scheduled_ops and tensor.op.input_tensors:\n                     traverse(tensor.op)\n         # schedule pool\n         elif OP.tag.startswith('pool'):"
+        }
+      ]
+    },
+    {
+      "sha": "6be636e1bb4f4ccbe6c42b547195bfdca3b63715",
+      "message": "image tranform runtime wrong on python (#354)\n\nx = np.transpose(img, (2, 0, 1))[np.newaxis, :]\r\nTypeError: an integer is required",
+      "changes": [
+        {
+          "file": "nnvm/tutorials/from_coreml.py",
+          "patch": "@@ -54,8 +54,10 @@ def download(url, path, overwrite=False):\n img_url = 'https://github.com/dmlc/mxnet.js/blob/master/data/cat.png?raw=true'\n download(img_url, 'cat.png')\n img = Image.open('cat.png').resize((224, 224))\n-x = np.transpose(img, (2, 0, 1))[np.newaxis, :]\n-\n+#x = np.transpose(img, (2, 0, 1))[np.newaxis, :]\n+image = np.asarray(img)\n+image = image.transpose((2, 0, 1))\n+x = image[np.newaxis, :]\n ######################################################################\n # Compile the model on NNVM\n # ---------------------------"
+        }
+      ]
+    }
+  ]
+}

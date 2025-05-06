@@ -1,0 +1,15 @@
+{
+  "repo_name": "donnemartin/interactive-coding-challenges",
+  "commits": [
+    {
+      "sha": "3d4ae5c22fe0584dab178ea29a845a4f6a78f726",
+      "message": "Update bst challenge (#116)\n\nSwitch Exception to TypeError.",
+      "changes": [
+        {
+          "file": "graphs_trees/bst/bst.py",
+          "patch": "@@ -17,14 +17,13 @@ def __init__(self, root=None):\n \n     def insert(self, data):\n         if data is None:\n-            raise Exception('Data cannot be None')\n+            raise TypeError('data cannot be None')\n         if self.root is None:\n             self.root = Node(data)\n             return self.root\n         return self._insert(self.root, data)\n \n     def _insert(self, node, data):\n-        # Constraint: Assume we are working with valid ints\n         if node is None:\n             return Node(data)\n         if data <= node.data:"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,165 @@
+{
+  "repo_name": "reddit-archive/reddit",
+  "commits": [
+    {
+      "sha": "bd922104b971a5c6794b199f364a06fdf61359a2",
+      "message": "_system_email: Fix NameError when calling Email.handler.add_to_queue",
+      "changes": [
+        {
+          "file": "r2/r2/lib/emailer.py",
+          "patch": "@@ -57,7 +57,7 @@ def _system_email(email, plaintext_body, kind, reply_to=\"\",\n \n     Email.handler.add_to_queue(user,\n         email, g.domain, from_address, kind,\n-        body=body, reply_to=reply_to, thing=thing,\n+        body=plaintext_body, reply_to=reply_to, thing=thing,\n     )\n \n def _nerds_email(body, from_name, kind):"
+        }
+      ]
+    },
+    {
+      "sha": "777c655f8015f5dda7e28383960c2406496164a7",
+      "message": "VOneTimePassword: Change name to otp_ratelimit to avoid UnboundLocalError",
+      "changes": [
+        {
+          "file": "r2/r2/lib/validator/validator.py",
+          "patch": "@@ -2853,12 +2853,12 @@ def run(self, password):\n         # make sure they're not trying this too much\n         if not g.disable_ratelimit:\n             current_password = totp.make_totp(secret)\n-            ratelimit = ratelimit.SimpleRateLimit(\n+            otp_ratelimit = ratelimit.SimpleRateLimit(\n                 name=\"otp_tries_%s_%s\" % (c.user._id36, current_password),\n                 seconds=600,\n                 limit=self.ratelimit,\n             )\n-            if not ratelimit.record_and_check():\n+            if not otp_ratelimit.record_and_check():\n                 self.set_error(errors.RATELIMIT, dict(time=\"30 seconds\"))\n                 return\n "
+        }
+      ]
+    },
+    {
+      "sha": "77a5fd9e78ad2b8994120f47546096689b489e8b",
+      "message": "voting.py: log a little more on TypeError",
+      "changes": [
+        {
+          "file": "r2/r2/lib/voting.py",
+          "patch": "@@ -111,7 +111,7 @@ def process_message(msg):\n                 )\n             except TypeError as e:\n                 # a vote on an invalid type got in the queue, just skip it\n-                g.log.error(e.message)\n+                g.log.exception(\"Invalid type: %r\", e.message)\n                 return\n \n             timer.intermediate(\"create_vote_obj\")"
+        }
+      ]
+    },
+    {
+      "sha": "a9684fb12579d4869142f044e5512d7d1e45b99a",
+      "message": "CachedResults: Check data length in _insert_tuples\n\nIf the cached query doesn't exist yet, \"data\" will be an empty list.\nIf we try to insert >= 1000 items, the chunk of code under the\n\"would_truncate\" condition will run and raise \"IndexError: list index\nout of range\"",
+      "changes": [
+        {
+          "file": "r2/r2/lib/db/queries.py",
+          "patch": "@@ -194,7 +194,7 @@ def _mutate(data):\n \n             mutated_length = len(existing_fnames.union(new_fnames))\n             would_truncate = mutated_length >= precompute_limit\n-            if would_truncate:\n+            if would_truncate and data:\n                 # only insert items that are already stored or new items\n                 # that are large enough that they won't be immediately truncated\n                 # out of storage"
+        }
+      ]
+    },
+    {
+      "sha": "48756719bc74ba275b32b4d78cb20e1e7306f961",
+      "message": "Clear cookies for all error handling\n\nThe forked error handling for api calls wasn't correctly clearing cookies resulting\nin an uptick in errors like the following:\n`E: ErrorController.__after__: AttributeError(\"'str' object has no attribute 'iteritems'\",)`\nfrom this line:\n`dirty_cookies = (k for k, v in c.cookies.iteritems() if v.dirty)`\nThis change will clear cookie for all error handling methods.",
+      "changes": [
+        {
+          "file": "r2/r2/controllers/error.py",
+          "patch": "@@ -115,6 +115,8 @@ def __before__(self):\n         try:\n             c.error_page = True\n             RedditController.__before__(self)\n+            # clear cookies the old fashioned way\n+            c.cookies = Cookies()\n         except (HTTPMovedPermanently, HTTPFound):\n             # ignore an attempt to redirect from an error page\n             pass\n@@ -202,8 +204,6 @@ def GET_api_error(self):\n     def GET_document(self):\n         try:\n             c.errors = c.errors or ErrorSet()\n-            # clear cookies the old fashioned way \n-            c.cookies = Cookies()\n \n             code =  request.GET.get('code', '')\n             try:"
+        }
+      ]
+    },
+    {
+      "sha": "52127187ac6cb68341b1fea51d6653ff791f7466",
+      "message": "Prevent a TypeError when Content-Type is empty",
+      "changes": [
+        {
+          "file": "r2/r2/lib/media.py",
+          "patch": "@@ -383,7 +383,7 @@ def _find_thumbnail_image(self):\n         content_type, content = _fetch_url(self.url)\n \n         # if it's an image. it's pretty easy to guess what we should thumbnail.\n-        if \"image\" in content_type:\n+        if content_type and \"image\" in content_type and content:\n             return self.url\n \n         if content_type and \"html\" in content_type and content:"
+        }
+      ]
+    },
+    {
+      "sha": "ba95f535474f0634eb93a08d0103f0614542af4a",
+      "message": "Add missing title property to SubSR.\n\nFixes AttributeError on /reddits.rss.",
+      "changes": [
+        {
+          "file": "r2/r2/models/subreddit.py",
+          "patch": "@@ -1544,6 +1544,7 @@ class SubSR(FakeSubreddit):\n     stylesheet = 'subreddit.css'\n     #this will make the javascript not send an SR parameter\n     name = ''\n+    title = ''\n \n     def can_view(self, user):\n         return True"
+        }
+      ]
+    },
+    {
+      "sha": "cc1b087c1069297f3853003172b89c762b185b23",
+      "message": "CloudSearch: Fix AttributeError when record_stats = False.\n\nWhile the stub-timer I introduced earlier takes care of some issues, it\ndoesn't take care of when we explicitly set the variable to None!",
+      "changes": [
+        {
+          "file": "r2/r2/lib/cloudsearch.py",
+          "patch": "@@ -550,7 +550,8 @@ def basic_query(query=None, bq=None, faceting=None, size=1000,\n                                        response)\n     finally:\n         connection.close()\n-        timer.stop()\n+        if timer is not None:\n+            timer.stop()\n     \n     return json.loads(response)\n "
+        }
+      ]
+    },
+    {
+      "sha": "808336ccd8bb3492ad7a59fdd8ca218f785f04b7",
+      "message": "Fix AttributeError on OAuth2Client.deleted.",
+      "changes": [
+        {
+          "file": "r2/r2/models/token.py",
+          "patch": "@@ -194,7 +194,7 @@ def _by_developer(cls, account):\n         for cid in cba._values().iterkeys():\n             try:\n                 client = cls._byID(cid)\n-                if client.deleted or not client.has_developer(account):\n+                if getattr(client, 'deleted', False) or not client.has_developer(account):\n                     raise NotFound\n             except tdb_cassandra.NotFound:\n                 pass\n@@ -297,7 +297,7 @@ def is_valid(self):\n         # Is the OAuth2Client still valid?\n         try:\n             client = OAuth2Client._byID(self.client_id)\n-            if client.deleted:\n+            if getattr(client, 'deleted', False):\n                 raise NotFound\n         except NotFound:\n             return False"
+        }
+      ]
+    },
+    {
+      "sha": "0aa9967d8268b24387b961034084d502d1a64bfe",
+      "message": "Prevent AttributeError when calling date() in edit_campaign\n\nThere have been some None object has no date() attribute errors in the logs.\nNot sure how one of start/end are being set to None and not the other, but\nwent ahead and moved the call to date() inside the conditional that checks\nwhether both exist to make sure the correct error message gets set.",
+      "changes": [
+        {
+          "file": "r2/r2/controllers/promotecontroller.py",
+          "patch": "@@ -291,12 +291,14 @@ def POST_edit_campaign(self, form, jquery, l, indx,\n                           dates, bid, sr, targeting):\n         if not l:\n             return\n-\n-        start, end = [x.date() for x in dates] if dates else (None, None)\n+        \n+        start, end = dates or (None, None)\n \n         if start and end and not promote.is_accepted(l) and not c.user_is_sponsor:\n             # if the ad is not approved already, ensure the start date\n             # is at least 2 days in the future\n+            start = start.date()\n+            end = end.date()\n             now = promote.promo_datetime_now()\n             future = make_offset_date(now, g.min_promote_future,\n                                       business_days = True)"
+        }
+      ]
+    },
+    {
+      "sha": "6a861eb17da16c9bd1e9294864a58352ff405889",
+      "message": "Add def catch-all to NullJsonTemplate.\n\nThis fixes AttributeErrors when trying to render about pages as .json.",
+      "changes": [
+        {
+          "file": "r2/r2/lib/jsontemplates.py",
+          "patch": "@@ -484,6 +484,9 @@ class NullJsonTemplate(JsonTemplate):\n     def render(self, thing = None, *a, **kw):\n         return \"\"\n \n+    def get_def(self, name):\n+        return self\n+\n class ListingJsonTemplate(ThingJsonTemplate):\n     _data_attrs_ = dict(children = \"things\",\n                         after = \"after\","
+        }
+      ]
+    },
+    {
+      "sha": "55f1149580d4d7ee9b50f0f5e9c4ed3854839cb5",
+      "message": "Better error handling in VSubmitParent validation\n\nFixes log error - AttributeError: 'NoneType' object has no attribute 'subreddit_slow'",
+      "changes": [
+        {
+          "file": "r2/r2/controllers/validator/validator.py",
+          "patch": "@@ -824,7 +824,7 @@ def run(self, fullname, fullname2):\n                 link = parent\n                 if isinstance(parent, Comment):\n                     link = Link._byID(parent.link_id, data=True)\n-                if c.user_is_loggedin and can_comment_link(link):\n+                if link and c.user_is_loggedin and can_comment_link(link):\n                     return parent\n         #else\n         abort(403, \"forbidden\")"
+        }
+      ]
+    },
+    {
+      "sha": "c642d437dc950b646e4624cf6572a4e249ee62db",
+      "message": "NameError in cache.py error handling",
+      "changes": [
+        {
+          "file": "r2/r2/lib/cache.py",
+          "patch": "@@ -618,7 +618,7 @@ def mutate(self, key, mutation_fn, default = None, willread=True):\n                     if value is None:\n                         value = self.cassa.get(key,\n                                                read_consistency_level = rcl)\n-                except cassandra.ttypes.NotFoundException:\n+                except CassandraNotFound:\n                     value = default\n \n                 # due to an old bug in NoneResult caching, we still"
+        }
+      ]
+    },
+    {
+      "sha": "e3b5bd99d5a160e6e5f9f84bf0e5550a24055f57",
+      "message": "Fix TypeError trying to evaluate table columns as bools.",
+      "changes": [
+        {
+          "file": "r2/r2/models/bidding.py",
+          "patch": "@@ -116,7 +116,10 @@ def _disambiguate_args(cls, filter_fn, *a, **kw):\n \n         \"\"\"\n         args = []\n-        cols = filter(filter_fn, cls.__table__.c)\n+        if filter_fn is None:\n+            cols = cls.__table__.c\n+        else:\n+            cols = filter(filter_fn, cls.__table__.c)\n         for k, v in zip(cols, a):\n             if not kw.has_key(k.name):\n                 args.append((k, cls._make_storable(v)))"
+        }
+      ]
+    },
+    {
+      "sha": "93c17b8b957f38efd822d22102ab9b1f65d8d7a0",
+      "message": "Fix TypeError on flaircsv unflairing.",
+      "changes": [
+        {
+          "file": "r2/r2/controllers/api.py",
+          "patch": "@@ -2007,7 +2007,7 @@ def POST_flaircsv(self, flair_csv):\n \n             orig_text = text\n             text = VFlairText('text').run(orig_text)\n-            if len(text) < len(orig_text):\n+            if text and orig_text and len(text) < len(orig_text):\n                 line_result.warn('text',\n                                  'truncating flair text to %d chars'\n                                  % len(text))"
+        }
+      ]
+    },
+    {
+      "sha": "b8023e73ec29828086dc98eebab6981dba484b8d",
+      "message": "AttributeError in validator.py:VMessageRecipient\n\nAttributeError: 'NoneType' object has no attribute '_id'(b412c68f4d2e201e4f4c4a459776dafe)\nIntroduced after blacklist push.",
+      "changes": [
+        {
+          "file": "r2/r2/controllers/validator/validator.py",
+          "patch": "@@ -911,7 +911,7 @@ def run(self, name):\n                 self.set_error(errors.SUBREDDIT_NOEXIST)\n         else:\n             account = VExistingUname.run(self, name)\n-            if account._id in c.user.enemies:\n+            if account and account._id in c.user.enemies:\n                 self.set_error(errors.USER_BLOCKED)\n             else:\n                 return account"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "repo_name": "Yelp/elastalert",
+  "commits": [
+    {
+      "sha": "85fd2cecac0171a574fed9ff4aa9b4d4383cb656",
+      "message": "Fixed a bug causing a TypeError when nested fields were null",
+      "changes": [
+        {
+          "file": "elastalert/util.py",
+          "patch": "@@ -64,6 +64,9 @@ def _find_es_dict_by_key(lookup_dict, term):\n     subkey = ''\n \n     while len(subkeys) > 0:\n+        if not dict_cursor:\n+            return {}, None\n+\n         subkey += subkeys.pop(0)\n \n         if subkey in dict_cursor:"
+        }
+      ]
+    }
+  ]
+}

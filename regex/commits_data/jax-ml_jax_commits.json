@@ -1,0 +1,49 @@
+{
+  "repo_name": "jax-ml/jax",
+  "commits": [
+    {
+      "sha": "85e5d63423806a3ba4a34c2b281c8d162535c27c",
+      "message": "Fix an exception caused by `cached()` hashing\n\nI *think* the issue was that one of the elements in shape was a `DeviceArray`.\r\n\r\n  File \"jax/random.py\", line 717, in gamma\r\n    return _gamma(key, a, shape, dtype)\r\n  File \"jax/api.py\", line 151, in f_jitted\r\n    device_assignment=device_assignment)\r\n  File \"jax/core.py\", line 672, in call_bind\r\n    ans = primitive.impl(f, *args, **params)\r\n  File \"jax/interpreters/xla.py\", line 667, in _xla_call_impl\r\n    *map(abstractify, args))\r\n  File \"jax/linear_util.py\", line 213, in cached_fun\r\n    ans, f_prev = cached_fun_body(f, args)\r\n  File \"jax/linear_util.py\", line 210, in cached_fun_body\r\n    return call(f, *args), f\r\n  File \"jax/interpreters/xla.py\", line 679, in _xla_callable\r\n    jaxpr, (pval, consts, env) = pe.trace_to_subjaxpr(fun, master, False).call_wrapped(pvals)\r\n  File \"jax/linear_util.py\", line 161, in call_wrapped\r\n    ans = self.f(*args, **dict(self.params, **kwargs))\r\n  File \"jax/random.py\", line 725, in _gamma\r\n    a = np.broadcast_to(a, shape)\r\n  File \"jax/numpy/lax_numpy.py\", line 821, in broadcast_to\r\n    lax.broadcast_shapes(shape, _shape(arr))  # error checking\r\n  File \"jax/interpreters/xla.py\", line 623, in __hash__\r\n    raise TypeError(\"JAX DeviceArray, like numpy.ndarray, is not hashable.\")\r\nTypeError: JAX DeviceArray, like numpy.ndarray, is not hashable.",
+      "changes": [
+        {
+          "file": "jax/numpy/lax_numpy.py",
+          "patch": "@@ -815,6 +815,7 @@ def broadcast_arrays(*args):\n def broadcast_to(arr, shape):\n   \"\"\"Like Numpy's broadcast_to but doesn't necessarily return views.\"\"\"\n   arr = arr if isinstance(arr, ndarray) or isscalar(arr) else array(arr)\n+  shape = tuple(map(int, shape))\n   if _shape(arr) != shape:\n     # TODO(mattjj): revise this to call lax.broadcast_in_dim rather than\n     # lax.broadcast and lax.transpose"
+        }
+      ]
+    },
+    {
+      "sha": "48f64ec86361968ca59131abbbcbb00b9bbb9be5",
+      "message": "Avoid a TypeError when reps is or contains a ndarray\n\nSomething along the lines of `TypeError: multiply only accepts scalar or ndarray, but got a list.`",
+      "changes": [
+        {
+          "file": "jax/numpy/lax_numpy.py",
+          "patch": "@@ -1300,7 +1300,7 @@ def tile(a, reps):\n   a = reshape(a, (1,) * (len(reps) - ndim(a)) + shape(a))\n   reps = (1,) * (ndim(a) - len(reps)) + tuple(reps)\n   for i, rep in enumerate(reps):\n-    a = concatenate([a] * rep, axis=i)\n+    a = concatenate([a] * int(rep), axis=i)\n   return a\n \n @_wraps(onp.concatenate)"
+        }
+      ]
+    },
+    {
+      "sha": "c1b429be48ce1536606705095aa8f2cbaf385fd9",
+      "message": "Add a jax.numpy.__init__ method that throws a TypeError if called.\n\nImproves the error message for #956, where np.ndarray was called explicitly.",
+      "changes": [
+        {
+          "file": "jax/numpy/lax_numpy.py",
+          "patch": "@@ -82,7 +82,10 @@ def __instancecheck__(self, instance):\n \n # pylint: disable=invalid-name\n class ndarray(six.with_metaclass(_ArrayMeta, onp.ndarray)):\n-  pass\n+  def __init__(shape, dtype=None, buffer=None, offset=0, strides=None,\n+               order=None):\n+    raise TypeError(\"jax.numpy.ndarray() should not be instantiated explicitly.\"\n+                    \" Use jax.numpy.array, or jax.numpy.zeros instead.\")\n # pylint: enable=invalid-name\n \n "
+        },
+        {
+          "file": "tests/lax_numpy_test.py",
+          "patch": "@@ -1679,6 +1679,9 @@ def testReductionOfOutOfBoundsAxis(self):  # Issue 888\n     x = lnp.ones((3, 4))\n     self.assertRaises(ValueError, lambda: lnp.sum(x, axis=2))\n \n+  def testIssue956(self):\n+    self.assertRaises(TypeError, lambda: lnp.ndarray((1, 1)))\n+\n \n if __name__ == \"__main__\":\n   absltest.main()"
+        }
+      ]
+    },
+    {
+      "sha": "334581d5e9a9f3956d92a65937e521a1e529f1fb",
+      "message": "fixed TypeError caused by body_fun of foreach loop",
+      "changes": [
+        {
+          "file": "jax/lax.py",
+          "patch": "@@ -622,7 +622,7 @@ def foreach_loop(sequence, body_fun, init_val):\n   \"\"\"\n   _, result = fori_loop(\n       0, len(sequence),\n-      lambda i, seq_val: body_fun(seq_val[0][i], seq_val[1]),\n+      lambda i, seq_val: (seq_val[0], body_fun(seq_val[0][i], seq_val[1])),\n       (sequence, init_val))\n   return result\n "
+        }
+      ]
+    }
+  ]
+}

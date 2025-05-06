@@ -1,0 +1,505 @@
+{
+  "repo_name": "matplotlib/matplotlib",
+  "commits": [
+    {
+      "sha": "eb38d25cce407ee8b64af2430061411d6c2943b8",
+      "message": "Improve error when passing 0d array to scatter().\n\nWith `scatter([1, 2], [3, 4], c=np.array(.5))`...\n\npreviously:\n\n    <elided>\n      File \".../matplotlib/colors.py\", line 338, in to_rgba_array\n        if len(c) == 0:\n    TypeError: len() of unsized object\n\nnow\n\n    <elided>\n      File \".../matplotlib/axes/_axes.py\", line 4249, in _parse_scatter_color_args\n        raise invalid_shape_exception(c.size, xsize)\n    ValueError: 'c' argument has 1 elements, which is inconsistent with 'x' and 'y' with size 2.\n\nEssentially the problem is that np.array(.5) passes an\n`isinstance(..., Iterable)` check (which only checks the type) but\nnp.iterable() more correctly returns False because it actually tries to\niter on it.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/axes/_axes.py",
+          "patch": "@@ -1,4 +1,3 @@\n-import collections.abc\n import functools\n import itertools\n import logging\n@@ -4210,7 +4209,7 @@ def _parse_scatter_color_args(c, edgecolors, kwargs, xsize,\n                  else get_next_color_func())\n         c_is_string_or_strings = (\n             isinstance(c, str)\n-            or (isinstance(c, collections.abc.Iterable) and len(c) > 0\n+            or (np.iterable(c) and len(c) > 0\n                 and isinstance(cbook.safe_first_element(c), str)))\n \n         def invalid_shape_exception(csize, xsize):\n@@ -4244,7 +4243,7 @@ def invalid_shape_exception(csize, xsize):\n         if not c_is_mapped:\n             try:  # Is 'c' acceptable as PathCollection facecolors?\n                 colors = mcolors.to_rgba_array(c)\n-            except ValueError:\n+            except (TypeError, ValueError):\n                 if not valid_shape:\n                     raise invalid_shape_exception(c.size, xsize)\n                 # Both the mapping *and* the RGBA conversion failed: pretty"
+        }
+      ]
+    },
+    {
+      "sha": "28c419cd3096b3feddb555957747d01c298100d0",
+      "message": "Backport PR #14472: Fix NameError in example code for setting label via method",
+      "changes": [
+        {
+          "file": "lib/matplotlib/axes/_axes.py",
+          "patch": "@@ -324,8 +324,8 @@ def legend(self, *args, **kwargs):\n \n         or::\n \n-            line.set_label('Label via method')\n             line, = ax.plot([1, 2, 3])\n+            line.set_label('Label via method')\n             ax.legend()\n \n         Specific lines can be excluded from the automatic legend element"
+        }
+      ]
+    },
+    {
+      "sha": "ae5c8e26e53a4011d4f32491a535d0f212a9269d",
+      "message": "Fix NameError in example code for setting label via method\n\nThe example code currently raises a NameError as \"line\" is not defined until the 2nd line is run.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/axes/_axes.py",
+          "patch": "@@ -321,8 +321,8 @@ def legend(self, *args, **kwargs):\n \n         or::\n \n-            line.set_label('Label via method')\n             line, = ax.plot([1, 2, 3])\n+            line.set_label('Label via method')\n             ax.legend()\n \n         Specific lines can be excluded from the automatic legend element"
+        }
+      ]
+    },
+    {
+      "sha": "d7db8769164fa7cb67c3eae90ef3c8450ea5b44b",
+      "message": "Revert catching of TypeError along with ValueError",
+      "changes": [
+        {
+          "file": "lib/matplotlib/axes/_axes.py",
+          "patch": "@@ -4265,7 +4265,7 @@ def _parse_scatter_color_args(c, edgecolors, kwargs, xsize,\n                     # Besides *colors* will be an empty array if c == 'none'.\n                     valid_shape = False\n                     raise ValueError\n-            except (ValueError, TypeError):\n+            except ValueError:\n                 if not valid_shape:  # but at least one conversion succeeded.\n                     raise ValueError(\n                         \"'c' argument has {nc} elements, which is not \""
+        }
+      ]
+    },
+    {
+      "sha": "17420ec0cb105457f980edc655419dd79744c370",
+      "message": "Don't try to use the colorbar formatter to format RGBA data.\n\nA colorbar doesn't make much sense for RGBA data, but matplotlib does\nallow one to be constructed; when formatting the cursor data for a RGBA\nimage we must be careful to not use the colorbar formatter.\n\nOtherwise, after `plt.imshow(np.random.rand(5, 5, 3)); plt.colorbar()`,\nwhen moving the mouse cursor over the image, we get\n```\n<elided>\n  File \"/usr/lib/python3.7/site-packages/matplotlib/ticker.py\", line 604, in format_data_short\n    return '%-12g' % value\n  File \"/usr/lib/python3.7/site-packages/numpy/ma/core.py\", line 4296, in __float__\n    raise TypeError(\"Only length-1 arrays can be converted \"\nTypeError: Only length-1 arrays can be converted to Python scalars\n```",
+      "changes": [
+        {
+          "file": "lib/matplotlib/image.py",
+          "patch": "@@ -930,7 +930,7 @@ def get_cursor_data(self, event):\n             return arr[i, j]\n \n     def format_cursor_data(self, data):\n-        if self.colorbar:\n+        if np.ndim(data) == 0 and self.colorbar:\n             return (\n                 \"[\"\n                 + cbook.strip_math("
+        }
+      ]
+    },
+    {
+      "sha": "014c02b99d40f399ed9852474032e52ea2eae218",
+      "message": "Don't crash on str(figimage(...)).\n\n`im = figimage(np.random.rand(100, 100), xo=100, yo=100); print(im)`\n\nPreviously:\n```\nTraceback (most recent call last):\n  File \"<string>\", line 4, in <module>\n  File \"/usr/lib/python3.7/site-packages/matplotlib/image.py\", line 184, in __str__\n    return \"AxesImage(%g,%g;%gx%g)\" % tuple(self.axes.bbox.bounds)\nAttributeError: 'NoneType' object has no attribute 'bbox'\n```\n\nnow:\n```\n<matplotlib.image.FigureImage object at 0x7fa97be63860>\n```\n\nNote that `AxesImage` actually already has the same `__str__` defined in\nits own body (which this PR leaves untouched).\n\nDefining a proper `__str__` for `FigureImage` (and other `_ImageBase`\nsubclasses) is not the object of this PR.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/image.py",
+          "patch": "@@ -177,9 +177,6 @@ def _rgb_to_rgba(A):\n class _ImageBase(martist.Artist, cm.ScalarMappable):\n     zorder = 0\n \n-    def __str__(self):\n-        return \"AxesImage(%g,%g;%gx%g)\" % tuple(self.axes.bbox.bounds)\n-\n     def __init__(self, ax,\n                  cmap=None,\n                  norm=None,"
+        }
+      ]
+    },
+    {
+      "sha": "1aa5a83c16c1125bcba4bb9a27e987b587d8517d",
+      "message": "Suppress chaining of cache lookup failure in color conversion.\n\nCurrently, something like\n`scatter(range(4), range(4), c=np.arange(4).reshape((2, 2)))`\nresults in the following traceback:\n\n```\nTraceback (most recent call last):\n  File \"matplotlib/lib/matplotlib/colors.py\", line 173, in to_rgba\n    rgba = _colors_full_map.cache[c, alpha]\nTypeError: unhashable type: 'numpy.ndarray'\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"matplotlib/lib/matplotlib/axes/_axes.py\", line 4289, in _parse_scatter_color_args\n    colors = mcolors.to_rgba_array(c)\n  File \"matplotlib/lib/matplotlib/colors.py\", line 284, in to_rgba_array\n    result[i] = to_rgba(cc, alpha)\n  File \"matplotlib/lib/matplotlib/colors.py\", line 175, in to_rgba\n    rgba = _to_rgba_no_colorcycle(c, alpha)\n  File \"matplotlib/lib/matplotlib/colors.py\", line 240, in _to_rgba_no_colorcycle\n    raise ValueError(\"RGBA sequence should have length 3 or 4\")\nValueError: RGBA sequence should have length 3 or 4\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"<string>\", line 4, in <module>\n  File \"matplotlib/lib/matplotlib/pyplot.py\", line 2826, in scatter\n    None else {}), **kwargs)\n  File \"matplotlib/lib/matplotlib/__init__.py\", line 1512, in inner\n    return func(ax, *map(sanitize_sequence, args), **kwargs)\n  File \"matplotlib/lib/matplotlib/axes/_axes.py\", line 4458, in scatter\n    get_next_color_func=self._get_patches_for_fill.get_next_color)\n  File \"matplotlib/lib/matplotlib/axes/_axes.py\", line 4302, in _parse_scatter_color_args\n    .format(nc=n_elem, xs=xsize, ys=ysize)\nValueError: 'c' argument has 2 elements, which is not acceptable for use with 'x' with size 4, 'y' with size 4.\n```\n\nAt least the topmost failure, regarding cache lookup, is irrelevant to\nthe end user, so suppress it, which this commit does.\n\nThe middle traceback is mildly interesing, in case the user intended to\npass in RGBA but mis-shaped it; we may want to fold the message into the\nscatter() error as well -- but that's not the object of this commit.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/colors.py",
+          "patch": "@@ -172,6 +172,8 @@ def to_rgba(c, alpha=None):\n     try:\n         rgba = _colors_full_map.cache[c, alpha]\n     except (KeyError, TypeError):  # Not in cache, or unhashable.\n+        rgba = None\n+    if rgba is None:  # Suppress exception chaining of cache lookup failure.\n         rgba = _to_rgba_no_colorcycle(c, alpha)\n         try:\n             _colors_full_map.cache[c, alpha] = rgba"
+        }
+      ]
+    },
+    {
+      "sha": "1b81a087db48cb330e53b849a077abd1b3b3a28c",
+      "message": "Prevent exception when running animation on Agg backend.\n\nCurrently, running e.g. the strip_chart example using the agg backend\n(not a particularly interesting use case, but done in particular by the\ndoc build) causes a \"AttributeError: 'FuncAnimation' object has no\nattribute '_cache_frame_data'\" exception.\n\nThis is fixed by moving the setting of the `_cache_frame_data` attribute\nto before the `super().__init__` call.\n\nAlso move the setting of `_init_func` next to the one of `_func`, which\nseems to be a logical grouping.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/animation.py",
+          "patch": "@@ -1613,6 +1613,7 @@ def __init__(self, fig, func, frames=None, init_func=None, fargs=None,\n         else:\n             self._args = ()\n         self._func = func\n+        self._init_func = init_func\n \n         # Amount of framedata to keep around for saving movies. This is only\n         # used if we don't know how many frames there will be: in the case\n@@ -1644,7 +1645,7 @@ def __init__(self, fig, func, frames=None, init_func=None, fargs=None,\n             # As a workaround, convert save_count to a native python int.\n             self.save_count = int(self.save_count)\n \n-        self._init_func = init_func\n+        self._cache_frame_data = cache_frame_data\n \n         # Needs to be initialized so the draw functions work without checking\n         self._save_seq = []\n@@ -1655,8 +1656,6 @@ def __init__(self, fig, func, frames=None, init_func=None, fargs=None,\n         # for a single frame from init, which is not what we want.\n         self._save_seq = []\n \n-        self._cache_frame_data = cache_frame_data\n-\n     def new_frame_seq(self):\n         # Use the generating function to generate a new frame sequence\n         return self._iter_gen()"
+        }
+      ]
+    },
+    {
+      "sha": "ed3ee5fa1c6254ce178ca4c66a402906921bb35d",
+      "message": "Backport PR #12809: Fix TypeError when calculating tick_values",
+      "changes": [
+        {
+          "file": "lib/matplotlib/ticker.py",
+          "patch": "@@ -2186,7 +2186,7 @@ def tick_values(self, vmin, vmax):\n                 stride += 1\n \n         # Does subs include anything other than 1?\n-        have_subs = len(subs) > 1 or (len(subs == 1) and subs[0] != 1.0)\n+        have_subs = len(subs) > 1 or (len(subs) == 1 and subs[0] != 1.0)\n \n         decades = np.arange(math.floor(vmin) - stride,\n                             math.ceil(vmax) + 2 * stride, stride)"
+        }
+      ]
+    },
+    {
+      "sha": "6a61f93a8841ccc54036e2087675744d938288a7",
+      "message": "Fix TypeError when calculating tick_values (#12809)",
+      "changes": [
+        {
+          "file": "lib/matplotlib/ticker.py",
+          "patch": "@@ -2193,7 +2193,7 @@ def tick_values(self, vmin, vmax):\n                 stride += 1\n \n         # Does subs include anything other than 1?\n-        have_subs = len(subs) > 1 or (len(subs == 1) and subs[0] != 1.0)\n+        have_subs = len(subs) > 1 or (len(subs) == 1 and subs[0] != 1.0)\n \n         decades = np.arange(math.floor(vmin) - stride,\n                             math.ceil(vmax) + 2 * stride, stride)"
+        }
+      ]
+    },
+    {
+      "sha": "4705a302fecee356b3c7bc49910d063016ae9bc1",
+      "message": "Clarify missing-property error message.\n\nThe error message is modelled like CPython's normal AttributeError\nmessage ('foo' object has no attribute 'bar').",
+      "changes": [
+        {
+          "file": "lib/matplotlib/artist.py",
+          "patch": "@@ -965,7 +965,8 @@ def _update_property(self, k, v):\n             else:\n                 func = getattr(self, 'set_' + k, None)\n                 if not callable(func):\n-                    raise AttributeError('Unknown property %s' % k)\n+                    raise AttributeError('{!r} object has no property {!r}'\n+                                         .format(type(self).__name__, k))\n                 return func(v)\n \n         with cbook._setattr_cm(self, eventson=False):"
+        }
+      ]
+    },
+    {
+      "sha": "f9d757cefae03269814d8acf8052263389f42c19",
+      "message": "Correct the removal of -Wstrict-prototypes from compiler flags.\n\nTrying to remove the invalid flag in run() was too early (.compiler is\nstill None at that point so we would just always get a (silenced)\nAttributeError -- catching the AttributeError is necessary to make\nthings work on Windows).  Indeed, the Py3.5 build currently displays a\nlot of warnings about -Wstrict-prototypes.  Doing the removal in\nbuild_extensions() instead works.\n\nThis went unnoticed because the upstream issue in distutils\n(https://bugs.python.org/issue5755) was recently fixed in Py3.6.6 and\n3.7.0; but this still affects Py3.5 and Py3.6.{0-5}.",
+      "changes": [
+        {
+          "file": "setup.py",
+          "patch": "@@ -107,15 +107,16 @@ def __init__(self, dist):\n \n \n class BuildExtraLibraries(BuildExtCommand):\n-    def run(self):\n-        # Remove the -Wstrict-prototypes option, it's not valid for C++.\n+    def build_extensions(self):\n+        # Remove the -Wstrict-prototypes option, it's not valid for C++.  Fixed\n+        # in Py3.7 as bpo-5755.\n         try:\n             self.compiler.compiler_so.remove('-Wstrict-prototypes')\n         except (ValueError, AttributeError):\n             pass\n         for package in good_packages:\n             package.do_custom_build()\n-        return BuildExtCommand.run(self)\n+        return super().build_extensions()\n \n \n cmdclass = versioneer.get_cmdclass()"
+        }
+      ]
+    },
+    {
+      "sha": "b7aa1946ab815d92a5e318dccc31ee2983ac0ab3",
+      "message": "Backport PR #12016: Fix AttributeError in GTK3Agg backend",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backends/backend_gtk3agg.py",
+          "patch": "@@ -2,6 +2,7 @@\n \n import numpy as np\n \n+from .. import cbook\n from . import backend_agg, backend_cairo, backend_gtk3\n from ._gtk3_compat import gi\n from .backend_cairo import cairo\n@@ -45,7 +46,7 @@ def on_draw_event(self, widget, ctx):\n             width = int(bbox.x1) - int(bbox.x0)\n             height = int(bbox.y1) - int(bbox.y0)\n \n-            buf = backend_cairo._unmultipled_rgba8888_to_premultiplied_argb32(\n+            buf = cbook._unmultipled_rgba8888_to_premultiplied_argb32(\n                 np.asarray(self.copy_from_bbox(bbox)))\n             image = cairo.ImageSurface.create_for_data(\n                 buf.ravel().data, cairo.FORMAT_ARGB32, width, height)"
+        }
+      ]
+    },
+    {
+      "sha": "34f9125634020bcba6d582bfe8e3b027d3465233",
+      "message": "Fix AttributeError in GTK3Agg backend\n\nFixes #12015",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backends/backend_gtk3agg.py",
+          "patch": "@@ -1,5 +1,6 @@\n import numpy as np\n \n+from .. import cbook\n from . import backend_agg, backend_cairo, backend_gtk3\n from .backend_cairo import cairo\n from .backend_gtk3 import Gtk, _BackendGTK3\n@@ -42,7 +43,7 @@ def on_draw_event(self, widget, ctx):\n             width = int(bbox.x1) - int(bbox.x0)\n             height = int(bbox.y1) - int(bbox.y0)\n \n-            buf = backend_cairo._unmultipled_rgba8888_to_premultiplied_argb32(\n+            buf = cbook._unmultipled_rgba8888_to_premultiplied_argb32(\n                 np.asarray(self.copy_from_bbox(bbox)))\n             image = cairo.ImageSurface.create_for_data(\n                 buf.ravel().data, cairo.FORMAT_ARGB32, width, height)"
+        }
+      ]
+    },
+    {
+      "sha": "1749c2e563f81cb05d74d015e6d7e404b545c6b0",
+      "message": "Backport PR #10710: BUG: Fix UnboundLocalError in contour labelling",
+      "changes": [
+        {
+          "file": "lib/matplotlib/contour.py",
+          "patch": "@@ -441,7 +441,7 @@ def calc_label_rot_and_inline(self, slc, ind, lw, lc=None, spacing=5):\n             # Actually break contours\n             if closed:\n                 # This will remove contour if shorter than label\n-                if np.all(I != -1):\n+                if all(i != -1 for i in I):\n                     nlc.append(np.row_stack([xy2, lc[I[1]:I[0]+1], xy1]))\n             else:\n                 # These will remove pieces of contour if they have length zero"
+        }
+      ]
+    },
+    {
+      "sha": "ca9502eac8ca3bfacec66b74365d96481262dc1e",
+      "message": "BUG: Fix UnboundLocalError in contour labelling\n\nThe code was trying to protect the access of xy1 and xy2 to valid cases,\nbut unfortunately, for a list, l != -1 doesn't do element-by-element or\nreturn an error--it just always returns True. Therefore it wasn't\nactually guarding.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/contour.py",
+          "patch": "@@ -440,7 +440,7 @@ def calc_label_rot_and_inline(self, slc, ind, lw, lc=None, spacing=5):\n             # Actually break contours\n             if closed:\n                 # This will remove contour if shorter than label\n-                if np.all(I != -1):\n+                if all(i != -1 for i in I):\n                     nlc.append(np.row_stack([xy2, lc[I[1]:I[0]+1], xy1]))\n             else:\n                 # These will remove pieces of contour if they have length zero"
+        }
+      ]
+    },
+    {
+      "sha": "2bd81fb5f657c2b889b4e87bd3237e7255ac1268",
+      "message": "Backport PR #10538: FIX: TypeError when using offset box in expand mode with tightlayout",
+      "changes": [
+        {
+          "file": "lib/matplotlib/offsetbox.py",
+          "patch": "@@ -83,6 +83,10 @@ def _get_packed_offsets(wd_list, total, sep, mode=\"fixed\"):\n             sep = 0\n         offsets_ = np.cumsum([0] + [w + sep for w in w_list])\n         offsets = offsets_[:-1]\n+        # this is a bit of a hack to avoid a TypeError when used\n+        # in conjugation with tight layout\n+        if total is None:\n+            total = 1\n         return total, offsets\n \n     elif mode == \"equal\":"
+        }
+      ]
+    },
+    {
+      "sha": "b177c85c35363f56a342426df9e5b31fc9f3fa81",
+      "message": "FIX: TypeError when using offset box in expand mode with tightlayout\n\nPerfect minimal example from @ewels\nsuggested fix from @afvincent\n\ncloses #10476",
+      "changes": [
+        {
+          "file": "lib/matplotlib/offsetbox.py",
+          "patch": "@@ -83,6 +83,10 @@ def _get_packed_offsets(wd_list, total, sep, mode=\"fixed\"):\n             sep = 0\n         offsets_ = np.cumsum([0] + [w + sep for w in w_list])\n         offsets = offsets_[:-1]\n+        # this is a bit of a hack to avoid a TypeError when used\n+        # in conjugation with tight layout\n+        if total is None:\n+            total = 1\n         return total, offsets\n \n     elif mode == \"equal\":"
+        }
+      ]
+    },
+    {
+      "sha": "78198bebd568b147031cb899939b5ef41614d47b",
+      "message": "Avoid UnboundLocalError in drag_pan.\n\nAxes.drag_pan should probably have been private but it's public and\nshould therefore properly handle unexpected input.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/axes/_base.py",
+          "patch": "@@ -4014,7 +4014,7 @@ def format_deltas(key, dx, dy):\n         p = self._pan_start\n         dx = x - p.x\n         dy = y - p.y\n-        if dx == 0 and dy == 0:\n+        if dx == dy == 0:\n             return\n         if button == 1:\n             dx, dy = format_deltas(key, dx, dy)\n@@ -4035,6 +4035,8 @@ def format_deltas(key, dx, dy):\n             except OverflowError:\n                 warnings.warn('Overflow while panning')\n                 return\n+        else:\n+            return\n \n         valid = np.isfinite(result.transformed(p.trans))\n         points = result.get_points().astype(object)"
+        }
+      ]
+    },
+    {
+      "sha": "38d0b35c0397140d6e43d4dd2a88858619c8c035",
+      "message": "cairo backends do not support blitting; mark them as such.\n\nTrying to run a blitting animation example on gtk3cairo currently fails\nwith\n\n    AttributeError: 'FigureCanvasGTK3Cairo' object has no attribute 'copy_from_bbox'\n\nWhile blitting can be made to work for e.g. qt5cairo, it cannot be for\ngtk3cairo which relies on gtk's windowing code to handle us a cairo\ncontext to directly draw on when a draw event occurs: the animation\nblitting code fundamentally assumes that it can modify the underlying\nbuffer whenever it wants and that the windowing system simply displayes\nthat buffer at each draw event.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backends/backend_cairo.py",
+          "patch": "@@ -450,6 +450,8 @@ def set_linewidth(self, w):\n \n \n class FigureCanvasCairo(FigureCanvasBase):\n+    supports_blit = False\n+\n     def print_png(self, fobj, *args, **kwargs):\n         width, height = self.get_width_height()\n "
+        }
+      ]
+    },
+    {
+      "sha": "89a187cbc7730ad970c5c30e22c9e449bf2552b6",
+      "message": "Backport PR #9427: Fix NameError: name 'exc' is not defined",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backend_bases.py",
+          "patch": "@@ -2606,7 +2606,7 @@ def _get_uniform_gridstate(ticks):\n         elif scalex == 'linear':\n             try:\n                 ax.set_xscale('log')\n-            except ValueError:\n+            except ValueError as exc:\n                 warnings.warn(str(exc))\n                 ax.set_xscale('linear')\n             ax.figure.canvas.draw_idle()"
+        }
+      ]
+    },
+    {
+      "sha": "42e3742916662b4c9e1146228f095a97956c8ada",
+      "message": "Backport PR #9428: Fix NameError: name 'ArgumentError' is not defined",
+      "changes": [
+        {
+          "file": "lib/matplotlib/mathtext.py",
+          "patch": "@@ -1838,7 +1838,7 @@ def __init__(self, glue_type, copy=False):\n         elif isinstance(glue_type, GlueSpec):\n             glue_spec = glue_type\n         else:\n-            raise ArgumentError(\"glue_type must be a glue spec name or instance.\")\n+            raise ValueError(\"glue_type must be a glue spec name or instance.\")\n         if copy:\n             glue_spec = glue_spec.copy()\n         self.glue_spec      = glue_spec"
+        }
+      ]
+    },
+    {
+      "sha": "1f1f819d25a329ba78723a5a5cb57f26435524de",
+      "message": "Fix NameError: name 'ArgumentError' is not defined",
+      "changes": [
+        {
+          "file": "lib/matplotlib/mathtext.py",
+          "patch": "@@ -1838,7 +1838,7 @@ def __init__(self, glue_type, copy=False):\n         elif isinstance(glue_type, GlueSpec):\n             glue_spec = glue_type\n         else:\n-            raise ArgumentError(\"glue_type must be a glue spec name or instance.\")\n+            raise ValueError(\"glue_type must be a glue spec name or instance.\")\n         if copy:\n             glue_spec = glue_spec.copy()\n         self.glue_spec      = glue_spec"
+        }
+      ]
+    },
+    {
+      "sha": "260d2ac9cf8290e162465aab21cadd9d342f6d51",
+      "message": "Fix NameError: name 'exc' is not defined",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backend_bases.py",
+          "patch": "@@ -2606,7 +2606,7 @@ def _get_uniform_gridstate(ticks):\n         elif scalex == 'linear':\n             try:\n                 ax.set_xscale('log')\n-            except ValueError:\n+            except ValueError as exc:\n                 warnings.warn(str(exc))\n                 ax.set_xscale('linear')\n             ax.figure.canvas.draw_idle()"
+        }
+      ]
+    },
+    {
+      "sha": "eb92ab70c8050642c2d6e4a2450ed9bed83d6768",
+      "message": "Fix NameError: name 'os' is not defined",
+      "changes": [
+        {
+          "file": "examples/animation/movie_demo_sgskip.py",
+          "patch": "@@ -7,6 +7,7 @@\n \n from __future__ import print_function\n \n+import os\n import subprocess\n import matplotlib.pyplot as plt\n import numpy as np"
+        }
+      ]
+    },
+    {
+      "sha": "37ad476aec62ce58f95c91e6aabd55cfc3b5af25",
+      "message": "Fix TypeError: a bytes-like object is required, not 'str'",
+      "changes": [
+        {
+          "file": "lib/matplotlib/dviread.py",
+          "patch": "@@ -1030,6 +1030,12 @@ def find_tex_file(filename, format=None):\n         The library that :program:`kpsewhich` is part of.\n     \"\"\"\n \n+    if six.PY3:\n+        if isinstance(filename, bytes):\n+            filename = filename.decode('utf-8', errors='replace')\n+        if isinstance(format, bytes):\n+            format = format.decode('utf-8', errors='replace')\n+\n     cmd = [str('kpsewhich')]\n     if format is not None:\n         cmd += ['--format=' + format]"
+        }
+      ]
+    },
+    {
+      "sha": "d2a0a0bcfbeb57ad45b87ce0daae923647a687f1",
+      "message": "Fix AttributeError: 'QPixmap' object has no attribute 'setDevicePixelRatio'",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backends/backend_qt5.py",
+          "patch": "@@ -588,7 +588,8 @@ def _icon(self, name):\n         if is_pyqt5():\n             name = name.replace('.png', '_large.png')\n         pm = QtGui.QPixmap(os.path.join(self.basedir, name))\n-        pm.setDevicePixelRatio(self.canvas._dpi_ratio)\n+        if hasattr(pm, 'setDevicePixelRatio'):\n+            pm.setDevicePixelRatio(self.canvas._dpi_ratio)\n         return QtGui.QIcon(pm)\n \n     def _init_toolbar(self):"
+        }
+      ]
+    },
+    {
+      "sha": "a2f7ed9d67fd9251c08215d7b4a826ce7c43b36e",
+      "message": "raise AttributeError exception for set_zlim",
+      "changes": [
+        {
+          "file": "lib/mpl_toolkits/mplot3d/axes3d.py",
+          "patch": "@@ -1091,8 +1091,6 @@ def cla(self):\n                 self.set_zlim(0, 1)\n             except TypeError:\n                 pass\n-            except AttributeError:\n-                pass\n \n         self._autoscaleZon = True\n         self._zmargin = 0"
+        }
+      ]
+    },
+    {
+      "sha": "01ebc98af5fd3f9190f6779b5a4103c81cd9722c",
+      "message": "Also pass on AttributeError",
+      "changes": [
+        {
+          "file": "lib/mpl_toolkits/mplot3d/axes3d.py",
+          "patch": "@@ -1090,6 +1090,8 @@ def cla(self):\n                 self.set_zlim(0, 1)\n             except TypeError:\n                 pass\n+            except AttributeError:\n+                pass\n \n         self._autoscaleZon = True\n         self._zmargin = 0"
+        }
+      ]
+    },
+    {
+      "sha": "199a87a71a22dffc495bc84a97893ac3480e7b43",
+      "message": "Don't check `iterable()` before `len()`.\n\n... because the former does not imply the latter anyways, e.g.\ngenerators are iterables but unsized.\n\nNow `plot(zip([1, 2], [3, 4]))` (py3) raises `RuntimeError: matplotlib\ndoes not support generators` (from `cbook.safe_first_element`) which is\nprobably the intended exception, rather than `TypeError: object of type\n'zip' has no len()`.  Perhaps this exception should be changed to a\n`TypeError`, by the way...",
+      "changes": [
+        {
+          "file": "lib/matplotlib/axes/_base.py",
+          "patch": "@@ -1925,11 +1925,9 @@ def update_datalim(self, xys, updatex=True, updatey=True):\n         # limits and set the bound to be the bounds of the xydata.\n         # Otherwise, it will compute the bounds of it's current data\n         # and the data in xydata\n-\n-        if iterable(xys) and not len(xys):\n+        xys = np.asarray(xys)\n+        if not len(xys):\n             return\n-        if not isinstance(xys, np.ma.MaskedArray):\n-            xys = np.asarray(xys)\n         self.dataLim.update_from_data_xy(xys, self.ignore_existing_data_limits,\n                                          updatex=updatex, updatey=updatey)\n         self.ignore_existing_data_limits = False"
+        }
+      ]
+    },
+    {
+      "sha": "af9d6eb9fe59bbc4e5933a0354c5f240fc3a87a0",
+      "message": "MNT: catch correct exceptions\n\nusing `next(iter(obj))` can raise `TypeError` if obj is not iterable\nand `StopIteration` if len(obj) == 0.  As we are no longer explictily\nindexing into `obj` it should not raise an `IndexError`",
+      "changes": [
+        {
+          "file": "lib/matplotlib/dates.py",
+          "patch": "@@ -1562,7 +1562,7 @@ def default_units(x, axis):\n \n         try:\n             x = next(iter(x))\n-        except (TypeError, IndexError):\n+        except (TypeError, StopIteration):\n             pass\n \n         try:"
+        }
+      ]
+    },
+    {
+      "sha": "ce55dfeaa15f7049d2b9be379519373a195ad1be",
+      "message": "str.formatter invalid\n\nA TypeError in AutoDateFormatter introduced in be0aafbc\nuses invalid str.formatter instead of str.format.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/dates.py",
+          "patch": "@@ -707,7 +707,7 @@ def __call__(self, x, pos=None):\n         elif six.callable(fmt):\n             result = fmt(x, pos)\n         else:\n-            raise TypeError('Unexpected type passed to {!r}.'.formatter(self))\n+            raise TypeError('Unexpected type passed to {0!r}.'.format(self))\n \n         return result\n "
+        }
+      ]
+    },
+    {
+      "sha": "8ad4f330b4bb80fc81850402823e60560ac74174",
+      "message": "Fix IndexError in cursor_demo.py.\n\nAn out-of-bounds error could be triggered before by bringing the mouse all\nthe way to the right of the graph, making `searchsorted` return `len(self.x)`\ninstead of `len(self.x) - 1`.",
+      "changes": [
+        {
+          "file": "examples/pylab_examples/cursor_demo.py",
+          "patch": "@@ -60,7 +60,7 @@ def mouse_move(self, event):\n \n         x, y = event.xdata, event.ydata\n \n-        indx = np.searchsorted(self.x, [x])[0]\n+        indx = min(np.searchsorted(self.x, [x])[0], len(self.x) - 1)\n         x = self.x[indx]\n         y = self.y[indx]\n         # update the line positions"
+        }
+      ]
+    },
+    {
+      "sha": "21f6bde175bfafd580acaf6ac56281dd1a90e02f",
+      "message": "TST: fix `AttributeError: 'module' object has no attribute 'nl_langinfo'` on Windows",
+      "changes": [
+        {
+          "file": "lib/matplotlib/tests/test_dates.py",
+          "patch": "@@ -199,7 +199,7 @@ def test_strftime_fields(dt):\n             expanded_formatter = mdates.DateFormatter(locale_d_fmt)\n             assert_equal(locale_formatter.strftime(dt),\n                          expanded_formatter.strftime(dt))\n-        except ImportError:\n+        except (ImportError, AttributeError):\n             pass\n \n     for year in range(1, 3000, 71):"
+        }
+      ]
+    },
+    {
+      "sha": "11d1b51748a8f0b88347b0649aaf96857af8e0eb",
+      "message": "fix bug\n\nwell, the columns here should be rows, as we want to give different colors by row index.\r\nthere is no problem in this example, because the matrix here is 5*5.\r\nBut if the length of rows is bigger than that of columns, it will raise Exception, such as\r\nplt.bar(index, data[row], bar_width, bottom=y_offset, color=colors[row])\r\nIndexError: index 2 is out of bounds for axis 0 with size 2",
+      "changes": [
+        {
+          "file": "examples/pylab_examples/table_demo.py",
+          "patch": "@@ -18,7 +18,7 @@\n value_increment = 1000\n \n # Get some pastel shades for the colors\n-colors = plt.cm.BuPu(np.linspace(0, 0.5, len(columns)))\n+colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))\n n_rows = len(data)\n \n index = np.arange(len(columns)) + 0.3"
+        }
+      ]
+    },
+    {
+      "sha": "ee16b6cce5cf2b7a012c98b7cb7535d178717295",
+      "message": "Avoid possible exception when toggling full-screen\n\nIn `examples/user_interfaces/embedding_in_tk.py`, a FigureCanvasTkAgg is embedded into a Tkinter window and the default mpl key bindings are implemented with matplotlib.backend_bases.key_press_handler. If the user attempts to toggle full-screen mode by pressing 'f', an AttributeError is raised because the FigureCanvasTkAgg has no 'manager' attribute. Indeed, since pyplot is not being used, no FigureManagerTkAgg object gets created. \r\n\r\nOne fix is to check for the 'manager' attribute and do nothing if it doesn't exist. (This is what is done in FigureCanvasBase.get_window_title/set_window_title, for example.)",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backend_bases.py",
+          "patch": "@@ -2479,7 +2479,8 @@ def key_press_handler(event, canvas, toolbar=None):\n \n     # toggle fullscreen mode (default key 'f')\n     if event.key in fullscreen_keys:\n-        canvas.manager.full_screen_toggle()\n+        if hasattr(canvas, 'manager'):\n+            canvas.manager.full_screen_toggle()\n \n     # quit the figure (defaut key 'ctrl+w')\n     if event.key in quit_keys:"
+        }
+      ]
+    },
+    {
+      "sha": "9a0d40bbdb2ca076d50193516973b09d8fcfd240",
+      "message": "Import cbook.restrict_dict into backend_gdk\n\nPrevents a NameError when using GDK as a backend",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backends/backend_gdk.py",
+          "patch": "@@ -26,7 +26,7 @@ def fn_name(): return sys._getframe(1).f_code.co_name\n from matplotlib._pylab_helpers import Gcf\n from matplotlib.backend_bases import RendererBase, GraphicsContextBase, \\\n      FigureManagerBase, FigureCanvasBase\n-from matplotlib.cbook import is_string_like\n+from matplotlib.cbook import is_string_like, restrict_dict\n from matplotlib.figure import Figure\n from matplotlib.mathtext import MathTextParser\n from matplotlib.transforms import Affine2D\n@@ -473,7 +473,7 @@ def _print_image(self, filename, format, *args, **kwargs):\n \n         # set the default quality, if we are writing a JPEG.\n         # http://www.pygtk.org/docs/pygtk/class-gdkpixbuf.html#method-gdkpixbuf--save\n-        options = cbook.restrict_dict(kwargs, ['quality'])\n+        options = restrict_dict(kwargs, ['quality'])\n         if format in ['jpg','jpeg']:\n            if 'quality' not in options:\n               options['quality'] = rcParams['savefig.jpeg_quality']"
+        }
+      ]
+    },
+    {
+      "sha": "ec118325900849d76f823c9a9b8d595db4ca883f",
+      "message": "Fixes TypeError when installing without freetype",
+      "changes": [
+        {
+          "file": "setupext.py",
+          "patch": "@@ -937,7 +937,7 @@ def check(self):\n \n         # Early versions of freetype grep badly inside freetype-config,\n         # so catch those cases. (tested with 2.5.3).\n-        if 'No such file or directory\\ngrep:' in version:\n+        if version is None or 'No such file or directory\\ngrep:' in version:\n             version = self.version_from_header()\n \n         return self._check_for_pkg_config("
+        }
+      ]
+    },
+    {
+      "sha": "b8cb0b3af0dd65bbc90106b66e50d0eb1dbd6315",
+      "message": "backend_qt5.py Don't use six.u\n\nThis code already does from __future__ import unicode_literal.\nThus '+' will be a unicode string even in python 2 and there is no\nneed for converting it into a unicode string. Infact this results in\na TypeError because six.u assumes the input string to be ASCII only.\nSee http://pythonhosted.org/six/#six.u",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backends/backend_qt5.py",
+          "patch": "@@ -381,7 +381,7 @@ def _get_key(self, event):\n                 key = key.lower()\n \n         mods.reverse()\n-        return six.u('+').join(mods + [key])\n+        return '+'.join(mods + [key])\n \n     def new_timer(self, *args, **kwargs):\n         \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "3d3ff095e28ae8477a72ac65eec6fcac15a14a61",
+      "message": "BUG: Fix 'TypeError: expected bytes, str found' on Python 3",
+      "changes": [
+        {
+          "file": "lib/matplotlib/mlab.py",
+          "patch": "@@ -3452,8 +3452,8 @@ def griddata(x, y, z, xi, yi, interp='nn'):\n             yi = yi[:, 0]\n \n         # Override default natgrid internal parameters.\n-        _natgrid.seti('ext', 0)\n-        _natgrid.setr('nul', np.nan)\n+        _natgrid.seti(b'ext', 0)\n+        _natgrid.setr(b'nul', np.nan)\n \n         if np.min(np.diff(xi)) < 0 or np.min(np.diff(yi)) < 0:\n             raise ValueError(\"Output grid defined by xi,yi must be monotone \""
+        }
+      ]
+    },
+    {
+      "sha": "6c1f14f3bca7a5d0a0fa4fa78bd6503ca389540f",
+      "message": "TypeError occurs when self.button=None in MouseEvents",
+      "changes": [
+        {
+          "file": "lib/matplotlib/backend_bases.py",
+          "patch": "@@ -1448,7 +1448,7 @@ def __init__(self, name, canvas, x, y, button=None, key=None,\n         self.dblclick = dblclick\n \n     def __str__(self):\n-        return (\"MPL MouseEvent: xy=(%d,%d) xydata=(%s,%s) button=%d \" +\n+        return (\"MPL MouseEvent: xy=(%d,%d) xydata=(%s,%s) button=%s \" +\n                 \"dblclick=%s inaxes=%s\") % (self.x, self.y, self.xdata,\n                                             self.ydata, self.button,\n                                             self.dblclick, self.inaxes)"
+        }
+      ]
+    },
+    {
+      "sha": "319ea6a7b493dd1ddbcf5d7e1aca751d1303f86a",
+      "message": "BUG: Fix IndexError: too many indices with numpy 1.8",
+      "changes": [
+        {
+          "file": "lib/matplotlib/tri/triinterpolate.py",
+          "patch": "@@ -1050,8 +1050,8 @@ def compute_dof_from_df(self):\n         gradient.\n         \"\"\"\n         J = CubicTriInterpolator._get_jacobian(self._tris_pts)\n-        tri_z = self.z[self._triangles, :]\n-        tri_dz = self.dz[self._triangles, :]\n+        tri_z = self.z[self._triangles]\n+        tri_dz = self.dz[self._triangles]\n         tri_dof = self.get_dof_vec(tri_z, tri_dz, J)\n         return tri_dof\n "
+        }
+      ]
+    },
+    {
+      "sha": "5bb6405addb52f411c5087c2b945baf99d863c88",
+      "message": "except AttributeError in module gi during checking for gtk3 backends",
+      "changes": [
+        {
+          "file": "setupext.py",
+          "patch": "@@ -1442,6 +1442,8 @@ def backend_gtk3agg_internal_check(x):\n         gi.require_version(\"Gtk\", \"3.0\")\n     except ValueError:\n         return (False, \"Requires gtk3 development files to be installed.\")\n+    except AttributeError:\n+        return (False, \"pygobject version too old.\")\n \n     try:\n         from gi.repository import Gtk, Gdk, GObject\n@@ -1505,6 +1507,8 @@ def backend_gtk3cairo_internal_check(x):\n         gi.require_version(\"Gtk\", \"3.0\")\n     except ValueError:\n         return (False, \"Requires gtk3 development files to be installed.\")\n+    except AttributeError:\n+        return (False, \"pygobject version too old.\")\n \n     try:\n         from gi.repository import Gtk, Gdk, GObject"
+        }
+      ]
+    },
+    {
+      "sha": "190f366cb9ceb10fb5890040c65f648ef88bce71",
+      "message": "Handle prop=None case in AnchoredText.__init__()\n\nThe line `propkeys = prop.keys()` will raise an AttributeError if `prop`\nhas its default value of None.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/offsetbox.py",
+          "patch": "@@ -1099,6 +1099,8 @@ def __init__(self, s, loc, pad=0.4, borderpad=0.5, prop=None, **kwargs):\n         other keyword parameters of AnchoredOffsetbox are also allowed.\n         \"\"\"\n \n+        if prop is None:\n+            prop = {}\n         propkeys = prop.keys()\n         badkwargs = ('ha', 'horizontalalignment', 'va', 'verticalalignment')\n         if set(badkwargs) & set(propkeys):"
+        }
+      ]
+    },
+    {
+      "sha": "4052840f683bd30fad7a3cd55ef36c6a0dbf6c2c",
+      "message": "fix the pyplot version of rc_context\n\nBefore this, when using the rc_context dangling from pyplot, one would\nget an AttributeError for ``__exit__``, because plt.rc_context wasn't\nactually returning anything before this change.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/pyplot.py",
+          "patch": "@@ -197,7 +197,7 @@ def rc(*args, **kwargs):\n \n @docstring.copy_dedent(matplotlib.rc_context)\n def rc_context(rc=None, fname=None):\n-    matplotlib.rc_context(rc, fname)\n+    return matplotlib.rc_context(rc, fname)\n \n @docstring.copy_dedent(matplotlib.rcdefaults)\n def rcdefaults():"
+        }
+      ]
+    },
+    {
+      "sha": "988a567aade21970c84a1543dc12a43d85dd9d61",
+      "message": "BF - prevent a TypeError for lists of vertices",
+      "changes": [
+        {
+          "file": "lib/matplotlib/markers.py",
+          "patch": "@@ -164,7 +164,7 @@ def set_marker(self, marker):\n             self._marker_function = self._set_tuple_marker\n         elif isinstance(marker, np.ndarray):\n             self._marker_function = self._set_vertices\n-        elif marker in self.markers:\n+        elif not isinstance(marker, list) and marker in self.markers:\n             self._marker_function = getattr(\n                 self, '_set_' + self.markers[marker])\n         elif is_string_like(marker) and is_math_text(marker):"
+        }
+      ]
+    },
+    {
+      "sha": "d9dbe664520be32f581c9b9f377482bd040eb53c",
+      "message": "Fix tripcolor with shading='faceted'\n\nIn this case `edgecolors` is mistakenly set to a tuple `'k',` such that the following `ec.lower()` statement will fail with an `AttributeError`.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/tri/tripcolor.py",
+          "patch": "@@ -93,7 +93,7 @@ def tripcolor(ax, *args, **kwargs):\n     kwargs.setdefault('linewidths', linewidths)\n \n     if shading == 'faceted':   # Deprecated.\n-        edgecolors = 'k',\n+        edgecolors = 'k'\n     else:\n         edgecolors = 'none'\n     if 'edgecolor' in kwargs:"
+        }
+      ]
+    },
+    {
+      "sha": "4a0bd60d310b1afdc771154b8e6df1d8224ad009",
+      "message": "Fix tripcolor with shading='faceted'\n\nIn this case `edgecolors` is mistakenly set to a tuple `'k',` such that the following `ec.lower()` statement will fail with an `AttributeError`.",
+      "changes": [
+        {
+          "file": "lib/matplotlib/tri/tripcolor.py",
+          "patch": "@@ -93,7 +93,7 @@ def tripcolor(ax, *args, **kwargs):\n     kwargs.setdefault('linewidths', linewidths)\n \n     if shading == 'faceted':   # Deprecated.\n-        edgecolors = 'k',\n+        edgecolors = 'k'\n     else:\n         edgecolors = 'none'\n     if 'edgecolor' in kwargs:"
+        }
+      ]
+    },
+    {
+      "sha": "f26ea29368ec79c613667255a0133790451dab6a",
+      "message": "Fix TypeError: set_autoscalez_on() takes exactly 2 arguments (3 given)",
+      "changes": [
+        {
+          "file": "lib/mpl_toolkits/mplot3d/axes3d.py",
+          "patch": "@@ -251,7 +251,7 @@ def set_autoscale_on(self, b) :\n             This function was added, but not tested. Please report any bugs.\n         \"\"\"\n         Axes.set_autoscale_on(self, b)\n-        self.set_autoscalez_on(self, b)\n+        self.set_autoscalez_on(b)\n \n     def set_autoscalez_on(self, b) :\n         \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "e247424f4c61d1a425760840c3729a0202cd31fe",
+      "message": "Fix TypeError: __bool__ should return bool, returned int in python3. __bool__ is converted from __nozero__ by 2to3\nso change this to return bool",
+      "changes": [
+        {
+          "file": "lib/matplotlib/markers.py",
+          "patch": "@@ -121,7 +121,7 @@ def _recache(self):\n         self._marker_function()\n \n     def __nonzero__(self):\n-        return len(self._path.vertices)\n+        return bool(len(self._path.vertices))\n \n     def is_filled(self):\n         return self._filled"
+        }
+      ]
+    }
+  ]
+}

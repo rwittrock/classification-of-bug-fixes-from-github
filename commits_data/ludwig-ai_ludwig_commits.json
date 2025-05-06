@@ -1,0 +1,15 @@
+{
+  "repo_name": "ludwig-ai/ludwig",
+  "commits": [
+    {
+      "sha": "63e1286e9f061fb94042cb68d2bc043a35d6bee5",
+      "message": "fixed AttributeError: 'Model' object has no attribute 'model'",
+      "changes": [
+        {
+          "file": "ludwig/models/model.py",
+          "patch": "@@ -1362,7 +1362,7 @@ def save_savedmodel(self, save_path):\n                     input_tensors, output_tensors)\n             },\n             strip_default_attrs=True,\n-            saver=self.model.saver,\n+            saver=self.saver,\n         )\n         builder.save()\n "
+        }
+      ]
+    }
+  ]
+}

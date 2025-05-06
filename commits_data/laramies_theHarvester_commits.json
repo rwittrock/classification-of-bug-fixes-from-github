@@ -1,0 +1,25 @@
+{
+  "repo_name": "laramies/theHarvester",
+  "commits": [
+    {
+      "sha": "b0e390fd8d939b6f37d08e4b23b168f381dd2106",
+      "message": "Fix yahoo UnboundLocalError: local variable yahoosearch referenced before assignment",
+      "changes": [
+        {
+          "file": "theHarvester/__main__.py",
+          "patch": "@@ -377,6 +377,7 @@ def start():\n \n                 elif engineitem == 'yahoo':\n                     print('\\033[94m[*] Searching Yahoo. \\033[0m')\n+                    from theHarvester.discovery import yahoosearch\n                     search = yahoosearch.SearchYahoo(word, limit)\n                     search.process()\n                     hosts = search.get_hostnames()"
+        }
+      ]
+    },
+    {
+      "sha": "b59619bddf9e9a1ec93e0e62df80bd9a0efd7352",
+      "message": "Fix virustotal UnboundLocalError: local variable virustotal referenced before assignment",
+      "changes": [
+        {
+          "file": "theHarvester/__main__.py",
+          "patch": "@@ -367,6 +367,7 @@ def start():\n \n                 elif engineitem == 'virustotal':\n                     print('\\033[94m[*] Searching VirusTotal. \\033[0m')\n+                    from theHarvester.discovery import virustotal\n                     search = virustotal.SearchVirustotal(word)\n                     search.process()\n                     hosts = filter(search.get_hostnames())"
+        }
+      ]
+    }
+  ]
+}

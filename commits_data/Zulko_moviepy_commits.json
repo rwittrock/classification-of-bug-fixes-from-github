@@ -1,0 +1,35 @@
+{
+  "repo_name": "Zulko/moviepy",
+  "commits": [
+    {
+      "sha": "2ab53ac213fb6ef7ed2cef27f0414745a22132d0",
+      "message": "Revert \"Fixes `AttributeError: reader`\"",
+      "changes": [
+        {
+          "file": "moviepy/video/io/VideoFileClip.py",
+          "patch": "@@ -87,7 +87,4 @@ def __init__(self, filename, has_mask=False,\n \n     def __del__(self):\n       \"\"\" Close/delete the internal reader. \"\"\"\n-        try:\n-            del self.reader\n-        except AttributeError:\n-            pass\n+      del self.reader"
+        }
+      ]
+    },
+    {
+      "sha": "3a38d230932da3e958c50f95b4ecfe466e97035a",
+      "message": "Fixes `AttributeError: reader`\n\nI get the error\r\n\r\nException ignored in: <bound method VideoFileClip.__del__ of <moviepy.video.io.VideoFileClip.VideoFileClip object at 0x10d347d30>>\r\nTraceback (most recent call last):\r\nFile \"/anaconda/lib/python3.5/site-packages/moviepy/video/io/VideoFileClip.py\", line 89, in __del__\r\n    del self.reader\r\nAttributeError: reader\r\n\r\nThe error doesn't actually crash the program, but we don't need it",
+      "changes": [
+        {
+          "file": "moviepy/video/io/VideoFileClip.py",
+          "patch": "@@ -87,4 +87,7 @@ def __init__(self, filename, has_mask=False,\n \n     def __del__(self):\n       \"\"\" Close/delete the internal reader. \"\"\"\n-      del self.reader\n+        try:\n+            del self.reader\n+        except AttributeError:\n+            pass"
+        }
+      ]
+    },
+    {
+      "sha": "618c2d65f9e99022f278db428c99504a0cd6f3b7",
+      "message": "- changed none to None due to NameError",
+      "changes": [
+        {
+          "file": "moviepy/video/io/ImageSequenceClip.py",
+          "patch": "@@ -75,7 +75,7 @@ def __init__(self, sequence, fps=None, durations=None, with_mask=True,\n                         for f in os.listdir(sequence)])\n \n         self.fps = fps\n-        if fps is not none:\n+        if fps is not None:\n             durations = [1.0/fps for image in sequence]\n         self.durations = durations\n         self.images_starts = [0]+list(np.cumsum(durations))"
+        }
+      ]
+    }
+  ]
+}

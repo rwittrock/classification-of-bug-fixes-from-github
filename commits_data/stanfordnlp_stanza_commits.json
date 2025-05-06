@@ -1,0 +1,15 @@
+{
+  "repo_name": "stanfordnlp/stanza",
+  "commits": [
+    {
+      "sha": "bd50d88adc86b1464653960bf6991073d2a3cc3a",
+      "message": "Fix NameError calling sys.exit() instead of exit()",
+      "changes": [
+        {
+          "file": "stanfordnlp/models/tokenize/trainer.py",
+          "patch": "@@ -1,3 +1,5 @@\n+import sys\n+\n import torch\n import torch.nn as nn\n import torch.optim as optim\n@@ -81,7 +83,7 @@ def load(self, filename):\n             checkpoint = torch.load(filename, lambda storage, loc: storage)\n         except BaseException:\n             print(\"Cannot load model from {}\".format(filename))\n-            exit()\n+            sys.exit()\n         self.args = checkpoint['config']\n         self.model = Tokenizer(self.args, self.args['vocab_size'], self.args['emb_dim'], self.args['hidden_dim'], dropout=self.args['dropout'])\n         self.model.load_state_dict(checkpoint['model'])"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1213 @@
+{
+  "repo_name": "python/cpython",
+  "commits": [
+    {
+      "sha": "79f02fee1a542c440fd906fd54154c73fc0f8235",
+      "message": "bpo-39033: Fix NameError in zipimport during hash validation (GH-17588)\n\n\r\nPatch by Karthikeyan Singaravelan.",
+      "changes": [
+        {
+          "file": "Lib/zipimport.py",
+          "patch": "@@ -608,7 +608,7 @@ def _unmarshal_code(self, pathname, fullpath, fullname, data):\n                 )\n \n                 try:\n-                    _boostrap_external._validate_hash_pyc(\n+                    _bootstrap_external._validate_hash_pyc(\n                         data, source_hash, fullname, exc_details)\n                 except ImportError:\n                     return None"
+        }
+      ]
+    },
+    {
+      "sha": "3ae4ea1931361dd2743e464790e739d9285501bf",
+      "message": "bpo-38708: email: Fix a potential IndexError when parsing Message-ID (GH-17504)\n\nFix a potential IndexError when passing an empty value to the message-id\r\nparser. Instead, HeaderParseError should be raised.",
+      "changes": [
+        {
+          "file": "Lib/email/_header_value_parser.py",
+          "patch": "@@ -2047,7 +2047,7 @@ def get_msg_id(value):\n        no-fold-literal = \"[\" *dtext \"]\"\n     \"\"\"\n     msg_id = MsgID()\n-    if value[0] in CFWS_LEADER:\n+    if value and value[0] in CFWS_LEADER:\n         token, value = get_cfws(value)\n         msg_id.append(token)\n     if not value or value[0] != '<':"
+        },
+        {
+          "file": "Lib/test/test_email/test__header_value_parser.py",
+          "patch": "@@ -2583,6 +2583,11 @@ def test_invalid_content_transfer_encoding(self):\n \n     # get_msg_id\n \n+    def test_get_msg_id_empty(self):\n+        # bpo-38708: Test that HeaderParseError is raised and not IndexError.\n+        with self.assertRaises(errors.HeaderParseError):\n+            parser.get_msg_id('')\n+\n     def test_get_msg_id_valid(self):\n         msg_id = self._test_get_x(\n             parser.get_msg_id,\n@@ -2694,6 +2699,7 @@ def test_get_msg_id_no_angle_end(self):\n         self.assertEqual(msg_id.token_type, 'msg-id')\n \n \n+\n @parameterize\n class Test_parse_mime_parameters(TestParserMixin, TestEmailBase):\n "
+        }
+      ]
+    },
+    {
+      "sha": "bb815499af855b1759c02535f8d7a9d0358e74e8",
+      "message": "bpo-38698: Prevent UnboundLocalError to pop up in parse_message_id (GH-17277)\n\n\n\nparse_message_id() was improperly using a token defined inside an exception\r\nhandler, which was raising `UnboundLocalError` on parsing an invalid value.\r\n\r\n\r\n\r\n\r\nhttps://bugs.python.org/issue38698",
+      "changes": [
+        {
+          "file": "Lib/email/_header_value_parser.py",
+          "patch": "@@ -2113,7 +2113,8 @@ def parse_message_id(value):\n     except errors.HeaderParseError:\n         message_id.defects.append(errors.InvalidHeaderDefect(\n             \"Expected msg-id but found {!r}\".format(value)))\n-    message_id.append(token)\n+    else:\n+        message_id.append(token)\n     return message_id\n \n #"
+        },
+        {
+          "file": "Lib/test/test_email/test__header_value_parser.py",
+          "patch": "@@ -2638,6 +2638,12 @@ def test_get_msg_id_no_id_right_part(self):\n         )\n         self.assertEqual(msg_id.token_type, 'msg-id')\n \n+    def test_get_msg_id_invalid_expected_msg_id_not_found(self):\n+        text = \"Message-Id: 935-XPB-567:0:86089:180874:0:45327:9:90305:17843586-40@example.com\"\n+        msg_id = parser.parse_message_id(text)\n+        self.assertDefectsEqual(msg_id.all_defects,\n+                                [errors.InvalidHeaderDefect])\n+\n     def test_get_msg_id_no_angle_start(self):\n         with self.assertRaises(errors.HeaderParseError):\n             parser.get_msg_id(\"msgwithnoankle\")"
+        }
+      ]
+    },
+    {
+      "sha": "0567786d26348aa7eaf0ab1b5d038fdabe409d92",
+      "message": "bpo-37540: vectorcall: keyword names must be strings (GH-14682)\n\n\n\nThe fact that keyword names are strings is now part of the vectorcall and `METH_FASTCALL` protocols. The biggest concrete change is that `_PyStack_UnpackDict` now checks that and raises `TypeError` if not.\r\n\r\nCC @markshannon @vstinner \n\n\nhttps://bugs.python.org/issue37540",
+      "changes": [
+        {
+          "file": "Lib/test/test_extcall.py",
+          "patch": "@@ -237,7 +237,7 @@\n     >>> f(**{1:2})\n     Traceback (most recent call last):\n       ...\n-    TypeError: f() keywords must be strings\n+    TypeError: keywords must be strings\n \n     >>> h(**{'e': 2})\n     Traceback (most recent call last):"
+        },
+        {
+          "file": "Lib/test/test_unpack_ex.py",
+          "patch": "@@ -256,7 +256,7 @@\n     >>> f(**{1: 3}, **{1: 5})\n     Traceback (most recent call last):\n       ...\n-    TypeError: f() keywords must be strings\n+    TypeError: f() got multiple values for keyword argument '1'\n \n Unpacking non-sequence\n "
+        }
+      ]
+    },
+    {
+      "sha": "09a1872a8007048dcdf825a476816c5e3498b8f8",
+      "message": "bpo-32178: Fix IndexError trying to parse 'To' header starting with ':'. (GH-15044)\n\n\n\nThis should fix the IndexError trying to retrieve `DisplayName.display_name` and `DisplayName.value` when the `value` is basically an empty string.\r\n\r\n\n\n\nhttps://bugs.python.org/issue32178",
+      "changes": [
+        {
+          "file": "Lib/email/_header_value_parser.py",
+          "patch": "@@ -561,6 +561,8 @@ class DisplayName(Phrase):\n     @property\n     def display_name(self):\n         res = TokenList(self)\n+        if len(res) == 0:\n+            return res.value\n         if res[0].token_type == 'cfws':\n             res.pop(0)\n         else:\n@@ -582,7 +584,7 @@ def value(self):\n             for x in self:\n                 if x.token_type == 'quoted-string':\n                     quote = True\n-        if quote:\n+        if len(self) != 0 and quote:\n             pre = post = ''\n             if self[0].token_type=='cfws' or self[0][0].token_type=='cfws':\n                 pre = ' '"
+        }
+      ]
+    },
+    {
+      "sha": "719a062bcb7b08a56e6576dcd75f4244e6053209",
+      "message": "Fix IndexError when parsing unexpectedly ending quoted-string. (GH-14813)\n\nThis exception was caused because the input ended unexpectedly with only one\r\nsingle quote instead of a pair with some value inside it.",
+      "changes": [
+        {
+          "file": "Lib/email/_header_value_parser.py",
+          "patch": "@@ -1191,7 +1191,7 @@ def get_bare_quoted_string(value):\n             \"expected '\\\"' but found '{}'\".format(value))\n     bare_quoted_string = BareQuotedString()\n     value = value[1:]\n-    if value[0] == '\"':\n+    if value and value[0] == '\"':\n         token, value = get_qcontent(value)\n         bare_quoted_string.append(token)\n     while value and value[0] != '\"':"
+        },
+        {
+          "file": "Lib/test/test_email/test__header_value_parser.py",
+          "patch": "@@ -522,6 +522,10 @@ def test_get_bare_quoted_string_only_quotes(self):\n         self._test_get_x(parser.get_bare_quoted_string,\n                          '\"\"', '\"\"', '', [], '')\n \n+    def test_get_bare_quoted_string_missing_endquotes(self):\n+        self._test_get_x(parser.get_bare_quoted_string,\n+                         '\"', '\"\"', '', [errors.InvalidHeaderDefect], '')\n+\n     def test_get_bare_quoted_string_following_wsp_preserved(self):\n         self._test_get_x(parser.get_bare_quoted_string,\n              '\"foo\"\\t bar', '\"foo\"', 'foo', [], '\\t bar')"
+        }
+      ]
+    },
+    {
+      "sha": "c6a2320e876354ee62cf8149b849bcff9492d38a",
+      "message": "bpo-37406: sqlite3 raises TypeError for wrong operation type (GH-14386)\n\nThe sqlite3 module now raises TypeError, rather than ValueError, if\r\noperation argument type is not str: execute(), executemany() and\r\ncalling a connection.",
+      "changes": [
+        {
+          "file": "Lib/sqlite3/test/dbapi.py",
+          "patch": "@@ -230,7 +230,7 @@ def CheckExecuteTooMuchSql3(self):\n             \"\"\")\n \n     def CheckExecuteWrongSqlArg(self):\n-        with self.assertRaises(ValueError):\n+        with self.assertRaises(TypeError):\n             self.cu.execute(42)\n \n     def CheckExecuteArgInt(self):\n@@ -377,7 +377,7 @@ def mygen():\n         self.cu.executemany(\"insert into test(income) values (?)\", mygen())\n \n     def CheckExecuteManyWrongSqlArg(self):\n-        with self.assertRaises(ValueError):\n+        with self.assertRaises(TypeError):\n             self.cu.executemany(42, [(3,)])\n \n     def CheckExecuteManySelect(self):"
+        },
+        {
+          "file": "Lib/sqlite3/test/regression.py",
+          "patch": "@@ -261,7 +261,7 @@ def CheckConnectionCall(self):\n         Call a connection with a non-string SQL request: check error handling\n         of the statement constructor.\n         \"\"\"\n-        self.assertRaises(sqlite.Warning, self.con, 1)\n+        self.assertRaises(TypeError, self.con, 1)\n \n     def CheckCollation(self):\n         def collation_cb(a, b):"
+        }
+      ]
+    },
+    {
+      "sha": "d407d2a7265f6102e51a1d62b3fd28b4f7a78d16",
+      "message": "bpo-37173: Show passed class in inspect.getfile error (GH-13861)\n\n\n\nCurrently, inspect.getfile(str) will report nonsense:\r\n\r\n```pytb\r\n>>> inspect.getfile(str)\r\nTypeError: <module 'builtins' (built-in)> is a built-in class\r\n```\r\n\r\nThis fixes that\r\n\r\n\r\nhttps://bugs.python.org/issue37173",
+      "changes": [
+        {
+          "file": "Lib/inspect.py",
+          "patch": "@@ -659,9 +659,9 @@ def getfile(object):\n         raise TypeError('{!r} is a built-in module'.format(object))\n     if isclass(object):\n         if hasattr(object, '__module__'):\n-            object = sys.modules.get(object.__module__)\n-            if getattr(object, '__file__', None):\n-                return object.__file__\n+            module = sys.modules.get(object.__module__)\n+            if getattr(module, '__file__', None):\n+                return module.__file__\n         raise TypeError('{!r} is a built-in class'.format(object))\n     if ismethod(object):\n         object = object.__func__"
+        }
+      ]
+    },
+    {
+      "sha": "142566c028720934325f0b7fe28680afd046e00f",
+      "message": "[3.9] bpo-37116: Use PEP 570 syntax for positional-only parameters. (GH-12620)\n\nTurn deprecation warnings added in 3.8 into TypeError.",
+      "changes": [
+        {
+          "file": "Lib/test/test_concurrent_futures.py",
+          "patch": "@@ -668,9 +668,8 @@ def test_submit_keyword(self):\n         self.assertEqual(16, future.result())\n         future = self.executor.submit(capture, 1, self=2, fn=3)\n         self.assertEqual(future.result(), ((1,), {'self': 2, 'fn': 3}))\n-        with self.assertWarns(DeprecationWarning):\n-            future = self.executor.submit(fn=capture, arg=1)\n-        self.assertEqual(future.result(), ((), {'arg': 1}))\n+        with self.assertRaises(TypeError):\n+            self.executor.submit(fn=capture, arg=1)\n         with self.assertRaises(TypeError):\n             self.executor.submit(arg=1)\n "
+        },
+        {
+          "file": "Lib/test/test_contextlib.py",
+          "patch": "@@ -603,9 +603,9 @@ def _exit(*args, **kwds):\n                 stack.callback(arg=1)\n             with self.assertRaises(TypeError):\n                 self.exit_stack.callback(arg=2)\n-            with self.assertWarns(DeprecationWarning):\n+            with self.assertRaises(TypeError):\n                 stack.callback(callback=_exit, arg=3)\n-        self.assertEqual(result, [((), {'arg': 3})])\n+        self.assertEqual(result, [])\n \n     def test_push(self):\n         exc_raised = ZeroDivisionError"
+        },
+        {
+          "file": "Lib/test/test_contextlib_async.py",
+          "patch": "@@ -358,9 +358,9 @@ async def _exit(*args, **kwds):\n                 stack.push_async_callback(arg=1)\n             with self.assertRaises(TypeError):\n                 self.exit_stack.push_async_callback(arg=2)\n-            with self.assertWarns(DeprecationWarning):\n+            with self.assertRaises(TypeError):\n                 stack.push_async_callback(callback=_exit, arg=3)\n-        self.assertEqual(result, [((), {'arg': 3})])\n+        self.assertEqual(result, [])\n \n     @_async_test\n     async def test_async_push(self):"
+        },
+        {
+          "file": "Lib/test/test_functools.py",
+          "patch": "@@ -556,11 +556,9 @@ class B(object):\n         with self.assertRaises(TypeError):\n             class B:\n                 method = functools.partialmethod()\n-        with self.assertWarns(DeprecationWarning):\n+        with self.assertRaises(TypeError):\n             class B:\n                 method = functools.partialmethod(func=capture, a=1)\n-        b = B()\n-        self.assertEqual(b.method(2, x=3), ((b, 2), {'a': 1, 'x': 3}))\n \n     def test_repr(self):\n         self.assertEqual(repr(vars(self.A)['both']),"
+        },
+        {
+          "file": "Lib/test/test_trace.py",
+          "patch": "@@ -276,9 +276,8 @@ def test_simple_caller(self):\n     def test_arg_errors(self):\n         res = self.tracer.runfunc(traced_capturer, 1, 2, self=3, func=4)\n         self.assertEqual(res, ((1, 2), {'self': 3, 'func': 4}))\n-        with self.assertWarns(DeprecationWarning):\n-            res = self.tracer.runfunc(func=traced_capturer, arg=1)\n-        self.assertEqual(res, ((), {'arg': 1}))\n+        with self.assertRaises(TypeError):\n+            self.tracer.runfunc(func=traced_capturer, arg=1)\n         with self.assertRaises(TypeError):\n             self.tracer.runfunc()\n "
+        },
+        {
+          "file": "Lib/unittest/test/test_runner.py",
+          "patch": "@@ -592,7 +592,7 @@ def cleanup(*args, **kwargs):\n         class TestableTest(unittest.TestCase):\n             def setUp(self2):\n                 self2.addCleanup(cleanup, 1, 2, function=3, self=4)\n-                with self.assertWarns(DeprecationWarning):\n+                with self.assertRaises(TypeError):\n                     self2.addCleanup(function=cleanup, arg='hello')\n             def testNothing(self):\n                 pass\n@@ -603,8 +603,7 @@ def testNothing(self):\n             unittest.TestCase.addCleanup(self=TestableTest(), function=cleanup)\n         runTests(TestableTest)\n         self.assertEqual(cleanups,\n-                         [((), {'arg': 'hello'}),\n-                          ((1, 2), {'function': 3, 'self': 4})])\n+                         [((1, 2), {'function': 3, 'self': 4})])\n \n     def test_with_errors_in_addClassCleanup(self):\n         ordering = []"
+        }
+      ]
+    },
+    {
+      "sha": "aa79707262f893428665ef45b5e879129abca4aa",
+      "message": "bpo-30835: email: Fix AttributeError when parsing invalid CTE (GH-13598)\n\n* bpo-30835: email: Fix AttributeError when parsing invalid Content-Transfer-Encoding\r\n\r\nParsing an email containing a multipart Content-Type, along with a\r\nContent-Transfer-Encoding containing an invalid (non-ASCII-decodable) byte\r\nwill fail. email.feedparser.FeedParser._parsegen() gets the header and\r\nattempts to convert it to lowercase before comparing it with the accepted\r\nencodings, but as the header contains an invalid byte, it's returned as a\r\nHeader object rather than a str.\r\n\r\nCast the Content-Transfer-Encoding header to a str to avoid this.\r\n\r\nFound using the AFL fuzzer.\r\n\r\nReported-by: Daniel Axtens <dja@axtens.net>\r\nSigned-off-by: Andrew Donnellan <andrew@donnellan.id.au>\r\n\r\n* Add email and NEWS entry for the bugfix.",
+      "changes": [
+        {
+          "file": "Lib/email/feedparser.py",
+          "patch": "@@ -320,7 +320,7 @@ def _parsegen(self):\n                 self._cur.set_payload(EMPTYSTRING.join(lines))\n                 return\n             # Make sure a valid content type was specified per RFC 2045:6.4.\n-            if (self._cur.get('content-transfer-encoding', '8bit').lower()\n+            if (str(self._cur.get('content-transfer-encoding', '8bit')).lower()\n                     not in ('7bit', '8bit', 'binary')):\n                 defect = errors.InvalidMultipartContentTransferEncodingDefect()\n                 self.policy.handle_defect(self._cur, defect)"
+        }
+      ]
+    },
+    {
+      "sha": "5086589305ff5538709856b27314b68f06ae93db",
+      "message": "bpo-36298: Raise ModuleNotFoundError in pyclbr when a module can't be found (GH-12358)\n\n\n\nBefore, an `AttributeError` was raised due to trying to access an attribute that exists on specs but having received `None` instead for a non-existent module.\r\n\r\n\r\nhttps://bugs.python.org/issue36298",
+      "changes": [
+        {
+          "file": "Lib/pyclbr.py",
+          "patch": "@@ -160,17 +160,20 @@ def _readmodule(module, path, inpackage=None):\n     else:\n         search_path = path + sys.path\n     spec = importlib.util._find_spec_from_path(fullmodule, search_path)\n+    if spec is None:\n+        raise ModuleNotFoundError(f\"no module named {fullmodule!r}\", name=fullmodule)\n     _modules[fullmodule] = tree\n     # Is module a package?\n     if spec.submodule_search_locations is not None:\n         tree['__path__'] = spec.submodule_search_locations\n     try:\n         source = spec.loader.get_source(fullmodule)\n-        if source is None:\n-            return tree\n     except (AttributeError, ImportError):\n         # If module is not Python source, we cannot do anything.\n         return tree\n+    else:\n+        if source is None:\n+            return tree\n \n     fname = spec.loader.get_filename(fullmodule)\n     return _create_tree(fullmodule, path, fname, source, tree, inpackage)"
+        }
+      ]
+    },
+    {
+      "sha": "3e429dcc242e48fa4cbb1a91cf7c416c37b97b4e",
+      "message": "bpo-33237: Improve AttributeError message for partially initialized module. (GH-6398)",
+      "changes": [
+        {
+          "file": "Lib/test/test_import/data/circular_imports/source.py",
+          "patch": "@@ -0,0 +1,2 @@\n+from . import use\n+spam = 1"
+        },
+        {
+          "file": "Lib/test/test_import/data/circular_imports/use.py",
+          "patch": "@@ -0,0 +1,2 @@\n+from . import source\n+source.spam"
+        }
+      ]
+    },
+    {
+      "sha": "52dee687af3671a31f63d6432de0d9ef370fd7b0",
+      "message": "Assume the raw environ is always declared. (GH-8707)\n\nposixmodule.c always declares environ, so don't bother catching a NameError in os.py.",
+      "changes": [
+        {
+          "file": "Lib/os.py",
+          "patch": "@@ -525,12 +525,6 @@ def _fwalk(topfd, toppath, isbytes, topdown, onerror, follow_symlinks):\n \n     __all__.append(\"fwalk\")\n \n-# Make sure os.environ exists, at least\n-try:\n-    environ\n-except NameError:\n-    environ = {}\n-\n def execl(file, *args):\n     \"\"\"execl(file, *args)\n "
+        }
+      ]
+    },
+    {
+      "sha": "f1d36d8efaecd5c84cb35e35119b283f37d83c40",
+      "message": "bpo-33729: Fix issues with arguments parsing in hashlib. (GH-8346)\n\n* help(hashlib) didn't work because of incorrect module name in blake2b and\r\n  blake2s classes.\r\n* Constructors blake2*(), sha3_*(), shake_*() and keccak_*() incorrectly\r\n  accepted keyword argument \"string\" for binary data, but documented as\r\n  accepting the \"data\" keyword argument. Now this parameter is positional-only.\r\n* Keyword-only parameters in blake2b() and blake2s() were not documented as\r\n  keyword-only.\r\n* Default value for some parameters of blake2b() and blake2s() was None,\r\n  which is not acceptable value.\r\n* The length argument for shake_*.digest() was wrapped out to 32 bits.\r\n* The argument for shake_128.digest() and shake_128.hexdigest() was not\r\n  positional-only as intended.\r\n* TypeError messages for incorrect arguments in all constructors sha3_*(),\r\n  shake_*() and keccak_*() incorrectly referred to sha3_224.\r\n\r\nAlso made the following enhancements:\r\n\r\n* More accurately specified input and result types for strings, bytes and\r\n  bytes-like objects.\r\n* Unified positional parameter names for update() and constructors.\r\n* Improved formatting.",
+      "changes": [
+        {
+          "file": "Lib/test/test_hashlib.py",
+          "patch": "@@ -568,8 +568,12 @@ def check_blake2(self, constructor, salt_size, person_size, key_size,\n         self.assertRaises(ValueError, constructor, node_offset=-1)\n         self.assertRaises(OverflowError, constructor, node_offset=max_offset+1)\n \n+        self.assertRaises(TypeError, constructor, data=b'')\n+        self.assertRaises(TypeError, constructor, string=b'')\n+        self.assertRaises(TypeError, constructor, '')\n+\n         constructor(\n-            string=b'',\n+            b'',\n             key=b'',\n             salt=b'',\n             person=b'',"
+        }
+      ]
+    },
+    {
+      "sha": "3f8c6913b82ed9c05e57175bcbfeacde46c598e3",
+      "message": "bpo-34035: Fix several AttributeError in zipfile seek() methods. (GH-8527)",
+      "changes": [
+        {
+          "file": "Lib/test/test_zipfile.py",
+          "patch": "@@ -1646,6 +1646,8 @@ def test_seek_tell(self):\n                 self.assertEqual(fp.read(5), txt[bloc:bloc+5])\n                 fp.seek(0, os.SEEK_END)\n                 self.assertEqual(fp.tell(), len(txt))\n+                fp.seek(0, os.SEEK_SET)\n+                self.assertEqual(fp.tell(), 0)\n         # Check seek on memory file\n         data = io.BytesIO()\n         with zipfile.ZipFile(data, mode=\"w\") as zipf:\n@@ -1661,6 +1663,8 @@ def test_seek_tell(self):\n                 self.assertEqual(fp.read(5), txt[bloc:bloc+5])\n                 fp.seek(0, os.SEEK_END)\n                 self.assertEqual(fp.tell(), len(txt))\n+                fp.seek(0, os.SEEK_SET)\n+                self.assertEqual(fp.tell(), 0)\n \n     def tearDown(self):\n         unlink(TESTFN)"
+        },
+        {
+          "file": "Lib/zipfile.py",
+          "patch": "@@ -701,11 +701,11 @@ def __init__(self, file, pos, close, lock, writing):\n \n     def seek(self, offset, whence=0):\n         with self._lock:\n-            if self.writing():\n+            if self._writing():\n                 raise ValueError(\"Can't reposition in the ZIP file while \"\n                         \"there is an open writing handle on it. \"\n                         \"Close the writing handle before trying to read.\")\n-            self._file.seek(self._pos)\n+            self._file.seek(offset, whence)\n             self._pos = self._file.tell()\n             return self._pos\n \n@@ -1021,14 +1021,13 @@ def seek(self, offset, whence=0):\n             read_offset = 0\n         elif read_offset < 0:\n             # Position is before the current position. Reset the ZipExtFile\n-\n             self._fileobj.seek(self._orig_compress_start)\n             self._running_crc = self._orig_start_crc\n             self._compress_left = self._orig_compress_size\n             self._left = self._orig_file_size\n             self._readbuffer = b''\n             self._offset = 0\n-            self._decompressor = zipfile._get_decompressor(self._compress_type)\n+            self._decompressor = _get_decompressor(self._compress_type)\n             self._eof = False\n             read_offset = new_pos\n "
+        }
+      ]
+    },
+    {
+      "sha": "445f1b35ce8461268438c8a6b327ddc764287e05",
+      "message": "bpo-33967: Fix singledispatch raised IndexError when no args (GH-8184)",
+      "changes": [
+        {
+          "file": "Lib/functools.py",
+          "patch": "@@ -817,8 +817,13 @@ def register(cls, func=None):\n         return func\n \n     def wrapper(*args, **kw):\n+        if not args:\n+            raise TypeError(f'{funcname} requires at least '\n+                            '1 positional argument')\n+\n         return dispatch(args[0].__class__)(*args, **kw)\n \n+    funcname = getattr(func, '__name__', 'singledispatch function')\n     registry[object] = func\n     wrapper.register = register\n     wrapper.dispatch = dispatch"
+        },
+        {
+          "file": "Lib/test/test_functools.py",
+          "patch": "@@ -2305,6 +2305,13 @@ def _(arg: typing.Iterable[str]):\n         ))\n         self.assertTrue(str(exc.exception).endswith(msg_suffix))\n \n+    def test_invalid_positional_argument(self):\n+        @functools.singledispatch\n+        def f(*args):\n+            pass\n+        msg = 'f requires at least 1 positional argument'\n+        with self.assertRaisesRegexp(TypeError, msg):\n+            f()\n \n if __name__ == '__main__':\n     unittest.main()"
+        }
+      ]
+    },
+    {
+      "sha": "2487f30d5529948ace26559e274d7cac6abcd1a8",
+      "message": "bpo-30167: Prevent site.main() exception if PYTHONSTARTUP is set. (GH-6731)\n\nBefore Python 3.6, os.path.abspath(None) used to report an AttributeError which was properly caught inside site.abs_paths, making it ignore __main__, one of sys.modules, which has __file__ and __cached__ set to None. With 3.6, os.path.abspath(None) raises TypeError instead which site.abs_path was not expecting.  This resulted in an uncaught exception if a user had PYTHONSTARTUP set and the application called site.main() which a number of third-party programs do.",
+      "changes": [
+        {
+          "file": "Lib/site.py",
+          "patch": "@@ -104,11 +104,11 @@ def abs_paths():\n             continue   # don't mess with a PEP 302-supplied __file__\n         try:\n             m.__file__ = os.path.abspath(m.__file__)\n-        except (AttributeError, OSError):\n+        except (AttributeError, OSError, TypeError):\n             pass\n         try:\n             m.__cached__ = os.path.abspath(m.__cached__)\n-        except (AttributeError, OSError):\n+        except (AttributeError, OSError, TypeError):\n             pass\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "e9e397605789b2a67b67558fbbe756b7b88934f5",
+      "message": "bpo-33767: Fix improper use of SystemError by mmap.mmap objects (GH-7381)\n\nRaise TypeError instead of SystemError for unsupported operations.",
+      "changes": [
+        {
+          "file": "Lib/test/test_mmap.py",
+          "patch": "@@ -734,6 +734,13 @@ def test_resize_past_pos(self):\n         self.assertRaises(ValueError, m.write_byte, 42)\n         self.assertRaises(ValueError, m.write, b'abc')\n \n+    def test_concat_repeat_exception(self):\n+        m = mmap.mmap(-1, 16)\n+        with self.assertRaises(TypeError):\n+            m + m\n+        with self.assertRaises(TypeError):\n+            m * 2\n+\n \n class LargeMmapTests(unittest.TestCase):\n "
+        }
+      ]
+    },
+    {
+      "sha": "23f587e395e41bd5e116312b036183f42bc4159b",
+      "message": "bpo-31647: Fix write_eof() after close() for SelectorSocketTransport (GH-7149)\n\nFixed bug where calling write_eof() on a _SelectorSocketTransport after\r\nit's already closed raises AttributeError.",
+      "changes": [
+        {
+          "file": "Lib/asyncio/selector_events.py",
+          "patch": "@@ -899,7 +899,7 @@ def _write_ready(self):\n                     self._sock.shutdown(socket.SHUT_WR)\n \n     def write_eof(self):\n-        if self._eof:\n+        if self._closing or self._eof:\n             return\n         self._eof = True\n         if not self._buffer:"
+        },
+        {
+          "file": "Lib/test/test_asyncio/test_selector_events.py",
+          "patch": "@@ -1263,6 +1263,12 @@ def test_write_eof_buffer(self):\n         self.sock.shutdown.assert_called_with(socket.SHUT_WR)\n         tr.close()\n \n+    def test_write_eof_after_close(self):\n+        tr = self.socket_transport()\n+        tr.close()\n+        self.loop.run_until_complete(asyncio.sleep(0))\n+        tr.write_eof()\n+\n     @mock.patch('asyncio.base_events.logger')\n     def test_transport_close_remove_writer(self, m_log):\n         remove_writer = self.loop._remove_writer = mock.Mock()"
+        }
+      ]
+    },
+    {
+      "sha": "091e95e9004b794280ab35becec2c3e30dd5e96e",
+      "message": "bpo-33203: Ensure random.choice always raises IndexError on empty sequence (GH-6338)",
+      "changes": [
+        {
+          "file": "Lib/random.py",
+          "patch": "@@ -242,6 +242,8 @@ def _randbelow(self, n, int=int, maxsize=1<<BPF, type=type,\n                 \"enough bits to choose from a population range this large.\\n\"\n                 \"To remove the range limitation, add a getrandbits() method.\")\n             return int(random() * n)\n+        if n == 0:\n+            raise ValueError(\"Boundary cannot be zero\")\n         rem = maxsize % n\n         limit = (maxsize - rem) / maxsize   # int(limit * maxsize) % n == 0\n         r = random()"
+        },
+        {
+          "file": "Lib/test/test_random.py",
+          "patch": "@@ -651,7 +651,10 @@ def test_randbelow_overridden_random(self, random_mock):\n             # Population range too large (n >= maxsize)\n             self.gen._randbelow(maxsize+1, maxsize = maxsize)\n         self.gen._randbelow(5640, maxsize = maxsize)\n-\n+        # issue 33203: test that _randbelow raises ValueError on\n+        # n == 0 also in its getrandbits-independent branch.\n+        with self.assertRaises(ValueError):\n+            self.gen._randbelow(0, maxsize=maxsize)\n         # This might be going too far to test a single line, but because of our\n         # noble aim of achieving 100% test coverage we need to write a case in\n         # which the following line in Random._randbelow() gets executed:"
+        }
+      ]
+    },
+    {
+      "sha": "80d20b918bd8a882043c493a7f958333ecb41727",
+      "message": "bpo-31848: Fix broken error handling in Aifc_read.initfp() when the SSND chunk is not found (#5240)\n\nInitialize self._ssnd_chunk so that aifc.Error is raised as intended,\r\nnot AttributeError.",
+      "changes": [
+        {
+          "file": "Lib/aifc.py",
+          "patch": "@@ -322,6 +322,7 @@ def initfp(self, file):\n         else:\n             raise Error('not an AIFF or AIFF-C file')\n         self._comm_chunk_read = 0\n+        self._ssnd_chunk = None\n         while 1:\n             self._ssnd_seek_needed = 1\n             try:"
+        }
+      ]
+    },
+    {
+      "sha": "13a6c098c215921e35004f9d3a9b70f601e56500",
+      "message": "bpo-32259: Make a TypeError message when unpack non-iterable more specific. (#4903)",
+      "changes": [
+        {
+          "file": "Lib/test/test_dataclasses.py",
+          "patch": "@@ -866,7 +866,7 @@ class Date:\n         self.assertNotEqual(Point3D(1, 2, 3), (1, 2, 3))\n \n         # Make sure we can't unpack\n-        with self.assertRaisesRegex(TypeError, 'is not iterable'):\n+        with self.assertRaisesRegex(TypeError, 'unpack'):\n             x, y, z = Point3D(4, 5, 6)\n \n         # Maka sure another class with the same field names isn't"
+        },
+        {
+          "file": "Lib/test/test_unpack.py",
+          "patch": "@@ -55,7 +55,7 @@\n     >>> a, b, c = 7\n     Traceback (most recent call last):\n       ...\n-    TypeError: 'int' object is not iterable\n+    TypeError: cannot unpack non-iterable int object\n \n Unpacking tuple of wrong size\n \n@@ -129,7 +129,7 @@\n     >>> () = 42\n     Traceback (most recent call last):\n       ...\n-    TypeError: 'int' object is not iterable\n+    TypeError: cannot unpack non-iterable int object\n \n Unpacking to an empty iterable should raise ValueError\n "
+        },
+        {
+          "file": "Lib/test/test_unpack_ex.py",
+          "patch": "@@ -263,7 +263,7 @@\n     >>> a, *b = 7\n     Traceback (most recent call last):\n       ...\n-    TypeError: 'int' object is not iterable\n+    TypeError: cannot unpack non-iterable int object\n \n Unpacking sequence too short\n "
+        }
+      ]
+    },
+    {
+      "sha": "8c3f05e9f0f0b30a3d4a2433e92471794d8258af",
+      "message": "bpo-30436: Raise ModuleNotFoundError for importlib.util.find_spec() when parent isn't a package (GH-1899)\n\nPreviously AttributeError was raised, but that's not very reflective of the fact that the requested module can't be found since the specified parent isn't actually a package.",
+      "changes": [
+        {
+          "file": "Lib/test/test_cmd_line_script.py",
+          "patch": "@@ -427,7 +427,7 @@ def test_dash_m_errors(self):\n         tests = (\n             ('builtins', br'No code object available'),\n             ('builtins.x', br'Error while finding module specification.*'\n-                br'AttributeError'),\n+                br'ModuleNotFoundError'),\n             ('builtins.x.y', br'Error while finding module specification.*'\n                 br'ModuleNotFoundError.*No module named.*not a package'),\n             ('os.path', br'loader.*cannot handle'),"
+        },
+        {
+          "file": "Lib/test/test_importlib/test_util.py",
+          "patch": "@@ -522,6 +522,12 @@ def test_find_relative_module_missing_package(self):\n             self.assertNotIn(name, sorted(sys.modules))\n             self.assertNotIn(fullname, sorted(sys.modules))\n \n+    def test_find_submodule_in_module(self):\n+        # ModuleNotFoundError raised when a module is specified as\n+        # a parent instead of a package.\n+        with self.assertRaises(ModuleNotFoundError):\n+            self.util.find_spec('module.name')\n+\n \n (Frozen_FindSpecTests,\n  Source_FindSpecTests"
+        }
+      ]
+    },
+    {
+      "sha": "6f75bc003ab4d5294b0291289ae03f7a8d305f46",
+      "message": "bpo-30301: Fix AttributeError when using SimpleQueue.empty() (#1601)\n\nUnder  *spawn* and *forkserver* start methods, SimpleQueue.empty() could\r\nraise AttributeError due to not setting _poll in __setstate__.",
+      "changes": [
+        {
+          "file": "Lib/multiprocessing/queues.py",
+          "patch": "@@ -337,6 +337,7 @@ def __getstate__(self):\n \n     def __setstate__(self, state):\n         (self._reader, self._writer, self._rlock, self._wlock) = state\n+        self._poll = self._reader.poll\n \n     def get(self):\n         with self._rlock:"
+        }
+      ]
+    },
+    {
+      "sha": "bcfb35f80d9d1f87d9fa6993c1d3bc35dd5db865",
+      "message": "Issue #26384: Fix UnboundLocalError in socket._sendfile_use_sendfile",
+      "changes": [
+        {
+          "file": "Lib/socket.py",
+          "patch": "@@ -258,7 +258,7 @@ def _sendfile_use_sendfile(self, file, offset=0, count=None):\n                 raise _GiveupOnSendfile(err)  # not a regular file\n             try:\n                 fsize = os.fstat(fileno).st_size\n-            except OSError:\n+            except OSError as err:\n                 raise _GiveupOnSendfile(err)  # not a regular file\n             if not fsize:\n                 return 0  # empty file"
+        }
+      ]
+    },
+    {
+      "sha": "90493ab30cd746d9063ec4cb76ad24e77da34702",
+      "message": "Issue #25761: Improved error reporting about truncated pickle data in\nC implementation of unpickler.  UnpicklingError is now raised instead of\nAttributeError and ValueError in some cases.",
+      "changes": [
+        {
+          "file": "Lib/test/test_pickle.py",
+          "patch": "@@ -139,8 +139,7 @@ def get_dispatch_table(self):\n     class CUnpicklerTests(PyUnpicklerTests):\n         unpickler = _pickle.Unpickler\n         bad_stack_errors = (pickle.UnpicklingError,)\n-        truncated_errors = (pickle.UnpicklingError, EOFError,\n-                            AttributeError, ValueError)\n+        truncated_errors = (pickle.UnpicklingError,)\n \n     class CPicklerTests(PyPicklerTests):\n         pickler = _pickle.Pickler"
+        }
+      ]
+    },
+    {
+      "sha": "e92dc9c23da8cb11f922f28353e6a58928aa5c71",
+      "message": "Fix a scoping issue where an UnboundLocalError was triggered if a\nlazy-loaded module was already in sys.modules.",
+      "changes": [
+        {
+          "file": "Lib/importlib/util.py",
+          "patch": "@@ -241,7 +241,7 @@ def __getattribute__(self, attr):\n             if id(self) != id(sys.modules[original_name]):\n                 msg = ('module object for {!r} substituted in sys.modules '\n                        'during a lazy load')\n-            raise ValueError(msg.format(original_name))\n+                raise ValueError(msg.format(original_name))\n         # Update after loading since that's what would happen in an eager\n         # loading situation.\n         self.__dict__.update(attrs_updated)"
+        }
+      ]
+    },
+    {
+      "sha": "47c5474aa0cbe8dc3cf2c370b19769edd3f2e8d8",
+      "message": "Issue #26623: TypeError message for JSON unserializible object now contains\nobject's type name, not object's representation.\nBased on patch by Mahmoud Lababidi.",
+      "changes": [
+        {
+          "file": "Lib/json/encoder.py",
+          "patch": "@@ -176,7 +176,8 @@ def default(self, o):\n                 return JSONEncoder.default(self, o)\n \n         \"\"\"\n-        raise TypeError(repr(o) + \" is not JSON serializable\")\n+        raise TypeError(\"Object of type '%s' is not JSON serializable\" %\n+                        o.__class__.__name__)\n \n     def encode(self, o):\n         \"\"\"Return a JSON string representation of a Python data structure."
+        }
+      ]
+    },
+    {
+      "sha": "48238c7e373aed6bf0f246b6c0887827397ae5ce",
+      "message": "Issue #2202: Fix UnboundLocalError in AbstractDigestAuthHandler.get_algorithm_impls\n\nRaise ValueError if algorithm is not MD5 or SHA.\n\nInitial patch by Mathieu Dupuy.",
+      "changes": [
+        {
+          "file": "Lib/urllib/request.py",
+          "patch": "@@ -1171,6 +1171,9 @@ def get_algorithm_impls(self, algorithm):\n         elif algorithm == 'SHA':\n             H = lambda x: hashlib.sha1(x.encode(\"ascii\")).hexdigest()\n         # XXX MD5-sess\n+        else:\n+            raise ValueError(\"Unsupported digest authentication \"\n+                             \"algorithm %r\" % algorithm)\n         KD = lambda s, d: H(\"%s:%s\" % (s, d))\n         return H, KD\n "
+        }
+      ]
+    },
+    {
+      "sha": "e88dd1c32c2961e0fe40b09c48904451fa1eba9a",
+      "message": "Issue #2202: Fix UnboundLocalError in AbstractDigestAuthHandler.get_algorithm_impls\n\nRaise ValueError if algorithm is not MD5 or SHA.\n\nInitial patch by Mathieu Dupuy.",
+      "changes": [
+        {
+          "file": "Lib/urllib/request.py",
+          "patch": "@@ -1111,6 +1111,9 @@ def get_algorithm_impls(self, algorithm):\n         elif algorithm == 'SHA':\n             H = lambda x: hashlib.sha1(x.encode(\"ascii\")).hexdigest()\n         # XXX MD5-sess\n+        else:\n+            raise ValueError(\"Unsupported digest authentication \"\n+                             \"algorithm %r\" % algorithm)\n         KD = lambda s, d: H(\"%s:%s\" % (s, d))\n         return H, KD\n "
+        }
+      ]
+    },
+    {
+      "sha": "4cd63ef67a3e0974f0c48c550769babd401075e3",
+      "message": "Issue #26198: ValueError is now raised instead of TypeError on buffer\noverflow in parsing \"es#\" and \"et#\" format units.  SystemError is now raised\ninstead of TypeError on programmical error in parsing format string.",
+      "changes": [
+        {
+          "file": "Lib/test/test_capi.py",
+          "patch": "@@ -488,10 +488,10 @@ def test_skipitem(self):\n                 _testcapi.parse_tuple_and_keywords(tuple_1, dict_b,\n                     format.encode(\"ascii\"), keywords)\n                 when_not_skipped = False\n-            except TypeError as e:\n+            except SystemError as e:\n                 s = \"argument 1 (impossible<bad format char>)\"\n                 when_not_skipped = (str(e) == s)\n-            except RuntimeError as e:\n+            except (TypeError, RuntimeError):\n                 when_not_skipped = False\n \n             # test the format unit when skipped"
+        }
+      ]
+    },
+    {
+      "sha": "47670ebb0cf2fd1bff8de6cf274d004b81b68400",
+      "message": "Issue #16620: Fixed AttributeError in msilib.Directory.glob().",
+      "changes": [
+        {
+          "file": "Lib/msilib/__init__.py",
+          "patch": "@@ -1,7 +1,11 @@\n # Copyright (C) 2005 Martin v. L\u00f6wis\n # Licensed to PSF under a Contributor Agreement.\n from _msi import *\n-import os, string, re, sys\n+import glob\n+import os\n+import re\n+import string\n+import sys\n \n AMD64 = \"AMD64\" in sys.version\n Itanium = \"Itanium\" in sys.version"
+        }
+      ]
+    },
+    {
+      "sha": "e914cd1308103de3f14cecbecc0f9aa46c8be074",
+      "message": "Issue #16620: Fixed AttributeError in msilib.Directory.glob().",
+      "changes": [
+        {
+          "file": "Lib/msilib/__init__.py",
+          "patch": "@@ -1,7 +1,11 @@\n # Copyright (C) 2005 Martin v. L\u00f6wis\n # Licensed to PSF under a Contributor Agreement.\n from _msi import *\n-import os, string, re, sys\n+import glob\n+import os\n+import re\n+import string\n+import sys\n \n AMD64 = \"AMD64\" in sys.version\n Itanium = \"Itanium\" in sys.version"
+        }
+      ]
+    },
+    {
+      "sha": "2808e441c51d1d67c72e7cc053825cbbb1dd1b53",
+      "message": "Issue #23779: imaplib raises TypeError if authenticator tries to abort.\n\nPatch from Craig Holmquist.",
+      "changes": [
+        {
+          "file": "Lib/imaplib.py",
+          "patch": "@@ -1353,7 +1353,7 @@ def __init__(self, mechinst):\n     def process(self, data):\n         ret = self.mech(self.decode(data))\n         if ret is None:\n-            return '*'      # Abort conversation\n+            return b'*'     # Abort conversation\n         return self.encode(ret)\n \n     def encode(self, inp):"
+        }
+      ]
+    },
+    {
+      "sha": "78378e89393b99e20c45cb6131fa9d7fa120baac",
+      "message": "Issue #23779: imaplib raises TypeError if authenticator tries to abort.\n\nPatch from Craig Holmquist.",
+      "changes": [
+        {
+          "file": "Lib/imaplib.py",
+          "patch": "@@ -1353,7 +1353,7 @@ def __init__(self, mechinst):\n     def process(self, data):\n         ret = self.mech(self.decode(data))\n         if ret is None:\n-            return '*'      # Abort conversation\n+            return b'*'     # Abort conversation\n         return self.encode(ret)\n \n     def encode(self, inp):"
+        }
+      ]
+    },
+    {
+      "sha": "5ccc18f29844b55a43bf8f26dffeb39057477dea",
+      "message": "Issue #23779: imaplib raises TypeError if authenticator tries to abort.\n\nPatch from Craig Holmquist.",
+      "changes": [
+        {
+          "file": "Lib/imaplib.py",
+          "patch": "@@ -1306,7 +1306,7 @@ def __init__(self, mechinst):\n     def process(self, data):\n         ret = self.mech(self.decode(data))\n         if ret is None:\n-            return '*'      # Abort conversation\n+            return b'*'     # Abort conversation\n         return self.encode(ret)\n \n     def encode(self, inp):"
+        }
+      ]
+    },
+    {
+      "sha": "67ef7e7b5b608eebe432bf8d4062ff04f3aff3f4",
+      "message": "Issue #24408: Fixed AttributeError in measure() and metrics() methods of\ntkinter.Font.",
+      "changes": [
+        {
+          "file": "Lib/tkinter/font.py",
+          "patch": "@@ -151,7 +151,7 @@ def measure(self, text, displayof=None):\n         args = (text,)\n         if displayof:\n             args = ('-displayof', displayof, text)\n-        return self._root.tk.getint(self._call(\"font\", \"measure\", self.name, *args))\n+        return self._tk.getint(self._call(\"font\", \"measure\", self.name, *args))\n \n     def metrics(self, *options, **kw):\n         \"\"\"Return font metrics.\n@@ -164,13 +164,13 @@ def metrics(self, *options, **kw):\n             args = ('-displayof', displayof)\n         if options:\n             args = args + self._get(options)\n-            return self._root.tk.getint(\n+            return self._tk.getint(\n                 self._call(\"font\", \"metrics\", self.name, *args))\n         else:\n             res = self._split(self._call(\"font\", \"metrics\", self.name, *args))\n             options = {}\n             for i in range(0, len(res), 2):\n-                options[res[i][1:]] = self._root.tk.getint(res[i+1])\n+                options[res[i][1:]] = self._tk.getint(res[i+1])\n             return options\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "4fafda731ac36ba2bb77342294cca70856c46505",
+      "message": "Issue #24408: Fixed AttributeError in measure() and metrics() methods of\ntkinter.Font.",
+      "changes": [
+        {
+          "file": "Lib/tkinter/font.py",
+          "patch": "@@ -151,7 +151,7 @@ def measure(self, text, displayof=None):\n         args = (text,)\n         if displayof:\n             args = ('-displayof', displayof, text)\n-        return self._root.tk.getint(self._call(\"font\", \"measure\", self.name, *args))\n+        return self._tk.getint(self._call(\"font\", \"measure\", self.name, *args))\n \n     def metrics(self, *options, **kw):\n         \"\"\"Return font metrics.\n@@ -164,13 +164,13 @@ def metrics(self, *options, **kw):\n             args = ('-displayof', displayof)\n         if options:\n             args = args + self._get(options)\n-            return self._root.tk.getint(\n+            return self._tk.getint(\n                 self._call(\"font\", \"metrics\", self.name, *args))\n         else:\n             res = self._split(self._call(\"font\", \"metrics\", self.name, *args))\n             options = {}\n             for i in range(0, len(res), 2):\n-                options[res[i][1:]] = self._root.tk.getint(res[i+1])\n+                options[res[i][1:]] = self._tk.getint(res[i+1])\n             return options\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "60599525c509a962e8fb5897240d42a56c092961",
+      "message": "Issue #23016: A warning no longer produces AttributeError when the program\nis run with pythonw.exe.",
+      "changes": [
+        {
+          "file": "Lib/warnings.py",
+          "patch": "@@ -11,6 +11,9 @@ def showwarning(message, category, filename, lineno, file=None, line=None):\n     \"\"\"Hook to write a warning to a file; replace if you like.\"\"\"\n     if file is None:\n         file = sys.stderr\n+        if file is None:\n+            # sys.stderr is None when ran with pythonw.exe - warnings get lost\n+            return\n     try:\n         file.write(formatwarning(message, category, filename, lineno, line))\n     except OSError:"
+        }
+      ]
+    },
+    {
+      "sha": "884afd92f5a194e326df2be8279d4ab160c7b0c9",
+      "message": "Issue #21775: shutil.copytree(): fix crash when copying to VFAT\n\nAn exception handler assumed that that OSError objects always have a\n'winerror' attribute. That is not the case, so the exception handler\nitself raised AttributeError when run on Linux (and, presumably, any\nother non-Windows OS).\n\nPatch by Greg Ward.",
+      "changes": [
+        {
+          "file": "Lib/shutil.py",
+          "patch": "@@ -337,7 +337,7 @@ def copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2,\n         copystat(src, dst)\n     except OSError as why:\n         # Copying file access times may fail on Windows\n-        if why.winerror is None:\n+        if getattr(why, 'winerror', None) is None:\n             errors.append((src, dst, str(why)))\n     if errors:\n         raise Error(errors)"
+        }
+      ]
+    },
+    {
+      "sha": "927131e050950e7345b2f3e19e8a57c2a328385b",
+      "message": "Issue #23016: A warning no longer produces an AttributeError when the program\nis run with pythonw.exe.",
+      "changes": [
+        {
+          "file": "Lib/warnings.py",
+          "patch": "@@ -11,6 +11,9 @@ def showwarning(message, category, filename, lineno, file=None, line=None):\n     \"\"\"Hook to write a warning to a file; replace if you like.\"\"\"\n     if file is None:\n         file = sys.stderr\n+        if file is None:\n+            # sys.stderr is None when ran with pythonw.exe - warnings get lost\n+            return\n     try:\n         file.write(formatwarning(message, category, filename, lineno, line))\n     except OSError:"
+        }
+      ]
+    },
+    {
+      "sha": "5de4a3cfc5d410116ef1b1cd2d3726518f108776",
+      "message": "Issue #21775: shutil.copytree(): fix crash when copying to VFAT\n\nAn exception handler assumed that that OSError objects always have a\n'winerror' attribute. That is not the case, so the exception handler\nitself raised AttributeError when run on Linux (and, presumably, any\nother non-Windows OS).\n\nPatch by Greg Ward.",
+      "changes": [
+        {
+          "file": "Lib/shutil.py",
+          "patch": "@@ -343,7 +343,7 @@ def copytree(src, dst, symlinks=False, ignore=None, copy_function=copy2,\n         copystat(src, dst)\n     except OSError as why:\n         # Copying file access times may fail on Windows\n-        if why.winerror is None:\n+        if getattr(why, 'winerror', None) is None:\n             errors.append((src, dst, str(why)))\n     if errors:\n         raise Error(errors)"
+        }
+      ]
+    },
+    {
+      "sha": "b99c132bd9030883f7a3482feb5e2b38c02f4188",
+      "message": "Fixed AttributeError when the regular expression starts from illegal escape.",
+      "changes": [
+        {
+          "file": "Lib/sre_parse.py",
+          "patch": "@@ -211,6 +211,7 @@ def __init__(self, string):\n             string = str(string, 'latin1')\n         self.decoded_string = string\n         self.index = 0\n+        self.next = None\n         self.__next()\n     def __next(self):\n         index = self.index"
+        }
+      ]
+    },
+    {
+      "sha": "3deeeb0c39ee4fcc1949d127f95702edbed56943",
+      "message": "Issue #21883: os.path.join() and os.path.relpath() now raise a TypeError with\nmore helpful error message for unsupported or mismatched types of arguments.",
+      "changes": [
+        {
+          "file": "Lib/test/test_macpath.py",
+          "patch": "@@ -142,6 +142,8 @@ def test_normpath(self):\n class MacCommonTest(test_genericpath.CommonTest, unittest.TestCase):\n     pathmodule = macpath\n \n+    test_relpath_errors = None\n+\n \n if __name__ == \"__main__\":\n     unittest.main()"
+        }
+      ]
+    },
+    {
+      "sha": "2ebdb2c91157e11d70eb3178f0308f8b5bc48806",
+      "message": "Issue #22168: Prevent turtle AttributeError with non-default Canvas on OS X.",
+      "changes": [
+        {
+          "file": "Lib/turtle.py",
+          "patch": "@@ -997,8 +997,9 @@ def __init__(self, cv, mode=_CFG[\"mode\"],\n             # Force Turtle window to the front on OS X. This is needed because\n             # the Turtle window will show behind the Terminal window when you\n             # start the demo from the command line.\n-            cv._rootwindow.call('wm', 'attributes', '.', '-topmost', '1')\n-            cv._rootwindow.call('wm', 'attributes', '.', '-topmost', '0')\n+            rootwindow = cv.winfo_toplevel()\n+            rootwindow.call('wm', 'attributes', '.', '-topmost', '1')\n+            rootwindow.call('wm', 'attributes', '.', '-topmost', '0')\n \n     def clear(self):\n         \"\"\"Delete all drawings and all turtles from the TurtleScreen."
+        }
+      ]
+    },
+    {
+      "sha": "152dfd1dac6b45177215486b68ac0ebda38dd507",
+      "message": "Issue #22168: Prevent turtle AttributeError with non-default Canvas on OS X.",
+      "changes": [
+        {
+          "file": "Lib/turtle.py",
+          "patch": "@@ -997,8 +997,9 @@ def __init__(self, cv, mode=_CFG[\"mode\"],\n             # Force Turtle window to the front on OS X. This is needed because\n             # the Turtle window will show behind the Terminal window when you\n             # start the demo from the command line.\n-            cv._rootwindow.call('wm', 'attributes', '.', '-topmost', '1')\n-            cv._rootwindow.call('wm', 'attributes', '.', '-topmost', '0')\n+            rootwindow = cv.winfo_toplevel()\n+            rootwindow.call('wm', 'attributes', '.', '-topmost', '1')\n+            rootwindow.call('wm', 'attributes', '.', '-topmost', '0')\n \n     def clear(self):\n         \"\"\"Delete all drawings and all turtles from the TurtleScreen."
+        }
+      ]
+    },
+    {
+      "sha": "d8a1447c9980be5f1d8ae806f7aecd814b1cd6f6",
+      "message": "Issue #22215: Now ValueError is raised instead of TypeError when str or bytes\nargument contains not permitted null character or byte.",
+      "changes": [
+        {
+          "file": "Lib/test/test_builtin.py",
+          "patch": "@@ -312,11 +312,11 @@ def test_compile(self):\n         self.assertRaises(TypeError, compile)\n         self.assertRaises(ValueError, compile, 'print(42)\\n', '<string>', 'badmode')\n         self.assertRaises(ValueError, compile, 'print(42)\\n', '<string>', 'single', 0xff)\n-        self.assertRaises(TypeError, compile, chr(0), 'f', 'exec')\n+        self.assertRaises(ValueError, compile, chr(0), 'f', 'exec')\n         self.assertRaises(TypeError, compile, 'pass', '?', 'exec',\n                           mode='eval', source='0', filename='tmp')\n         compile('print(\"\\xe5\")\\n', '', 'exec')\n-        self.assertRaises(TypeError, compile, chr(0), 'f', 'exec')\n+        self.assertRaises(ValueError, compile, chr(0), 'f', 'exec')\n         self.assertRaises(ValueError, compile, str('a = 1'), 'f', 'bad')\n \n         # test the optimize argument"
+        },
+        {
+          "file": "Lib/test/test_fileio.py",
+          "patch": "@@ -361,8 +361,8 @@ def testBytesOpen(self):\n \n     def testConstructorHandlesNULChars(self):\n         fn_with_NUL = 'foo\\0bar'\n-        self.assertRaises(TypeError, _FileIO, fn_with_NUL, 'w')\n-        self.assertRaises(TypeError, _FileIO, bytes(fn_with_NUL, 'ascii'), 'w')\n+        self.assertRaises(ValueError, _FileIO, fn_with_NUL, 'w')\n+        self.assertRaises(ValueError, _FileIO, bytes(fn_with_NUL, 'ascii'), 'w')\n \n     def testInvalidFd(self):\n         self.assertRaises(ValueError, _FileIO, -10)"
+        },
+        {
+          "file": "Lib/test/test_io.py",
+          "patch": "@@ -363,8 +363,8 @@ def test_invalid_operations(self):\n \n     def test_open_handles_NUL_chars(self):\n         fn_with_NUL = 'foo\\0bar'\n-        self.assertRaises(TypeError, self.open, fn_with_NUL, 'w')\n-        self.assertRaises(TypeError, self.open, bytes(fn_with_NUL, 'ascii'), 'w')\n+        self.assertRaises(ValueError, self.open, fn_with_NUL, 'w')\n+        self.assertRaises(ValueError, self.open, bytes(fn_with_NUL, 'ascii'), 'w')\n \n     def test_raw_file_io(self):\n         with self.open(support.TESTFN, \"wb\", buffering=0) as f:"
+        },
+        {
+          "file": "Lib/test/test_site.py",
+          "patch": "@@ -147,7 +147,7 @@ def test_addpackage_import_bad_pth_file(self):\n             re.escape(os.path.join(pth_dir, pth_fn)))\n         # XXX: ditto previous XXX comment.\n         self.assertRegex(err_out.getvalue(), 'Traceback')\n-        self.assertRegex(err_out.getvalue(), 'TypeError')\n+        self.assertRegex(err_out.getvalue(), 'ValueError')\n \n     def test_addsitedir(self):\n         # Same tests for test_addpackage since addsitedir() essentially just"
+        }
+      ]
+    },
+    {
+      "sha": "7bc5fb6916b59e9d6e491c8519e5affa98b8aa6c",
+      "message": "Issue #21923: Prevent AttributeError in distutils.sysconfig.customize_compiler\ndue to possible uninitialized _config_vars.  Original patch by Alex Gaynor.",
+      "changes": [
+        {
+          "file": "Lib/distutils/sysconfig.py",
+          "patch": "@@ -179,7 +179,8 @@ def customize_compiler(compiler):\n             # version and build tools may not support the same set\n             # of CPU architectures for universal builds.\n             global _config_vars\n-            if not _config_vars.get('CUSTOMIZED_OSX_COMPILER', ''):\n+            # Use get_config_var() to ensure _config_vars is initialized.\n+            if not get_config_var('CUSTOMIZED_OSX_COMPILER'):\n                 import _osx_support\n                 _osx_support.customize_compiler(_config_vars)\n                 _config_vars['CUSTOMIZED_OSX_COMPILER'] = 'True'"
+        }
+      ]
+    },
+    {
+      "sha": "0c346d827d38917c4ab4b7679e223f163aec4724",
+      "message": "Issue #21193: Make (e.g.,) pow(2, -3, 5) raise ValueError rather than TypeError.  Patch by Josh Rosenberg.",
+      "changes": [
+        {
+          "file": "Lib/test/test_builtin.py",
+          "patch": "@@ -1085,7 +1085,7 @@ def test_pow(self):\n                     if isinstance(x, float) or \\\n                        isinstance(y, float) or \\\n                        isinstance(z, float):\n-                        self.assertRaises(TypeError, pow, x, y, z)\n+                        self.assertRaises(ValueError, pow, x, y, z)\n                     else:\n                         self.assertAlmostEqual(pow(x, y, z), 24.0)\n "
+        }
+      ]
+    },
+    {
+      "sha": "e49a95fe056af414ffd2cd9ec87398a6b076ae1c",
+      "message": "Issue #21118: str.translate() now raises a ValueError, not a TypeError, if the\nreplacement character is bigger than U+10ffff code point.",
+      "changes": [
+        {
+          "file": "Lib/test/test_codeccallbacks.py",
+          "patch": "@@ -819,7 +819,7 @@ class D(dict):\n             def __getitem__(self, key):\n                 raise ValueError\n         #self.assertRaises(ValueError, \"\\xff\".translate, D())\n-        self.assertRaises(TypeError, \"\\xff\".translate, {0xff: sys.maxunicode+1})\n+        self.assertRaises(ValueError, \"\\xff\".translate, {0xff: sys.maxunicode+1})\n         self.assertRaises(TypeError, \"\\xff\".translate, {0xff: ()})\n \n     def test_bug828737(self):"
+        }
+      ]
+    },
+    {
+      "sha": "875df20e8a2a9bad07a42f0175be019d915e0845",
+      "message": "inspect: Fix getcallargs() to raise correct TypeError\n\n... for missing keyword-only arguments. Patch by Jeremiah Lowin.\nCloses #20816.",
+      "changes": [
+        {
+          "file": "Lib/inspect.py",
+          "patch": "@@ -1210,7 +1210,7 @@ def getcallargs(*func_and_positional, **named):\n     missing = 0\n     for kwarg in kwonlyargs:\n         if kwarg not in arg2value:\n-            if kwarg in kwonlydefaults:\n+            if kwonlydefaults and kwarg in kwonlydefaults:\n                 arg2value[kwarg] = kwonlydefaults[kwarg]\n             else:\n                 missing += 1"
+        }
+      ]
+    },
+    {
+      "sha": "b1d060bf8b017d2a6cf6a0191b1451aeb27a5c03",
+      "message": "inspect: Fix getcallargs() to raise correct TypeError\n\n... for missing keyword-only arguments. Patch by Jeremiah Lowin.\nCloses #20816.",
+      "changes": [
+        {
+          "file": "Lib/inspect.py",
+          "patch": "@@ -1208,7 +1208,7 @@ def getcallargs(*func_and_positional, **named):\n     missing = 0\n     for kwarg in kwonlyargs:\n         if kwarg not in arg2value:\n-            if kwarg in kwonlydefaults:\n+            if kwonlydefaults and kwarg in kwonlydefaults:\n                 arg2value[kwarg] = kwonlydefaults[kwarg]\n             else:\n                 missing += 1"
+        }
+      ]
+    },
+    {
+      "sha": "8ce8ff9ac77bdf202bf39bb98203d26cd40d8e04",
+      "message": "tracemalloc: filter_traces() raises a TypeError if filters is not an iterable",
+      "changes": [
+        {
+          "file": "Lib/test/test_tracemalloc.py",
+          "patch": "@@ -346,6 +346,8 @@ def test_filter_traces(self):\n         self.assertIsNot(snapshot5.traces, snapshot.traces)\n         self.assertEqual(snapshot5.traces, snapshot.traces)\n \n+        self.assertRaises(TypeError, snapshot.filter_traces, filter1)\n+\n     def test_snapshot_group_by_line(self):\n         snapshot, snapshot2 = create_snapshots()\n         tb_0 = traceback_lineno('<unknown>', 0)"
+        },
+        {
+          "file": "Lib/tracemalloc.py",
+          "patch": "@@ -1,4 +1,4 @@\n-from collections import Sequence\n+from collections import Sequence, Iterable\n from functools import total_ordering\n import fnmatch\n import linecache\n@@ -382,6 +382,9 @@ def filter_traces(self, filters):\n         is a list of Filter instances.  If filters is an empty list, return a\n         new Snapshot instance with a copy of the traces.\n         \"\"\"\n+        if not isinstance(filters, Iterable):\n+            raise TypeError(\"filters must be a list of filters, not %s\"\n+                            % type(filters).__name__)\n         if filters:\n             include_filters = []\n             exclude_filters = []"
+        }
+      ]
+    },
+    {
+      "sha": "6120739f0cb1c26069570fea701fe79489f1cd9d",
+      "message": "Issue #20875: Prevent possible gzip \"'read' is not defined\" NameError.\nPatch by Claudiu Popa.",
+      "changes": [
+        {
+          "file": "Lib/gzip.py",
+          "patch": "@@ -99,7 +99,7 @@ def prepend(self, prepend=b'', readprevious=False):\n             self._read -= len(prepend)\n             return\n         else:\n-            self._buffer = self._buffer[read:] + prepend\n+            self._buffer = self._buffer[self._read:] + prepend\n         self._length = len(self._buffer)\n         self._read = 0\n "
+        },
+        {
+          "file": "Lib/test/test_gzip.py",
+          "patch": "@@ -396,6 +396,13 @@ def test_read_with_extra(self):\n         with gzip.GzipFile(fileobj=io.BytesIO(gzdata)) as f:\n             self.assertEqual(f.read(), b'Test')\n \n+    def test_prepend_error(self):\n+        # See issue #20875\n+        with gzip.open(self.filename, \"wb\") as f:\n+            f.write(data1)\n+        with gzip.open(self.filename, \"rb\") as f:\n+            f.fileobj.prepend()\n+\n class TestOpen(BaseTest):\n     def test_binary_modes(self):\n         uncompressed = data1 * 50"
+        }
+      ]
+    },
+    {
+      "sha": "94ee389308ec9e0e07b3f7a944d5179aba540c5e",
+      "message": "Issue #19619: Blacklist non-text codecs in method API\n\nstr.encode, bytes.decode and bytearray.decode now use an\ninternal API to throw LookupError for known non-text encodings,\nrather than attempting the encoding or decoding operation and\nthen throwing a TypeError for an unexpected output type.\n\nThe latter mechanism remains in place for third party non-text\nencodings.\n\nBackported changeset d68df99d7a57.",
+      "changes": [
+        {
+          "file": "Lib/encodings/base64_codec.py",
+          "patch": "@@ -52,4 +52,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/bz2_codec.py",
+          "patch": "@@ -74,4 +74,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/hex_codec.py",
+          "patch": "@@ -52,4 +52,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/quopri_codec.py",
+          "patch": "@@ -53,4 +53,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/rot_13.py",
+          "patch": "@@ -43,6 +43,7 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )\n \n ### Map"
+        },
+        {
+          "file": "Lib/encodings/uu_codec.py",
+          "patch": "@@ -96,4 +96,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamreader=StreamReader,\n         streamwriter=StreamWriter,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/zlib_codec.py",
+          "patch": "@@ -74,4 +74,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamreader=StreamReader,\n         streamwriter=StreamWriter,\n+        _is_text_encoding=False,\n     )"
+        }
+      ]
+    },
+    {
+      "sha": "2eed8b7da06fe865b6246590d4b13cf723f547cd",
+      "message": "inspect.getfile: Don't crash on classes without '__module__' attribute #20372\n\nSome classes defined in C may not have the '__module__' attribute, so\nwe now handle this case to avoid having unexepected AttributeError.",
+      "changes": [
+        {
+          "file": "Lib/inspect.py",
+          "patch": "@@ -516,9 +516,10 @@ def getfile(object):\n             return object.__file__\n         raise TypeError('{!r} is a built-in module'.format(object))\n     if isclass(object):\n-        object = sys.modules.get(object.__module__)\n-        if hasattr(object, '__file__'):\n-            return object.__file__\n+        if hasattr(object, '__module__'):\n+            object = sys.modules.get(object.__module__)\n+            if hasattr(object, '__file__'):\n+                return object.__file__\n         raise TypeError('{!r} is a built-in class'.format(object))\n     if ismethod(object):\n         object = object.__func__"
+        }
+      ]
+    },
+    {
+      "sha": "45e124e26d43d4618d2686b5323c322aa25566b6",
+      "message": "Issue #17825: Cursor ^ is correctly positioned for SyntaxError and IndentationError.",
+      "changes": [
+        {
+          "file": "Lib/traceback.py",
+          "patch": "@@ -224,11 +224,12 @@ def _format_exception_only_iter(etype, value):\n     if badline is not None:\n         yield '    {}\\n'.format(badline.strip())\n         if offset is not None:\n-            caretspace = badline.rstrip('\\n')[:offset].lstrip()\n+            caretspace = badline.rstrip('\\n')\n+            offset = min(len(caretspace), offset) - 1\n+            caretspace = caretspace[:offset].lstrip()\n             # non-space whitespace (likes tabs) must be kept for alignment\n             caretspace = ((c.isspace() and c or ' ') for c in caretspace)\n-            # only three spaces to account for offset1 == pos 0\n-            yield '   {}^\\n'.format(''.join(caretspace))\n+            yield '    {}^\\n'.format(''.join(caretspace))\n     msg = value.msg or \"<no detail available>\"\n     yield \"{}: {}\\n\".format(stype, msg)\n "
+        }
+      ]
+    },
+    {
+      "sha": "758fa5ea819d4301afed5049fa1186f275c4f801",
+      "message": "Issue #17825: Cursor ^ is correctly positioned for SyntaxError and IndentationError.",
+      "changes": [
+        {
+          "file": "Lib/traceback.py",
+          "patch": "@@ -227,11 +227,12 @@ def format_exception_only(etype, value):\n     if badline is not None:\n         lines.append('    %s\\n' % badline.strip())\n         if offset is not None:\n-            caretspace = badline.rstrip('\\n')[:offset].lstrip()\n+            caretspace = badline.rstrip('\\n')\n+            offset = min(len(caretspace), offset) - 1\n+            caretspace = caretspace[:offset].lstrip()\n             # non-space whitespace (likes tabs) must be kept for alignment\n             caretspace = ((c.isspace() and c or ' ') for c in caretspace)\n-            # only three spaces to account for offset1 == pos 0\n-            lines.append('   %s^\\n' % ''.join(caretspace))\n+            lines.append('    %s^\\n' % ''.join(caretspace))\n     msg = value.msg or \"<no detail available>\"\n     lines.append(\"%s: %s\\n\" % (stype, msg))\n     return lines"
+        }
+      ]
+    },
+    {
+      "sha": "daeffd2c08f8a04818b99e8342da79cf98ab730a",
+      "message": "audioop: adpcm2lin() and lin2adpcm() now raises a TypeError instead of a\nSystemError if the state type is invalid.",
+      "changes": [
+        {
+          "file": "Lib/test/test_audioop.py",
+          "patch": "@@ -269,6 +269,11 @@ def test_lin2adpcm(self):\n             self.assertEqual(audioop.lin2adpcm(b'\\0' * w * 10, w, None),\n                              (b'\\0' * 5, (0, 0)))\n \n+    def test_invalid_adpcm_state(self):\n+        # state must be a tuple or None, not an integer\n+        self.assertRaises(TypeError, audioop.adpcm2lin, b'\\0', 1, 555)\n+        self.assertRaises(TypeError, audioop.lin2adpcm, b'\\0', 1, 555)\n+\n     def test_lin2alaw(self):\n         self.assertEqual(audioop.lin2alaw(datas[1], 1),\n                          b'\\xd5\\x87\\xa4\\x24\\xaa\\x2a\\x5a')"
+        }
+      ]
+    },
+    {
+      "sha": "20d5adea6a9dd5a752f2d8bb2b0cef0ee7cf386e",
+      "message": "Fix TypeError on \"setup.py upload --show-response\".",
+      "changes": [
+        {
+          "file": "Lib/distutils/command/register.py",
+          "patch": "@@ -5,7 +5,6 @@\n \n # created 2002/10/21, Richard Jones\n \n-import cgi\n import os, string, getpass\n import io\n import urllib.parse, urllib.request\n@@ -88,9 +87,7 @@ def classifiers(self):\n         '''\n         url = self.repository+'?:action=list_classifiers'\n         response = urllib.request.urlopen(url)\n-        content_type = response.getheader('content-type', 'text/plain')\n-        encoding = cgi.parse_header(content_type)[1].get('charset', 'ascii')\n-        log.info(response.read().decode(encoding))\n+        log.info(self._read_pypi_response(response))\n \n     def verify_metadata(self):\n         ''' Send the metadata to the package index server to be checked."
+        },
+        {
+          "file": "Lib/distutils/command/upload.py",
+          "patch": "@@ -196,5 +196,6 @@ def upload_file(self, command, pyversion, filename):\n             self.announce('Upload failed (%s): %s' % (status, reason),\n                           log.ERROR)\n         if self.show_response:\n-            msg = '\\n'.join(('-' * 75, result.read(), '-' * 75))\n+            text = self._read_pypi_response(result)\n+            msg = '\\n'.join(('-' * 75, text, '-' * 75))\n             self.announce(msg, log.INFO)"
+        },
+        {
+          "file": "Lib/distutils/config.py",
+          "patch": "@@ -3,6 +3,7 @@\n Provides the PyPIRCCommand class, the base class for the command classes\n that uses .pypirc in the distutils.command package.\n \"\"\"\n+import cgi\n import os\n from configparser import ConfigParser\n \n@@ -110,6 +111,12 @@ def _read_pypirc(self):\n \n         return {}\n \n+    def _read_pypi_response(self, response):\n+        \"\"\"Read and decode a PyPI HTTP response.\"\"\"\n+        content_type = response.getheader('content-type', 'text/plain')\n+        encoding = cgi.parse_header(content_type)[1].get('charset', 'ascii')\n+        return response.read().decode(encoding)\n+\n     def initialize_options(self):\n         \"\"\"Initialize options.\"\"\"\n         self.repository = None"
+        }
+      ]
+    },
+    {
+      "sha": "335a5128e54809b789cb82f05a913df1198fe40e",
+      "message": "Fix TypeError on \"setup.py upload --show-response\".",
+      "changes": [
+        {
+          "file": "Lib/distutils/command/register.py",
+          "patch": "@@ -5,7 +5,6 @@\n \n # created 2002/10/21, Richard Jones\n \n-import cgi\n import os, string, getpass\n import io\n import urllib.parse, urllib.request\n@@ -88,9 +87,7 @@ def classifiers(self):\n         '''\n         url = self.repository+'?:action=list_classifiers'\n         response = urllib.request.urlopen(url)\n-        content_type = response.getheader('content-type', 'text/plain')\n-        encoding = cgi.parse_header(content_type)[1].get('charset', 'ascii')\n-        log.info(response.read().decode(encoding))\n+        log.info(self._read_pypi_response(response))\n \n     def verify_metadata(self):\n         ''' Send the metadata to the package index server to be checked."
+        },
+        {
+          "file": "Lib/distutils/command/upload.py",
+          "patch": "@@ -196,5 +196,6 @@ def upload_file(self, command, pyversion, filename):\n             self.announce('Upload failed (%s): %s' % (status, reason),\n                           log.ERROR)\n         if self.show_response:\n-            msg = '\\n'.join(('-' * 75, result.read(), '-' * 75))\n+            text = self._read_pypi_response(result)\n+            msg = '\\n'.join(('-' * 75, text, '-' * 75))\n             self.announce(msg, log.INFO)"
+        },
+        {
+          "file": "Lib/distutils/config.py",
+          "patch": "@@ -3,6 +3,7 @@\n Provides the PyPIRCCommand class, the base class for the command classes\n that uses .pypirc in the distutils.command package.\n \"\"\"\n+import cgi\n import os\n from configparser import ConfigParser\n \n@@ -101,6 +102,12 @@ def _read_pypirc(self):\n \n         return {}\n \n+    def _read_pypi_response(self, response):\n+        \"\"\"Read and decode a PyPI HTTP response.\"\"\"\n+        content_type = response.getheader('content-type', 'text/plain')\n+        encoding = cgi.parse_header(content_type)[1].get('charset', 'ascii')\n+        return response.read().decode(encoding)\n+\n     def initialize_options(self):\n         \"\"\"Initialize options.\"\"\"\n         self.repository = None"
+        }
+      ]
+    },
+    {
+      "sha": "ca7ab7c7f10f27d8e3df3281c78180802d767358",
+      "message": "Issue #19946: Raise ImportError when the main module cannot be found\nby multiprocessing.spawn (before it was raising an AttributeError).",
+      "changes": [
+        {
+          "file": "Lib/multiprocessing/spawn.py",
+          "patch": "@@ -248,6 +248,8 @@ def import_main_path(main_path):\n         main_module = types.ModuleType(main_name)\n         # XXX Use a target of main_module?\n         spec = importlib.find_spec(main_name, path=dirs)\n+        if spec is None:\n+            raise ImportError(name=main_name)\n         methods = importlib._bootstrap._SpecMethods(spec)\n         methods.init_module_attrs(main_module)\n         main_module.__name__ = '__mp_main__'"
+        }
+      ]
+    },
+    {
+      "sha": "c72e4e6dccce99bcdcb45959767436d7e5cfda8c",
+      "message": "Issue #19619: Blacklist non-text codecs in method API\n\nstr.encode, bytes.decode and bytearray.decode now use an\ninternal API to throw LookupError for known non-text encodings,\nrather than attempting the encoding or decoding operation and\nthen throwing a TypeError for an unexpected output type.\n\nThe latter mechanism remains in place for third party non-text\nencodings.",
+      "changes": [
+        {
+          "file": "Lib/encodings/base64_codec.py",
+          "patch": "@@ -52,4 +52,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/bz2_codec.py",
+          "patch": "@@ -74,4 +74,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/hex_codec.py",
+          "patch": "@@ -52,4 +52,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/quopri_codec.py",
+          "patch": "@@ -53,4 +53,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/rot_13.py",
+          "patch": "@@ -43,6 +43,7 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamwriter=StreamWriter,\n         streamreader=StreamReader,\n+        _is_text_encoding=False,\n     )\n \n ### Map"
+        },
+        {
+          "file": "Lib/encodings/uu_codec.py",
+          "patch": "@@ -96,4 +96,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamreader=StreamReader,\n         streamwriter=StreamWriter,\n+        _is_text_encoding=False,\n     )"
+        },
+        {
+          "file": "Lib/encodings/zlib_codec.py",
+          "patch": "@@ -74,4 +74,5 @@ def getregentry():\n         incrementaldecoder=IncrementalDecoder,\n         streamreader=StreamReader,\n         streamwriter=StreamWriter,\n+        _is_text_encoding=False,\n     )"
+        }
+      ]
+    },
+    {
+      "sha": "aa32779632270a8286e65f02fcbae2a08419d23a",
+      "message": "Issue #19544, #6516: no need to catch AttributeError on import pwd/grp",
+      "changes": [
+        {
+          "file": "Lib/distutils/archive_util.py",
+          "patch": "@@ -20,12 +20,12 @@\n \n try:\n     from pwd import getpwnam\n-except (ImportError, AttributeError):\n+except ImportError:\n     getpwnam = None\n \n try:\n     from grp import getgrnam\n-except (ImportError, AttributeError):\n+except ImportError:\n     getgrnam = None\n \n def _get_gid(name):"
+        }
+      ]
+    },
+    {
+      "sha": "056bafe7a663e890594a11eec99c78f742452fff",
+      "message": "#18681: Fix a NameError in imp.reload() (noticed by Weizhao Li).",
+      "changes": [
+        {
+          "file": "Lib/imp.py",
+          "patch": "@@ -267,7 +267,7 @@ def reload(module):\n         parent_name = name.rpartition('.')[0]\n         if parent_name and parent_name not in sys.modules:\n             msg = \"parent {!r} not in sys.modules\"\n-            raise ImportError(msg.format(parentname), name=parent_name)\n+            raise ImportError(msg.format(parent_name), name=parent_name)\n         return module.__loader__.load_module(name)\n     finally:\n         try:"
+        }
+      ]
+    },
+    {
+      "sha": "60a26e05162c5b6d3d67fa53bb2057b017f932b1",
+      "message": "Issue #9177: Calling read() or write() now raises ValueError, not AttributeError, on a closed SSL socket.\nPatch by Senko Rasic.",
+      "changes": [
+        {
+          "file": "Lib/ssl.py",
+          "patch": "@@ -402,6 +402,8 @@ def read(self, len=0, buffer=None):\n         Return zero-length string on EOF.\"\"\"\n \n         self._checkClosed()\n+        if not self._sslobj:\n+            raise ValueError(\"Read on closed or unwrapped SSL socket.\")\n         try:\n             if buffer is not None:\n                 v = self._sslobj.read(len, buffer)\n@@ -422,6 +424,8 @@ def write(self, data):\n         number of bytes of DATA actually transmitted.\"\"\"\n \n         self._checkClosed()\n+        if not self._sslobj:\n+            raise ValueError(\"Write on closed or unwrapped SSL socket.\")\n         return self._sslobj.write(data)\n \n     def getpeercert(self, binary_form=False):"
+        }
+      ]
+    },
+    {
+      "sha": "b08495bbcfea7440f56bbc786b64cbaadaeb604f",
+      "message": "#17198: Fix a NameError in the dbm module.  Patch by Valentina Mukhamedzhanova.",
+      "changes": [
+        {
+          "file": "Lib/dbm/__init__.py",
+          "patch": "@@ -44,6 +44,11 @@ class error(Exception):\n \n error = (error, IOError)\n \n+try:\n+    from dbm import ndbm\n+except ImportError:\n+    ndbm = None\n+\n \n def open(file, flag='r', mode=0o666):\n     \"\"\"Open or create database at path given by *file*."
+        }
+      ]
+    },
+    {
+      "sha": "f9b4eb4d04609c6cb0f56edfd1ca3d15b349eadf",
+      "message": "Fixed issue #18260: configparser TypeError on source name specified as bytes",
+      "changes": [
+        {
+          "file": "Lib/configparser.py",
+          "patch": "@@ -191,7 +191,7 @@ class DuplicateSectionError(Error):\n     def __init__(self, section, source=None, lineno=None):\n         msg = [repr(section), \" already exists\"]\n         if source is not None:\n-            message = [\"While reading from \", source]\n+            message = [\"While reading from \", repr(source)]\n             if lineno is not None:\n                 message.append(\" [line {0:2d}]\".format(lineno))\n             message.append(\": section \")\n@@ -217,7 +217,7 @@ def __init__(self, section, option, source=None, lineno=None):\n         msg = [repr(option), \" in section \", repr(section),\n                \" already exists\"]\n         if source is not None:\n-            message = [\"While reading from \", source]\n+            message = [\"While reading from \", repr(source)]\n             if lineno is not None:\n                 message.append(\" [line {0:2d}]\".format(lineno))\n             message.append(\": option \")"
+        }
+      ]
+    },
+    {
+      "sha": "1b145927d725b136b987df220dff0ec7529b6f29",
+      "message": "#17526: fix an IndexError raised while passing code without filename to inspect.findsource().  Initial patch by Tyler Doyle.",
+      "changes": [
+        {
+          "file": "Lib/inspect.py",
+          "patch": "@@ -550,7 +550,7 @@ def findsource(object):\n \n     file = getfile(object)\n     sourcefile = getsourcefile(object)\n-    if not sourcefile and file[0] + file[-1] != '<>':\n+    if not sourcefile and file[:1] + file[-1:] != '<>':\n         raise IOError('source code not available')\n     file = sourcefile if sourcefile else file\n "
+        },
+        {
+          "file": "Lib/test/test_inspect.py",
+          "patch": "@@ -416,6 +416,12 @@ def test_findsource_code_in_linecache(self):\n         finally:\n             del linecache.cache[co.co_filename]\n \n+    def test_findsource_without_filename(self):\n+        for fname in ['', '<string>']:\n+            co = compile('x=1', fname, \"exec\")\n+            self.assertRaises(IOError, inspect.findsource, co)\n+            self.assertRaises(IOError, inspect.getsource, co)\n+\n class TestNoEOL(GetSourceBase):\n     def __init__(self, *args, **kwargs):\n         self.tempdir = TESTFN + '_dir'"
+        }
+      ]
+    },
+    {
+      "sha": "e66e7de5d69542d9f10010a83787ef4b87a70bf8",
+      "message": "#17526: fix an IndexError raised while passing code without filename to inspect.findsource().  Initial patch by Tyler Doyle.",
+      "changes": [
+        {
+          "file": "Lib/inspect.py",
+          "patch": "@@ -525,7 +525,7 @@ def findsource(object):\n \n     file = getfile(object)\n     sourcefile = getsourcefile(object)\n-    if not sourcefile and file[0] + file[-1] != '<>':\n+    if not sourcefile and file[:1] + file[-1:] != '<>':\n         raise IOError('source code not available')\n     file = sourcefile if sourcefile else file\n "
+        },
+        {
+          "file": "Lib/test/test_inspect.py",
+          "patch": "@@ -404,6 +404,12 @@ def test_findsource_code_in_linecache(self):\n         self.assertEqual(inspect.findsource(co), (lines,0))\n         self.assertEqual(inspect.getsource(co), lines[0])\n \n+    def test_findsource_without_filename(self):\n+        for fname in ['', '<string>']:\n+            co = compile('x=1', fname, \"exec\")\n+            self.assertRaises(IOError, inspect.findsource, co)\n+            self.assertRaises(IOError, inspect.getsource, co)\n+\n \n class _BrokenDataDescriptor(object):\n     \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "04a29554c1fe0a06cdc657229bb4332eb017e3e9",
+      "message": "#17032: The \"global\" in the \"NameError: global name 'x' is not defined\" error message has been removed.  Patch by Ram Rachum.",
+      "changes": [
+        {
+          "file": "Lib/test/test_keywordonlyarg.py",
+          "patch": "@@ -182,10 +182,10 @@ def test_default_evaluation_order(self):\n         with self.assertRaises(NameError) as err:\n             def f(v=a, x=b, *, y=c, z=d):\n                 pass\n-        self.assertEqual(str(err.exception), \"global name 'b' is not defined\")\n+        self.assertEqual(str(err.exception), \"name 'b' is not defined\")\n         with self.assertRaises(NameError) as err:\n             f = lambda v=a, x=b, *, y=c, z=d: None\n-        self.assertEqual(str(err.exception), \"global name 'b' is not defined\")\n+        self.assertEqual(str(err.exception), \"name 'b' is not defined\")\n \n \n def test_main():"
+        }
+      ]
+    },
+    {
+      "sha": "41e66a26b0b86291f5fb846ffe2dc641b5ced65a",
+      "message": "Fix Issue15701 - HTTPError info method call raises AttributeError. Fix that to return headers correctly",
+      "changes": [
+        {
+          "file": "Lib/urllib/error.py",
+          "patch": "@@ -58,6 +58,10 @@ def __str__(self):\n     def reason(self):\n         return self.msg\n \n+    def info(self):\n+        return self.hdrs\n+\n+\n # exception raised when downloaded size does not match content-length\n class ContentTooShortError(URLError):\n     def __init__(self, message, content):"
+        }
+      ]
+    },
+    {
+      "sha": "f8a6b005fdd1b150ae41699de556951a0d3ee26b",
+      "message": "Fix Issue15701 - HTTPError info method call raises AttributeError. Fix that to return headers correctly",
+      "changes": [
+        {
+          "file": "Lib/urllib2.py",
+          "patch": "@@ -173,6 +173,9 @@ def __str__(self):\n     def reason(self):\n         return self.msg\n \n+    def info(self):\n+        return self.hdrs\n+\n # copied from cookielib.py\n _cut_port_re = re.compile(r\":\\d+$\")\n def request_host(request):"
+        }
+      ]
+    },
+    {
+      "sha": "c820de5e6017dd4065eb3fcfa708fe508fd6951e",
+      "message": "#15923: fix a mistake in asdl_c.py that resulted in a TypeError after 2801bf875a24 (see #15801).",
+      "changes": [
+        {
+          "file": "Parser/asdl_c.py",
+          "patch": "@@ -1033,7 +1033,7 @@ def simpleSum(self, sum, name):\n             self.emit(\"case %s:\" % t.name, 2)\n             self.emit(\"Py_INCREF(%s_singleton);\" % t.name, 3)\n             self.emit(\"return %s_singleton;\" % t.name, 3)\n-        self.emit(\"default:\" % name, 2)\n+        self.emit(\"default:\", 2)\n         self.emit('/* should never happen, but just in case ... */', 3)\n         code = \"PyErr_Format(PyExc_SystemError, \\\"unknown %s found\\\");\" % name\n         self.emit(code, 3, reflow=False)"
+        }
+      ]
+    },
+    {
+      "sha": "cb2916a7144679cdc9a5df430dfc1344e02243fb",
+      "message": "#15923: fix a mistake in asdl_c.py that resulted in a TypeError after 2801bf875a24 (see #15801).",
+      "changes": [
+        {
+          "file": "Parser/asdl_c.py",
+          "patch": "@@ -1010,7 +1010,7 @@ def simpleSum(self, sum, name):\n             self.emit(\"case %s:\" % t.name, 2)\n             self.emit(\"Py_INCREF(%s_singleton);\" % t.name, 3)\n             self.emit(\"return %s_singleton;\" % t.name, 3)\n-        self.emit(\"default:\" % name, 2)\n+        self.emit(\"default:\", 2)\n         self.emit('/* should never happen, but just in case ... */', 3)\n         code = \"PyErr_Format(PyExc_SystemError, \\\"unknown %s found\\\");\" % name\n         self.emit(code, 3, reflow=False)"
+        }
+      ]
+    },
+    {
+      "sha": "b9e9e0d5a8be470ade2bb497019a5cf737138182",
+      "message": "Consistently raise a TypeError when a non str is passed to hashlib.new\nregardless of which of the two implementations of new is used.",
+      "changes": [
+        {
+          "file": "Lib/hashlib.py",
+          "patch": "@@ -88,7 +88,7 @@ def __get_builtin_constructor(name):\n     except ImportError:\n         pass  # no extension module, this hash is unsupported.\n \n-    raise ValueError('unsupported hash type %s' % name)\n+    raise ValueError('unsupported hash type ' + name)\n \n \n def __get_openssl_constructor(name):"
+        },
+        {
+          "file": "Lib/test/test_hashlib.py",
+          "patch": "@@ -128,6 +128,7 @@ def test_get_builtin_constructor(self):\n                 sys.modules['_md5'] = _md5\n             else:\n                 del sys.modules['_md5']\n+        self.assertRaises(TypeError, get_builtin_constructor, 3)\n \n     def test_hexdigest(self):\n         for name in self.supported_hash_names:"
+        }
+      ]
+    },
+    {
+      "sha": "34fcafde168edf5ca0b8c76a732e8850d97ea00e",
+      "message": "Consistently raise a TypeError when a non str is passed to hashlib.new\nregardless of which of the two implementations of new is used.",
+      "changes": [
+        {
+          "file": "Lib/hashlib.py",
+          "patch": "@@ -88,7 +88,7 @@ def __get_builtin_constructor(name):\n     except ImportError:\n         pass  # no extension module, this hash is unsupported.\n \n-    raise ValueError('unsupported hash type %s' % name)\n+    raise ValueError('unsupported hash type ' + name)\n \n \n def __get_openssl_constructor(name):"
+        },
+        {
+          "file": "Lib/test/test_hashlib.py",
+          "patch": "@@ -133,6 +133,7 @@ def test_get_builtin_constructor(self):\n                 sys.modules['_md5'] = _md5\n             else:\n                 del sys.modules['_md5']\n+        self.assertRaises(TypeError, get_builtin_constructor, 3)\n \n     def test_hexdigest(self):\n         for name in self.supported_hash_names:"
+        }
+      ]
+    },
+    {
+      "sha": "76c28f7ce27ea48254e152032d25ded3117973cb",
+      "message": "Consistently raise a TypeError when a non str is passed to hashlib.new\nregardless of which of the two implementations of new is used.",
+      "changes": [
+        {
+          "file": "Lib/hashlib.py",
+          "patch": "@@ -88,7 +88,7 @@ def __get_builtin_constructor(name):\n     except ImportError:\n         pass  # no extension module, this hash is unsupported.\n \n-    raise ValueError('unsupported hash type %s' % name)\n+    raise ValueError('unsupported hash type ' + name)\n \n \n def __get_openssl_constructor(name):"
+        }
+      ]
+    },
+    {
+      "sha": "6a01fc5d4114ac56105ecbfb4ae3cbe043818449",
+      "message": "Issues #10017 and #14998: Fix TypeError using pprint on dictionaries with unorderable key.",
+      "changes": [
+        {
+          "file": "Lib/pprint.py",
+          "patch": "@@ -86,7 +86,11 @@ def __init__(self, obj):\n         self.obj = obj\n \n     def __lt__(self, other):\n-        rv = self.obj.__lt__(other.obj)\n+        try:\n+            rv = self.obj.__lt__(other.obj)\n+        except TypeError:\n+            rv = NotImplemented\n+\n         if rv is NotImplemented:\n             rv = (str(type(self.obj)), id(self.obj)) < \\\n                  (str(type(other.obj)), id(other.obj))"
+        }
+      ]
+    },
+    {
+      "sha": "d6da90f93d6d44365f5c9f6a2290be90ccfc8d60",
+      "message": "Issues #10017 and #14998: Fix TypeError using pprint on dictionaries with unorderable key.",
+      "changes": [
+        {
+          "file": "Lib/pprint.py",
+          "patch": "@@ -86,7 +86,11 @@ def __init__(self, obj):\n         self.obj = obj\n \n     def __lt__(self, other):\n-        rv = self.obj.__lt__(other.obj)\n+        try:\n+            rv = self.obj.__lt__(other.obj)\n+        except TypeError:\n+            rv = NotImplemented\n+\n         if rv is NotImplemented:\n             rv = (str(type(self.obj)), id(self.obj)) < \\\n                  (str(type(other.obj)), id(other.obj))"
+        }
+      ]
+    },
+    {
+      "sha": "86eb7e97aeb8dbd9589d2d300f7d139be4f20663",
+      "message": "Fix potential NameError in multiprocessing.Condition.wait()",
+      "changes": [
+        {
+          "file": "Lib/multiprocessing/synchronize.py",
+          "patch": "@@ -216,15 +216,14 @@ def wait(self, timeout=None):\n \n         try:\n             # wait for notification or timeout\n-            ret = self._wait_semaphore.acquire(True, timeout)\n+            return self._wait_semaphore.acquire(True, timeout)\n         finally:\n             # indicate that this thread has woken\n             self._woken_count.release()\n \n             # reacquire lock\n             for i in range(count):\n                 self._lock.acquire()\n-            return ret\n \n     def notify(self):\n         assert self._lock._semlock._is_mine(), 'lock is not owned'"
+        }
+      ]
+    },
+    {
+      "sha": "5c73e8eaf40e092dfb3c2a92195b300afc99d2cf",
+      "message": "Issue #14482: Raise a ValueError, not a NameError, when trying to create\na multiprocessing Client or Listener with an AF_UNIX type address under\nWindows.  Patch by Popa Claudiu.",
+      "changes": [
+        {
+          "file": "Lib/multiprocessing/connection.py",
+          "patch": "@@ -111,6 +111,10 @@ def _validate_family(family):\n     if sys.platform != 'win32' and family == 'AF_PIPE':\n         raise ValueError('Family %s is not recognized.' % family)\n \n+    if sys.platform == 'win32' and family == 'AF_UNIX':\n+        # double check\n+        if not hasattr(socket, family):\n+            raise ValueError('Family %s is not recognized.' % family)\n \n def address_type(address):\n     '''"
+        },
+        {
+          "file": "Lib/test/test_multiprocessing.py",
+          "patch": "@@ -2649,6 +2649,10 @@ def test_invalid_family(self):\n         with self.assertRaises(ValueError):\n             multiprocessing.connection.Listener(r'\\\\.\\test')\n \n+    @unittest.skipUnless(WIN32, \"skipped on non-Windows platforms\")\n+    def test_invalid_family_win32(self):\n+        with self.assertRaises(ValueError):\n+            multiprocessing.connection.Listener('/var/test.pipe')\n \n testcases_other = [OtherTest, TestInvalidHandle, TestInitializers,\n                    TestStdinBadfiledescriptor, TestWait, TestInvalidFamily]"
+        }
+      ]
+    },
+    {
+      "sha": "6d20cba8d646ec055851afac5494cc0e72d0dfa8",
+      "message": "Issue #14482: Raise a ValueError, not a NameError, when trying to create\na multiprocessing Client or Listener with an AF_UNIX type address under\nWindows.  Patch by Popa Claudiu.",
+      "changes": [
+        {
+          "file": "Lib/multiprocessing/connection.py",
+          "patch": "@@ -101,6 +101,10 @@ def _validate_family(family):\n     if sys.platform != 'win32' and family == 'AF_PIPE':\n         raise ValueError('Family %s is not recognized.' % family)\n \n+    if sys.platform == 'win32' and family == 'AF_UNIX':\n+        # double check\n+        if not hasattr(socket, family):\n+            raise ValueError('Family %s is not recognized.' % family)\n \n def address_type(address):\n     '''"
+        },
+        {
+          "file": "Lib/test/test_multiprocessing.py",
+          "patch": "@@ -2331,6 +2331,12 @@ def test_invalid_family(self):\n         with self.assertRaises(ValueError):\n             multiprocessing.connection.Listener(r'\\\\.\\test')\n \n+    @unittest.skipUnless(WIN32, \"skipped on non-Windows platforms\")\n+    def test_invalid_family_win32(self):\n+        with self.assertRaises(ValueError):\n+            multiprocessing.connection.Listener('/var/test.pipe')\n+\n+\n testcases_other = [OtherTest, TestInvalidHandle, TestInitializers,\n                    TestStdinBadfiledescriptor, TestInvalidFamily]\n "
+        }
+      ]
+    },
+    {
+      "sha": "b6405efd1bf8031fc3f15fbeba4f0e048844a50d",
+      "message": "Use the same exception hierarchy as decimal.py. FloatOperation now also\ninherits from TypeError. Cleanup in module initialization to make repeated\nimport failures robust.",
+      "changes": [
+        {
+          "file": "Lib/decimal.py",
+          "patch": "@@ -391,7 +391,7 @@ class Underflow(Inexact, Rounded, Subnormal):\n     In all cases, Inexact, Rounded, and Subnormal will also be raised.\n     \"\"\"\n \n-class FloatOperation(DecimalException):\n+class FloatOperation(DecimalException, TypeError):\n     \"\"\"Enable stricter semantics for mixing floats and Decimals.\n \n     If the signal is not trapped (default), mixing floats and Decimals is"
+        }
+      ]
+    },
+    {
+      "sha": "c3705d3ac4247b3ac5aac42fa0ed39eb490f9b11",
+      "message": "Fix NameError from #13719 fix",
+      "changes": [
+        {
+          "file": "Lib/distutils/tests/test_bdist_msi.py",
+          "patch": "@@ -1,4 +1,5 @@\n \"\"\"Tests for distutils.command.bdist_msi.\"\"\"\n+import os\n import sys\n import unittest\n from test.support import run_unittest"
+        }
+      ]
+    },
+    {
+      "sha": "0d3a003f241460e417f2108fecf990b7ce5d1449",
+      "message": "- Issue #14177: marshal.loads() now raises TypeError when given an unicode\n  string.  Patch by Guilherme Gon\u00e7alves.",
+      "changes": [
+        {
+          "file": "Lib/test/test_exceptions.py",
+          "patch": "@@ -38,7 +38,7 @@ def testRaising(self):\n         try:\n             try:\n                 import marshal\n-                marshal.loads('')\n+                marshal.loads(b'')\n             except EOFError:\n                 pass\n         finally:"
+        },
+        {
+          "file": "Lib/test/test_marshal.py",
+          "patch": "@@ -201,7 +201,7 @@ def test_fuzz(self):\n                 pass\n \n     def test_loads_recursion(self):\n-        s = 'c' + ('X' * 4*4) + '{' * 2**20\n+        s = b'c' + (b'X' * 4*4) + b'{' * 2**20\n         self.assertRaises(ValueError, marshal.loads, s)\n \n     def test_recursion_limit(self):\n@@ -274,6 +274,11 @@ def test_multiple_dumps_and_loads(self):\n             finally:\n                 support.unlink(support.TESTFN)\n \n+    def test_loads_reject_unicode_strings(self):\n+        # Issue #14177: marshal.loads() should not accept unicode strings\n+        unicode_string = 'T'\n+        self.assertRaises(TypeError, marshal.loads, unicode_string)\n+\n \n def test_main():\n     support.run_unittest(IntTestCase,"
+        }
+      ]
+    },
+    {
+      "sha": "4a90ef03637fdc1bc63ee9be82fbf22cbaa68662",
+      "message": "Issue #14177: marshal.loads() now raises TypeError when given an unicode string.\nPatch by Guilherme Gon\u00e7alves.",
+      "changes": [
+        {
+          "file": "Lib/test/test_exceptions.py",
+          "patch": "@@ -38,7 +38,7 @@ def testRaising(self):\n         try:\n             try:\n                 import marshal\n-                marshal.loads('')\n+                marshal.loads(b'')\n             except EOFError:\n                 pass\n         finally:"
+        },
+        {
+          "file": "Lib/test/test_marshal.py",
+          "patch": "@@ -184,7 +184,7 @@ def test_fuzz(self):\n                 pass\n \n     def test_loads_recursion(self):\n-        s = 'c' + ('X' * 4*4) + '{' * 2**20\n+        s = b'c' + (b'X' * 4*4) + b'{' * 2**20\n         self.assertRaises(ValueError, marshal.loads, s)\n \n     def test_recursion_limit(self):\n@@ -257,6 +257,11 @@ def test_multiple_dumps_and_loads(self):\n             finally:\n                 support.unlink(support.TESTFN)\n \n+    def test_loads_reject_unicode_strings(self):\n+        # Issue #14177: marshal.loads() should not accept unicode strings\n+        unicode_string = 'T'\n+        self.assertRaises(TypeError, marshal.loads, unicode_string)\n+\n \n def test_main():\n     support.run_unittest(IntTestCase,"
+        }
+      ]
+    },
+    {
+      "sha": "f500778f652f6beb368f10c0fd312c3034dfce5e",
+      "message": "Improper type for __package__ should raise TypeError, not ValueError.",
+      "changes": [
+        {
+          "file": "Lib/importlib/_bootstrap.py",
+          "patch": "@@ -926,7 +926,7 @@ def _sanity_check(name, package, level):\n         raise ValueError('level must be >= 0')\n     if package:\n         if not isinstance(package, str):\n-            raise ValueError(\"__package__ not set to a string\")\n+            raise TypeError(\"__package__ not set to a string\")\n         elif package not in sys.modules:\n             msg = (\"Parent module {0!r} not loaded, cannot perform relative \"\n                    \"import\")"
+        },
+        {
+          "file": "Lib/importlib/test/import_/test___package__.py",
+          "patch": "@@ -67,7 +67,7 @@ def test_bad__package__(self):\n \n     def test_bunk__package__(self):\n         globals = {'__package__': 42}\n-        with self.assertRaises(ValueError):\n+        with self.assertRaises(TypeError):\n             import_util.import_('', globals, {}, ['relimport'], 1)\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "1bf6bb6c37325e50bc7070453a5240cda85d3149",
+      "message": "Fix NameError",
+      "changes": [
+        {
+          "file": "Lib/distutils/tests/test_bdist_msi.py",
+          "patch": "@@ -1,4 +1,5 @@\n \"\"\"Tests for distutils.command.bdist_msi.\"\"\"\n+import os\n import sys\n import unittest\n from test.test_support import run_unittest"
+        }
+      ]
+    },
+    {
+      "sha": "3fa29f7cd77970df2d85db3e7565cf0ad2548883",
+      "message": "Closes #13291: NameError in xmlrpc package.",
+      "changes": [
+        {
+          "file": "Lib/xmlrpc/client.py",
+          "patch": "@@ -302,7 +302,7 @@ def make_comparable(self, other):\n         elif datetime and isinstance(other, datetime.datetime):\n             s = self.value\n             o = other.strftime(\"%Y%m%dT%H:%M:%S\")\n-        elif isinstance(other, (str, unicode)):\n+        elif isinstance(other, str):\n             s = self.value\n             o = other\n         elif hasattr(other, \"timetuple\"):"
+        },
+        {
+          "file": "Lib/xmlrpc/server.py",
+          "patch": "@@ -602,7 +602,7 @@ def __init__(self, addr, requestHandler=SimpleXMLRPCRequestHandler,\n                                     encoding, bind_and_activate)\n         self.dispatchers = {}\n         self.allow_none = allow_none\n-        self.encoding = encoding\n+        self.encoding = encoding or 'utf-8'\n \n     def add_dispatcher(self, path, dispatcher):\n         self.dispatchers[path] = dispatcher\n@@ -620,9 +620,10 @@ def _marshaled_dispatch(self, data, dispatch_method = None, path = None):\n             # (each dispatcher should have handled their own\n             # exceptions)\n             exc_type, exc_value = sys.exc_info()[:2]\n-            response = xmlrpclib.dumps(\n-                xmlrpclib.Fault(1, \"%s:%s\" % (exc_type, exc_value)),\n+            response = dumps(\n+                Fault(1, \"%s:%s\" % (exc_type, exc_value)),\n                 encoding=self.encoding, allow_none=self.allow_none)\n+            response = response.encode(self.encoding)\n         return response\n \n class CGIXMLRPCRequestHandler(SimpleXMLRPCDispatcher):"
+        }
+      ]
+    },
+    {
+      "sha": "29f6297605fba9f7313b2aeaf2ddbb06653cfdbb",
+      "message": "Fix wrong use of root logger in packaging (also a NameError)",
+      "changes": [
+        {
+          "file": "Lib/packaging/util.py",
+          "patch": "@@ -782,7 +782,7 @@ def spawn(cmd, search_path=True, verbose=0, dry_run=False, env=None):\n     \"\"\"\n     logger.debug('spawn: running %r', cmd)\n     if dry_run:\n-        logging.debug('dry run, no process actually spawned')\n+        logger.debug('dry run, no process actually spawned')\n         return\n     if sys.platform == 'darwin':\n         global _cfg_target, _cfg_target_split"
+        }
+      ]
+    },
+    {
+      "sha": "d61535d50b66a68cc9aecebbf5faca26d7b60a28",
+      "message": "Fix closes Issue12676 - Invalid identifier used in TypeError message in http.client.\nReported by Popa Claudiu and Patch by Santoso Wijaya.",
+      "changes": [
+        {
+          "file": "Lib/http/client.py",
+          "patch": "@@ -778,7 +778,7 @@ def send(self, data):\n                     self.sock.sendall(d)\n             else:\n                 raise TypeError(\"data should be a bytes-like object\\\n-                        or an iterable, got %r \" % type(it))\n+                        or an iterable, got %r \" % type(data))\n \n     def _output(self, s):\n         \"\"\"Add a line of output to the current request buffer."
+        },
+        {
+          "file": "Lib/test/test_httplib.py",
+          "patch": "@@ -246,6 +246,13 @@ def body():\n         conn.request('GET', '/foo', body(), {'Content-Length': '11'})\n         self.assertEqual(sock.data, expected)\n \n+    def test_send_type_error(self):\n+        # See: Issue #12676\n+        conn = client.HTTPConnection('example.com')\n+        conn.sock = FakeSocket('')\n+        with self.assertRaises(TypeError):\n+            conn.request('POST', 'test', conn)\n+\n     def test_chunked(self):\n         chunked_start = (\n             'HTTP/1.1 200 OK\\r\\n'"
+        }
+      ]
+    },
+    {
+      "sha": "eb71ad4c71a95d9b7397e3baaaadcb0687efa894",
+      "message": "Fix closes Issue12676 - Invalid identifier used in TypeError message in http.client.\nReported by Popa Claudiu and Patch by Santoso Wijaya.",
+      "changes": [
+        {
+          "file": "Lib/http/client.py",
+          "patch": "@@ -778,7 +778,7 @@ def send(self, data):\n                     self.sock.sendall(d)\n             else:\n                 raise TypeError(\"data should be a bytes-like object\\\n-                        or an iterable, got %r \" % type(it))\n+                        or an iterable, got %r \" % type(data))\n \n     def _output(self, s):\n         \"\"\"Add a line of output to the current request buffer."
+        },
+        {
+          "file": "Lib/test/test_httplib.py",
+          "patch": "@@ -246,6 +246,13 @@ def body():\n         conn.request('GET', '/foo', body(), {'Content-Length': '11'})\n         self.assertEqual(sock.data, expected)\n \n+    def test_send_type_error(self):\n+        # See: Issue #12676\n+        conn = client.HTTPConnection('example.com')\n+        conn.sock = FakeSocket('')\n+        with self.assertRaises(TypeError):\n+            conn.request('POST', 'test', conn)\n+\n     def test_chunked(self):\n         chunked_start = (\n             'HTTP/1.1 200 OK\\r\\n'"
+        }
+      ]
+    },
+    {
+      "sha": "7b0908a8e444d735d459bac7c32566f6f11882fe",
+      "message": "Make TypeError message from Command.__init__ more useful",
+      "changes": [
+        {
+          "file": "Lib/packaging/command/cmd.py",
+          "patch": "@@ -57,7 +57,8 @@ def __init__(self, dist):\n         from packaging.dist import Distribution\n \n         if not isinstance(dist, Distribution):\n-            raise TypeError(\"dist must be a Distribution instance\")\n+            raise TypeError(\"dist must be an instance of Distribution, not %r\"\n+                            % type(dist))\n         if self.__class__ is Command:\n             raise RuntimeError(\"Command is an abstract class\")\n "
+        }
+      ]
+    },
+    {
+      "sha": "9ebe08d2f6c3b8bca5148e909cc89efeb7a01ad1",
+      "message": "Fix closes issue12471 - wrong TypeError message when '%i' format spec was used.",
+      "changes": [
+        {
+          "file": "Lib/test/test_unicode.py",
+          "patch": "@@ -788,6 +788,7 @@ def test_formatting(self):\n         self.assertEqual('%c' % '\\U00021483', '\\U00021483')\n         self.assertRaises(TypeError, \"%c\".__mod__, \"aa\")\n         self.assertRaises(ValueError, \"%.1\\u1032f\".__mod__, (1.0/3))\n+        self.assertRaises(TypeError, \"%i\".__mod__, \"aa\")\n \n         # formatting jobs delegated from the string implementation:\n         self.assertEqual('...%(foo)s...' % {'foo':\"abc\"}, '...abc...')"
+        }
+      ]
+    },
+    {
+      "sha": "b455e58b95a6603f8464f6de4474c160a8f83047",
+      "message": "Issue #12079: Decimal(0).fma(Decimal('inf'), 'not a number') should give a TypeError, not a Decimal.InvalidOperation",
+      "changes": [
+        {
+          "file": "Lib/decimal.py",
+          "patch": "@@ -1871,6 +1871,7 @@ def fma(self, other, third, context=None):\n         \"\"\"\n \n         other = _convert_other(other, raiseit=True)\n+        third = _convert_other(third, raiseit=True)\n \n         # compute product; raise InvalidOperation if either operand is\n         # a signaling NaN or if the product is zero times infinity.\n@@ -1900,7 +1901,6 @@ def fma(self, other, third, context=None):\n                                        str(int(self._int) * int(other._int)),\n                                        self._exp + other._exp)\n \n-        third = _convert_other(third, raiseit=True)\n         return product.__add__(third, context)\n \n     def _power_modulo(self, other, modulo, context=None):"
+        }
+      ]
+    },
+    {
+      "sha": "0b5c21f9c96e6a0734dd7bcbdeec05500a7baf70",
+      "message": "#12002 - ftplib's abort() method raises TypeError",
+      "changes": [
+        {
+          "file": "Lib/ftplib.py",
+          "patch": "@@ -232,12 +232,13 @@ def abort(self):\n         This does not follow the procedure from the RFC to send Telnet\n         IP and Synch; that doesn't seem to work with the servers I've\n         tried.  Instead, just send the ABOR command as OOB data.'''\n-        line = 'ABOR' + CRLF\n+        line = b'ABOR' + B_CRLF\n         if self.debugging > 1: print('*put urgent*', self.sanitize(line))\n         self.sock.sendall(line, MSG_OOB)\n         resp = self.getmultiline()\n         if resp[:3] not in ('426', '225', '226'):\n             raise error_proto(resp)\n+        return resp\n \n     def sendcmd(self, cmd):\n         '''Send a command and return the response.'''"
+        }
+      ]
+    },
+    {
+      "sha": "6d58d64919bb12e05fa4bf3a34909650c695cff6",
+      "message": "Issue #11127: Raise a TypeError when trying to pickle a socket object.",
+      "changes": [
+        {
+          "file": "Lib/socket.py",
+          "patch": "@@ -112,6 +112,9 @@ def __repr__(self):\n                                 s[7:])\n         return s\n \n+    def __getstate__(self):\n+        raise TypeError(\"Cannot serialize socket object\")\n+\n     def dup(self):\n         \"\"\"dup() -> socket object\n "
+        },
+        {
+          "file": "Lib/test/test_socket.py",
+          "patch": "@@ -18,6 +18,7 @@\n from weakref import proxy\n import signal\n import math\n+import pickle\n try:\n     import fcntl\n except ImportError:\n@@ -764,6 +765,12 @@ def test_name_closed_socketio(self):\n             fp.close()\n             self.assertEqual(repr(fp), \"<_io.BufferedReader name=-1>\")\n \n+    def test_pickle(self):\n+        sock = socket.socket()\n+        with sock:\n+            for protocol in range(pickle.HIGHEST_PROTOCOL + 1):\n+                self.assertRaises(TypeError, pickle.dumps, sock, protocol)\n+\n \n @unittest.skipUnless(thread, 'Threading required for this test.')\n class BasicTCPTest(SocketConnectedTest):"
+        }
+      ]
+    },
+    {
+      "sha": "4605a00207d26fe065896ad9cd047bbda5e4a9b2",
+      "message": "Endly, fix UnboundLocalError in telnetlib",
+      "changes": [
+        {
+          "file": "Lib/test/test_telnetlib.py",
+          "patch": "@@ -17,9 +17,10 @@ def server(evt, serv):\n         conn, addr = serv.accept()\n     except socket.timeout:\n         pass\n+    else:\n+        conn.close()\n     finally:\n         serv.close()\n-        conn.close()\n         evt.set()\n \n class GeneralTests(TestCase):"
+        }
+      ]
+    },
+    {
+      "sha": "692f038a5dad826254fe73050063862d76dc7baa",
+      "message": "Fix AttributeError.",
+      "changes": [
+        {
+          "file": "Lib/test/test_os.py",
+          "patch": "@@ -1282,7 +1282,7 @@ def test_set_get_priority(self):\n             try:\n                 os.setpriority(os.PRIO_PROCESS, os.getpid(), base)\n             except OSError as err:\n-                if err.errno != errno.EACCESS:\n+                if err.errno != errno.EACCES:\n                     raise\n \n "
+        }
+      ]
+    }
+  ]
+}

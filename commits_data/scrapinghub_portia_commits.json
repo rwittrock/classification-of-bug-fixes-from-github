@@ -1,0 +1,25 @@
+{
+  "repo_name": "scrapinghub/portia",
+  "commits": [
+    {
+      "sha": "4847189e707f8786d5055ad67018635e2836cfff",
+      "message": "fix TypeError in extract_items websocket message",
+      "changes": [
+        {
+          "file": "slyd/slyd/splash/commands.py",
+          "patch": "@@ -48,12 +48,14 @@ def save_html(data, socket):\n def extract_items(data, socket):\n     \"\"\"Use latest annotations to extract items from current page\"\"\"\n     if not socket.tab:\n-        return []\n+        return {}\n     url = socket.tab.evaljs('location.href')\n     html = socket.tab.html()\n     if (socket.spiderspec is None or\n             (data['spider'] and socket.spiderspec.name != data['spider'])):\n-        socket.open_spider(data)\n+        result = socket.open_spider(data)\n+        if result and result.get('error'):\n+            return {}\n     sample_names = socket.spiderspec.templates\n     annotations = socket.spider.plugins['Annotations']\n     sid = data.get('sample')"
+        }
+      ]
+    },
+    {
+      "sha": "694fe27adee239c99dca8d15e6f2b7aebaa32bbb",
+      "message": "fixed TypeError",
+      "changes": [
+        {
+          "file": "slyd/slyd/resources/models.py",
+          "patch": "@@ -162,7 +162,7 @@ class SampleSchema(SlydSchema):\n     page_id = fields.Str()\n     page_type = fields.Str(default='item')\n     scrapes = fields.Str()\n-    extractors = fields.Dict(fields.Str(), default={})\n+    extractors = fields.Dict(default={})\n     original_body = fields.Str(default='')\n     annotated_body = fields.Str(default='')\n     project = fields.Relationship("
+        }
+      ]
+    }
+  ]
+}

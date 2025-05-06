@@ -1,0 +1,75 @@
+{
+  "repo_name": "angr/angr",
+  "commits": [
+    {
+      "sha": "3147544908f9731cf21471e94178b2f4255dfa3b",
+      "message": "SimRegNameView on arm: fix dir()\n\nLooks like it was forgotten when migrating to py3.\r\nWithout this change, `dir(state.regs)` crashes: `TypeError: unsupported operand type(s) for +: 'dict_keys' and 'list'`",
+      "changes": [
+        {
+          "file": "angr/state_plugins/view.py",
+          "patch": "@@ -80,7 +80,7 @@ def __dir__(self):\n         if self.state.arch.name in ('X86', 'AMD64'):\n             return list(self.state.arch.registers.keys()) + ['st%d' % n for n in range(8)] + ['tag%d' % n for n in range(8)] + ['flags', 'eflags', 'rflags']\n         elif is_arm_arch(self.state.arch):\n-            return self.state.arch.registers.keys() + ['flags']\n+            return list(self.state.arch.registers.keys()) + ['flags']\n         return self.state.arch.registers.keys()\n \n     @SimStatePlugin.memo"
+        }
+      ]
+    },
+    {
+      "sha": "7462ebbcf3ef2c11614f2c0eef327b2ca50f4e02",
+      "message": "KeyedRegion: Raises TypeError if offset is not an int.",
+      "changes": [
+        {
+          "file": "angr/keyed_region.py",
+          "patch": "@@ -125,12 +125,15 @@ def _get_container(self, offset):\n \n     def __contains__(self, offset):\n         \"\"\"\n-        Test if there is at least one varaible covering the given offset.\n+        Test if there is at least one variable covering the given offset.\n \n         :param offset:\n         :return:\n         \"\"\"\n \n+        if type(offset) is not int:\n+            raise TypeError(\"KeyedRegion only accepts concrete offsets.\")\n+\n         return self._get_container(offset)[1] is not None\n \n     def __len__(self):"
+        }
+      ]
+    },
+    {
+      "sha": "55baa851ce332d21da52e65c27b70e95cff1e9cc",
+      "message": "LightEngineVEX: Added Not handler, fixed TypeError in _handle_Load() and return values in comparison handlers",
+      "changes": [
+        {
+          "file": "angr/engines/light/engine.py",
+          "patch": "@@ -147,8 +147,11 @@ def _handle_Unop(self, expr):\n         simop = vex_operations[expr.op]\n         if simop.op_attrs['conversion']:\n             handler = '_handle_Conversion'\n-        elif expr.op.startswith('Iop_Not1'):\n+        # Notice order of \"Not\" comparisons\n+        elif expr.op == 'Iop_Not1':\n             handler = '_handle_Not1'\n+        elif expr.op.startswith('Iop_Not'):\n+            handler = '_handle_Not'\n \n         if handler is not None and hasattr(self, handler):\n             return getattr(self, handler)(expr)"
+        }
+      ]
+    },
+    {
+      "sha": "dc4e4f159924e455d582721d14481a7eb0963cbe",
+      "message": "CFGFast: Fixed TypeError in _arm_track_read_lr_from_stack()",
+      "changes": [
+        {
+          "file": "angr/analyses/cfg/cfg_fast.py",
+          "patch": "@@ -3310,8 +3310,10 @@ def _arm_track_read_lr_from_stack(self, addr, irsb, function):  # pylint:disable\n             if isinstance(val, tuple) and val[0] == 'load':\n                 # the value comes from memory\n                 memory_addr = val[1]\n-                lsp = last_sp if isinstance(last_sp, int) else last_sp[1]\n-                lr_on_stack_offset = memory_addr - lsp\n+                if isinstance(last_sp, (int, long)):\n+                    lr_on_stack_offset = memory_addr - last_sp\n+                else:\n+                    lr_on_stack_offset = memory_addr - last_sp[1]\n \n                 if lr_on_stack_offset == function.info['lr_on_stack_offset']:\n                     # the jumpkind should be Ret instead of boring"
+        }
+      ]
+    },
+    {
+      "sha": "31262d829120078423a745d3a0fa61b60715e0ec",
+      "message": "Fixed call error\n\n  File \"/usr/local/lib/python2.7/dist-packages/angr/procedures/win32/local_storage.py\", line 52, in run\r\n    set_val = self.inline_call(self.SETTER, (index, self.state.se.BVV(0, self.state.arch.bits)))\r\n  File \"/usr/local/lib/python2.7/dist-packages/angr/sim_procedure.py\", line 264, in inline_call\r\n    return p.execute(self.state, None, arguments=e_args)\r\n  File \"/usr/local/lib/python2.7/dist-packages/angr/sim_procedure.py\", line 157, in execute\r\n    r = getattr(inst, inst.run_func)(*sim_args, **inst.kwargs)\r\nTypeError: run() takes exactly 3 arguments (2 given)",
+      "changes": [
+        {
+          "file": "angr/procedures/win32/local_storage.py",
+          "patch": "@@ -49,7 +49,7 @@ class TlsFree(angr.SimProcedure):\n     KEY = 'win32_tls'\n     SETTER = TlsSetValue\n     def run(self, index):\n-        set_val = self.inline_call(self.SETTER, (index, self.state.se.BVV(0, self.state.arch.bits)))\n+        set_val = self.inline_call(self.SETTER, index, self.state.se.BVV(0, self.state.arch.bits))\n         return set_val.ret_expr\n \n "
+        }
+      ]
+    },
+    {
+      "sha": "b365f55413f8c24d17053fe03ae97196948ed60e",
+      "message": "BUGFIX: Fixed TypeError in function.py dbg_print\n\nFixed TypeError in function.py dbg_print method. self.transition_graph.nodes() returns BlockNode instance, not int.",
+      "changes": [
+        {
+          "file": "angr/knowledge/function.py",
+          "patch": "@@ -729,7 +729,7 @@ def dbg_print(self):\n         \"\"\"\n         Returns a representation of the list of basic blocks in this function.\n         \"\"\"\n-        return \"[%s]\" % (', '.join(('%#08x' % n) for n in self.transition_graph.nodes()))\n+        return \"[%s]\" % (', '.join(('%#08x' % n.addr) for n in self.transition_graph.nodes()))\n \n     def dbg_draw(self, filename):\n         \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "05f30ec7148352c92b543b19056f5854c92b2120",
+      "message": "annocfg: fix should_execute_statement\n\nrun_statement_whitelist[addr] can be a boolean (see\nadd_statements_to_whitelist), hence we need to handle this case,\notherwise we get a TypeError.",
+      "changes": [
+        {
+          "file": "angr/annocfg.py",
+          "patch": "@@ -135,7 +135,11 @@ def should_execute_statement(self, addr, stmt_id):\n         if self._run_statement_whitelist is None:\n             return True\n         elif addr in self._run_statement_whitelist:\n-            return stmt_id in self._run_statement_whitelist[addr]\n+            r = self._run_statement_whitelist[addr]\n+            if isinstance(r, bool):\n+                return r\n+            else:\n+                return stmt_id in self._run_statement_whitelist[addr]\n         return False\n \n     def get_run(self, addr):"
+        }
+      ]
+    }
+  ]
+}

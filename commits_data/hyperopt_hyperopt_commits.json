@@ -1,0 +1,15 @@
+{
+  "repo_name": "hyperopt/hyperopt",
+  "commits": [
+    {
+      "sha": "d2bf9b69889153aa29654e443e45cf1579ae3be1",
+      "message": "fix: Apply.__len__ raise TypeError",
+      "changes": [
+        {
+          "file": "hyperopt/pyll/base.py",
+          "patch": "@@ -481,7 +481,7 @@ def __getitem__(self, idx):\n \n     def __len__(self):\n         if self.o_len is None:\n-            return object.__len__(self)\n+            raise TypeError('len of pyll.Apply either undefined or unknown')\n         return self.o_len\n \n     def __call__(self, *args, **kwargs):"
+        }
+      ]
+    }
+  ]
+}

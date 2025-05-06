@@ -1,0 +1,17 @@
+{
+  "repo_name": "fastapi/fastapi",
+  "commits": [
+    {
+      "sha": "ccc7c8fef9eaab9d74ad142c50847be7e38e250a",
+      "message": "\ud83d\udc1b Ensure that `HTTPDigest` only raises an exception when `auto_error is True` (#2939)\n\nCo-authored-by: svlandeg <sofie.vanlandeghem@gmail.com>",
+      "changes": [
+        {
+          "file": "tests/test_security_http_digest_optional.py",
+          "additions": 2,
+          "deletions": 2,
+          "patch": "@@ -37,8 +37,8 @@ def test_security_http_digest_incorrect_scheme_credentials():\n     response = client.get(\n         \"/users/me\", headers={\"Authorization\": \"Other invalidauthorization\"}\n     )\n-    assert response.status_code == 403, response.text\n-    assert response.json() == {\"detail\": \"Invalid authentication credentials\"}\n+    assert response.status_code == 200, response.text\n+    assert response.json() == {\"msg\": \"Create an account first\"}\n \n \n def test_openapi_schema():"
+        }
+      ]
+    }
+  ]
+}

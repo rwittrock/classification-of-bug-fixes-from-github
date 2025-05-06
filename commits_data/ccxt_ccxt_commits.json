@@ -1,0 +1,25 @@
+{
+  "repo_name": "ccxt/ccxt",
+  "commits": [
+    {
+      "sha": "42f9746fca715ec50959e142b41d9729261ef5f7",
+      "message": "UnboundLocalError: local variable text referenced before assignment",
+      "changes": [
+        {
+          "file": "ccxt/async/exchange.py",
+          "patch": "@@ -105,7 +105,7 @@ async def fetch(self, url, method='GET', headers=None, body=None):\n         except concurrent.futures._base.TimeoutError as e:\n             raise RequestTimeout(' '.join([self.id, method, url, 'request timeout']))\n         except aiohttp.client_exceptions.ServerDisconnectedError as e:\n-            self.raise_error(ExchangeError, url, method, e, text if text else None)\n+            self.raise_error(ExchangeError, url, method, e, None)\n         if self.verbose:\n             print(method, url, \"\\nResponse:\", headers, text)\n         return self.handle_rest_response(text, url, method, headers, body)"
+        }
+      ]
+    },
+    {
+      "sha": "664ce79116ebf7eba8fa4660e9b7e696c683444d",
+      "message": "Fix the error: TypeError: Can't convert 'int' object to str implicitly",
+      "changes": [
+        {
+          "file": "examples/py/exchanges.py",
+          "patch": "@@ -25,7 +25,7 @@ def underline(s): return style(s, '\\033[4m')\n def log(*args):\n     print(' '.join([str(arg) for arg in args]))\n \n-log('The ccxt library supports', green(len(ccxt.exchanges)), 'exchanges:')\n+log('The ccxt library supports', green(str(len(ccxt.exchanges))), 'exchanges:')\n \n # output a table of all exchanges\n log(pink('{:<15} {:<15} {:<15}'.format('id', 'name', 'URL')))"
+        }
+      ]
+    }
+  ]
+}

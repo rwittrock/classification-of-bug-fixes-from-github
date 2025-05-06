@@ -1,0 +1,273 @@
+{
+  "repo_name": "getsentry/sentry",
+  "commits": [
+    {
+      "sha": "00f97172d2c459ee2f3e2cd37d5035d17749e393",
+      "message": "fix(minidump): Catch msgpack TypeError (#15054)",
+      "changes": [
+        {
+          "file": "src/sentry/lang/native/minidump.py",
+          "patch": "@@ -64,7 +64,7 @@ def merge_attached_event(mpack_event, data):\n \n     try:\n         event = unpack(mpack_event)\n-    except (ValueError, UnpackException, ExtraData) as e:\n+    except (TypeError, ValueError, UnpackException, ExtraData) as e:\n         minidumps_logger.exception(e)\n         return\n \n@@ -85,7 +85,7 @@ def merge_attached_breadcrumbs(mpack_breadcrumbs, data):\n     try:\n         unpacker = Unpacker(mpack_breadcrumbs)\n         breadcrumbs = list(unpacker)\n-    except (ValueError, UnpackException, ExtraData) as e:\n+    except (TypeError, ValueError, UnpackException, ExtraData) as e:\n         minidumps_logger.exception(e)\n         return\n "
+        }
+      ]
+    },
+    {
+      "sha": "b7cd8851547cccf948a3027d1a64002ba81596bb",
+      "message": "Fixed syntax error in 'exec' command handler (#13360)\n\nThe `startswith` method accepts a tuple as a first argument, without a tuple the following error appears:\r\n\r\n```\r\nTypeError: slice indices must be integers or None or have an __index__ method\r\n```",
+      "changes": [
+        {
+          "file": "src/sentry/runner/commands/exec.py",
+          "patch": "@@ -86,7 +86,7 @@ def exec_(c, file):\n         for line in c.splitlines():\n             if line.startswith('from __future__'):\n                 state = 1\n-            elif line and not line.startswith('#', '\"', \"'\") and state == 1:\n+            elif line and not line.startswith(('#', '\"', \"'\")) and state == 1:\n                 state = 2\n             if state == 2:\n                 body.append(line)"
+        }
+      ]
+    },
+    {
+      "sha": "e6cc8483b3992fb02ebb39649efd2b264fcadeca",
+      "message": "fix: Fix TypeError when iterating over headers (#12645)",
+      "changes": [
+        {
+          "file": "src/sentry/filters/legacy_browsers.py",
+          "patch": "@@ -82,7 +82,7 @@ def enable(self, value=None):\n \n     def get_user_agent(self, data):\n         try:\n-            for key, value in get_path(data, 'request', 'headers', filter=True):\n+            for key, value in get_path(data, 'request', 'headers', filter=True) or ():\n                 if key.lower() == 'user-agent':\n                     return value\n         except LookupError:"
+        }
+      ]
+    },
+    {
+      "sha": "f5998e667adb39907fb58db9fe66f1b2482db263",
+      "message": "feat: Add options to use Kafka for preprocess/process/event_save tasks (#12309)\n\n* feat: Add options to use Kafka for preprocess/process/event_save tasks\r\n\r\nTry number 2. Had to revert to fix SENTRY-9TF.\r\n\r\n* Maybe fix all the AttributeErrors but who knows it's Python",
+      "changes": [
+        {
+          "file": "src/sentry/features/__init__.py",
+          "patch": "@@ -92,6 +92,7 @@\n default_manager.add('projects:servicehooks', ProjectFeature)  # NOQA\n default_manager.add('projects:similarity-view', ProjectFeature)  # NOQA\n default_manager.add('projects:similarity-indexing', ProjectFeature)  # NOQA\n+default_manager.add('projects:kafka-ingest', ProjectFeature)  # NOQA\n \n # Project plugin features\n default_manager.add('projects:plugins', ProjectPluginFeature)  # NOQA"
+        },
+        {
+          "file": "src/sentry/runner/__init__.py",
+          "patch": "@@ -56,7 +56,7 @@ def cli(ctx, config):\n         lambda cmd: cli.add_command(import_string(cmd)), (\n             'sentry.runner.commands.backup.export', 'sentry.runner.commands.backup.import_',\n             'sentry.runner.commands.cleanup.cleanup', 'sentry.runner.commands.config.config',\n-            'sentry.runner.commands.createuser.createuser',\n+            'sentry.runner.commands.consumer.consumer', 'sentry.runner.commands.createuser.createuser',\n             'sentry.runner.commands.devserver.devserver', 'sentry.runner.commands.django.django',\n             'sentry.runner.commands.exec.exec_', 'sentry.runner.commands.files.files',\n             'sentry.runner.commands.help.help', 'sentry.runner.commands.init.init',"
+        },
+        {
+          "file": "tests/sentry/consumer/__init__.py",
+          "patch": "@@ -0,0 +1 @@\n+from __future__ import absolute_import"
+        }
+      ]
+    },
+    {
+      "sha": "d927197a22bd6f4db8308654753ebb9bd79f5e0a",
+      "message": "fix(search): Prevent SequencePaginator from throwing IndexError when used incorrectly (#11016)",
+      "changes": [
+        {
+          "file": "src/sentry/api/paginator.py",
+          "patch": "@@ -262,7 +262,7 @@ def reverse_bisect_left(a, x, lo=0, hi=None):\n     if lo < 0:\n         raise ValueError('lo must be non-negative')\n \n-    if hi is None:\n+    if hi is None or hi > len(a):\n         hi = len(a)\n \n     while lo < hi:"
+        },
+        {
+          "file": "tests/sentry/api/test_paginator.py",
+          "patch": "@@ -345,6 +345,8 @@ def test_reverse_bisect_left():\n     assert reverse_bisect_left([2, 2, 1], 1) == 2\n     assert reverse_bisect_left([2, 2, 1], 2) == 0\n \n+    assert reverse_bisect_left([3, 2, 1], 2, hi=10) == 1\n+\n \n class SequencePaginatorTestCase(SimpleTestCase):\n     def test_empty_results(self):"
+        }
+      ]
+    },
+    {
+      "sha": "7c64ce71d36fbfb7dc44fb4b9c50e0ff35936f97",
+      "message": "fix(api): Use ValidationError instead of APIException to fix TypeError\n\nfixes SENTRY-6RC",
+      "changes": [
+        {
+          "file": "src/sentry/api/fields/avatar.py",
+          "patch": "@@ -47,7 +47,7 @@ def from_native(self, data):\n             with Image.open(BytesIO(data)) as img:\n                 width, height = img.size\n                 if not self.is_valid_size(width, height):\n-                    raise APIException('Invalid image dimensions.', status_code=400)\n+                    raise serializers.ValidationError('Invalid image dimensions.')\n         except IOError:\n             raise serializers.ValidationError('Invalid image format.')\n "
+        }
+      ]
+    },
+    {
+      "sha": "37bd7a6b12f9098f1bc84250982a6e0574028f84",
+      "message": "fix(vsts): Fix typeerror for existing integrations",
+      "changes": [
+        {
+          "file": "src/sentry/integrations/vsts/issues.py",
+          "patch": "@@ -218,4 +218,6 @@ def get_done_states(self, project):\n         return done_states\n \n     def get_issue_display_name(self, external_issue):\n+        if external_issue.metadata is None:\n+            return ''\n         return external_issue.metadata['display_name']"
+        }
+      ]
+    },
+    {
+      "sha": "b8b7e73a3c7a5591f37cdc5bc4446638a6a442f5",
+      "message": "fix(identity): KeyError -> IndexError",
+      "changes": [
+        {
+          "file": "src/sentry/south_migrations/0408_identity_provider_external_id.py",
+          "patch": "@@ -32,7 +32,7 @@ def _forwards(self, orm):\n                 # provider would have been setup, but at the time of writing\n                 # this, in getsentry, there are no cases like such.\n                 integration = orm.Integration.objects.filter(organizations=r.organization_id)[0]\n-            except KeyError:\n+            except IndexError:\n                 # Identity provider exists without an external_id. Nothing we\n                 # can do to determine the external ID.\n                 continue"
+        }
+      ]
+    },
+    {
+      "sha": "18d9e552f435644be42ae3d2885d60a015b62000",
+      "message": "api: prevent blowing up from a TypeError in BrowserExtensionFilter with garbage input (#4532)",
+      "changes": [
+        {
+          "file": "src/sentry/filters/browser_extensions.py",
+          "patch": "@@ -54,13 +54,13 @@ class BrowserExtensionsFilter(Filter):\n     def get_exception_value(self, data):\n         try:\n             return data['sentry.interfaces.Exception']['values'][0]['value']\n-        except LookupError:\n+        except (LookupError, TypeError):\n             return ''\n \n     def get_exception_source(self, data):\n         try:\n             return data['sentry.interfaces.Exception']['values'][0]['stacktrace']['frames'][-1]['abs_path']\n-        except LookupError:\n+        except (LookupError, TypeError):\n             return ''\n \n     def test(self, data):"
+        },
+        {
+          "file": "tests/sentry/filters/test_browser_extensions.py",
+          "patch": "@@ -54,3 +54,8 @@ def test_filters_chrome_extensions_second_format(self):\n     def test_does_not_filter_generic_data(self):\n         data = self.get_mock_data()\n         assert not self.apply_filter(data)\n+\n+    def test_filters_malformed_data(self):\n+        data = self.get_mock_data()\n+        data['sentry.interfaces.Exception'] = None\n+        assert not self.apply_filter(data)"
+        }
+      ]
+    },
+    {
+      "sha": "fc5bf1bad83f3f4723d13c194ee6f546488b4472",
+      "message": "TypeError Exception in sentry.runner.settings.get_sentry_conf()\n\nIf click.get_current_context() returns None, trying to access\nctx.object['config'] yields a TypeError. This happens when trying to\nwrite a sentry command in a separate module from sentry, when\ncalling sentry.runner.settings.configure()",
+      "changes": [
+        {
+          "file": "src/sentry/runner/settings.py",
+          "patch": "@@ -52,7 +52,7 @@ def get_sentry_conf():\n     try:\n         ctx = click.get_current_context()\n         return ctx.obj['config']\n-    except (RuntimeError, KeyError):\n+    except (RuntimeError, KeyError, TypeError):\n         try:\n             return os.environ['SENTRY_CONF']\n         except KeyError:"
+        }
+      ]
+    },
+    {
+      "sha": "e9ba3cc5a87dd9be9026826eff382da3d01d4753",
+      "message": "Guard against a bad shareid from TypeError\n\n>>> b16decode('x')\nTypeError: Non-base16 digit found\n\nFixes SENTRY-1FN",
+      "changes": [
+        {
+          "file": "src/sentry/models/group.py",
+          "patch": "@@ -270,9 +270,11 @@ def get_share_id(self):\n \n     @classmethod\n     def from_share_id(cls, share_id):\n+        if not share_id:\n+            raise cls.DoesNotExist\n         try:\n             project_id, group_id = b16decode(share_id.upper()).split('.')\n-        except ValueError:\n+        except (ValueError, TypeError):\n             raise cls.DoesNotExist\n         if not (project_id.isdigit() and group_id.isdigit()):\n             raise cls.DoesNotExist"
+        }
+      ]
+    },
+    {
+      "sha": "9dd1522eaf64c6dfb12c78fe992d79343840d679",
+      "message": "fix IndexError when there are trailing spaces in display names",
+      "changes": [
+        {
+          "file": "src/sentry/utils/avatar.py",
+          "patch": "@@ -64,7 +64,7 @@ def get_letter_avatar_color(identifier):\n \n \n def get_letter_avatar(display_name, identifier, size=None, use_svg=True):\n-    display_name = display_name or '?'\n+    display_name = (display_name or '').strip() or '?'\n     names = display_name.split(' ')\n     initials = '%s%s' % (names[0][0], names[-1][0] if len(names) > 1 else '')\n     initials = escape(initials.upper())"
+        },
+        {
+          "file": "tests/sentry/utils/test_letter_avatar.py",
+          "patch": "@@ -18,6 +18,11 @@ def test_letter_avatar():\n     assert '?' in letter_avatar\n     assert '#E35141' in letter_avatar\n \n+    # Test display name with trailing spaces\n+    letter_avatar = get_letter_avatar('johnsmith@example.com ', 2)\n+    assert 'J' in letter_avatar\n+    assert '#6FBA57' in letter_avatar\n+\n     # Test name as display name and email as identifier for html\n     letter_avatar = get_letter_avatar('Jane Doe', 'janedoe@example.com', use_svg=False)\n     assert 'JD' in letter_avatar"
+        }
+      ]
+    },
+    {
+      "sha": "0296f298ad2444a6664fedc5ffc27bc90a8e361d",
+      "message": "Fixed a NameError in the initializer",
+      "changes": [
+        {
+          "file": "src/sentry/runner/initializer.py",
+          "patch": "@@ -233,6 +233,7 @@ def show_big_error(message):\n \n def apply_legacy_settings(settings):\n     from sentry.conf.server import DEAD\n+    from sentry import options\n \n     # SENTRY_USE_QUEUE used to determine if Celery was eager or not\n     if hasattr(settings, 'SENTRY_USE_QUEUE'):\n@@ -283,11 +284,9 @@ def apply_legacy_settings(settings):\n         # This should be removed when ``SENTRY_REDIS_OPTIONS`` is officially\n         # deprecated. (This also assumes ``FLAG_NOSTORE`` on the configuration\n         # option.)\n-        from sentry import options\n         settings.SENTRY_REDIS_OPTIONS = options.get('redis.clusters')['default']\n \n     if not hasattr(settings, 'SENTRY_URL_PREFIX'):\n-        from sentry import options\n         url_prefix = options.get('system.url-prefix', silent=True)\n         if not url_prefix:\n             # HACK: We need to have some value here for backwards compatibility"
+        }
+      ]
+    },
+    {
+      "sha": "351d3be351156119773fd7af1ab572f4edbc6bbb",
+      "message": "Guard against an IndexError when Group.message is an empty string\n\nFixes issue 115020698",
+      "changes": [
+        {
+          "file": "src/sentry/api/serializers/models/group.py",
+          "patch": "@@ -116,7 +116,7 @@ def serialize(self, obj, attrs, user):\n \n         event_type = obj.data.get('type', 'default')\n         metadata = obj.data.get('metadata') or {\n-            'title': obj.message.splitlines()[0][:100],\n+            'title': obj.message_short,\n         }\n \n         return {"
+        }
+      ]
+    },
+    {
+      "sha": "5172a6ea2423e2e9bf2a09d48b70154e90503069",
+      "message": "catching TypeError for int cast",
+      "changes": [
+        {
+          "file": "src/sentry/api/endpoints/organization_onboarding_tasks.py",
+          "patch": "@@ -17,7 +17,7 @@ class OrganizationOnboardingTaskEndpoint(OrganizationEndpoint):\n     def post(self, request, organization):\n         try:\n             task_id = int(request.DATA['task'])\n-        except ValueError:\n+        except (TypeError, ValueError):\n             return Response(status=500)\n \n         if request.DATA['status'] == 'skipped' and task_id in ("
+        }
+      ]
+    },
+    {
+      "sha": "747f0339a372e9690a05a20dbc74f16db7fc4619",
+      "message": "Handle the raised TypeError more gracefully from CLI",
+      "changes": [
+        {
+          "file": "src/sentry/options/manager.py",
+          "patch": "@@ -179,8 +179,6 @@ def register(self, key, default=None, type=None, flags=DEFAULT_FLAGS,\n         else:\n             default_value = default()\n \n-        print(default, default_value, default())\n-\n         # Guess type based on the default value\n         if type is None:\n             # the default value would be equivilent to '' if no type / default"
+        },
+        {
+          "file": "src/sentry/runner/commands/config.py",
+          "patch": "@@ -52,6 +52,8 @@ def set(option, value):\n         options.set(option, value)\n     except UnknownOption:\n         raise click.ClickException('unknown option: %s' % option)\n+    except TypeError as e:\n+        raise click.ClickException(unicode(e))\n \n \n @config.command()"
+        }
+      ]
+    },
+    {
+      "sha": "68cfad2bcbaa1b22817ecf9b62837bf5393f8286",
+      "message": "Raise `TypeError` if `truncation_chance` is set when capacity is not bounded.",
+      "changes": [
+        {
+          "file": "src/sentry/digests/backends/base.py",
+          "patch": "@@ -72,10 +72,8 @@ def __init__(self, **options):\n         if self.capacity:\n             self.truncation_chance = options.pop('truncation_chance', 1.0 / self.capacity)\n         else:\n-            self.truncation_chance = None\n-            if 'truncation_chance' in options:\n-                logger.warning('No timeline capacity has been set, ignoring \"truncation_chance\" option.')\n-                del options['truncation_chance']\n+            if options.get('truncation_chance') is not None:\n+                raise TypeError('No timeline capacity has been set, \"truncation_chance\" must be None.')\n \n     def add(self, key, record):\n         \"\"\""
+        }
+      ]
+    },
+    {
+      "sha": "71712e45e523d97fc4c0109ea61beabac5566126",
+      "message": "Fix bug: check_all expects an iterable.\n\nOtherwise you may get a:\n\n    [2015-07-22 21:09:53 +0000] [20813] [ERROR] Error handling request\n    Traceback (most recent call last):\n      .... lots of stuff ...\n      File \"sentry/templatetags/sentry_status.py\", line 12, in show_system_status\n\tproblems = status_checks.check_all()\n      File \"sentry/status_checks/__init__.py\", line 16, in check_all\n\tproblems.extend(cls().check())\n    TypeError: 'NoneType' object is not iterable",
+      "changes": [
+        {
+          "file": "src/sentry/status_checks/celery_ping.py",
+          "patch": "@@ -11,8 +11,7 @@ class CeleryPingCheck(StatusCheck):\n     def check(self):\n         last_ping = options.get('sentry:last_worker_ping') or 0\n         if last_ping >= time() - 300:\n-            return\n-\n+            return []\n         return [\n             Problem(\"Background workers haven't checked in recently. This can mean an issue with your configuration or a serious backlog in tasks.\"),\n         ]"
+        }
+      ]
+    },
+    {
+      "sha": "480894e8f764fd33e411c2732724ddafc302df10",
+      "message": "fixed UnboundLocalError in createuser command\n\n`sentry --config=... createuser --email foo@bar.com --superuser --no-password` threw `UnboundLocalError: local variable 'password' referenced before assignment`",
+      "changes": [
+        {
+          "file": "src/sentry/management/commands/createuser.py",
+          "patch": "@@ -58,6 +58,7 @@ def handle(self, **options):\n         email = options['email']\n         is_superuser = options['is_superuser']\n \n+        password = None\n         if not options['noinput']:\n             try:\n                 if not email:\n@@ -72,9 +73,6 @@ def handle(self, **options):\n                 self.stderr.write(\"\\nOperation cancelled.\")\n                 sys.exit(1)\n \n-        else:\n-            password = None\n-\n         if not email:\n             raise CommandError('Invalid or missing email address')\n "
+        }
+      ]
+    },
+    {
+      "sha": "c9df16f35af2cf51a4612eb76fab59819a32df64",
+      "message": "Handle TypeError in is_float",
+      "changes": [
+        {
+          "file": "src/sentry/utils/__init__.py",
+          "patch": "@@ -28,6 +28,6 @@ def to_unicode(value):\n def is_float(var):\n     try:\n         float(var)\n-    except ValueError:\n+    except (TypeError, ValueError):\n         return False\n     return True"
+        }
+      ]
+    },
+    {
+      "sha": "d616677e2818cd53d6122a2295893bb4a9d3a265",
+      "message": "Correct logging problems from deferred interpolation\n\nWhen commit a157229ca97 deferred interpolation of internal logs,\nseveral interpolations which were already deferred by escaping\nwere not updated. These statements caused TypeErrors when not all\nof the log arguments were consumed.",
+      "changes": [
+        {
+          "file": "sentry/utils/safe.py",
+          "patch": "@@ -22,7 +22,7 @@ def safe_execute(func, *args, **kwargs):\n         else:\n             cls = func.__class__\n         logger = logging.getLogger('sentry.plugins')\n-        logger.error('Error processing %r on %%r: %%s', func.__name__, cls.__name__, e, extra={\n+        logger.error('Error processing %r on %r: %s', func.__name__, cls.__name__, e, extra={\n             'func_module': cls.__module__,\n             'func_args': args,\n             'func_kwargs': kwargs,"
+        },
+        {
+          "file": "sentry/web/api.py",
+          "patch": "@@ -177,7 +177,7 @@ def store(request, project=None):\n             }, exc_info=True)\n             response = HttpResponse(unicode(error.msg), status=error.http_status)\n         else:\n-            logger.info('New event from client %r (id=%%s)', client, data['event_id'])\n+            logger.info('New event from client %r (id=%s)', client, data['event_id'])\n \n     return response\n "
+        }
+      ]
+    },
+    {
+      "sha": "022f45b61f122c0de3356c906534c870777499d6",
+      "message": "Fixed NameError: name 'urlparse' is not defined",
+      "changes": [
+        {
+          "file": "sentry/conf/server.py",
+          "patch": "@@ -15,6 +15,7 @@\n import os.path\n import socket\n import sys\n+import urlparse\n \n DEBUG = False\n TEMPLATE_DEBUG = True"
+        }
+      ]
+    },
+    {
+      "sha": "ffd06bec0b83cb15e9ed630e6b9cab26ddb17e99",
+      "message": "make sure log record is formatted\r\n\r\nwithout this, or another handler in the chain doing the formatting, this gives an error: \"AttributeError: LogRecord instance has no attribute 'message'\"",
+      "changes": [
+        {
+          "file": "sentry/client/handlers.py",
+          "patch": "@@ -15,6 +15,7 @@ def emit(self, record):\n             print >> sys.stderr, record.message\n             return\n \n+        self.format(record)\n         get_client().create_from_record(record, request=request)\n \n try:"
+        }
+      ]
+    },
+    {
+      "sha": "3f0779cdd179eef0acd31e51f5edfbbc7b42bb40",
+      "message": "Don't fail sentry.helpers.transform with TypeError when called on class having __sentry__ method",
+      "changes": [
+        {
+          "file": "sentry/helpers.py",
+          "patch": "@@ -3,6 +3,7 @@\n import urllib\n import urllib2\n import uuid\n+from types import ClassType, TypeType\n \n import django\n from django.conf import settings\n@@ -79,7 +80,8 @@ def transform(value):\n             return str(value)\n         except:\n             return to_unicode(value)\n-    elif callable(getattr(value, '__sentry__', None)):\n+    elif not isinstance(value, (ClassType, TypeType)) and \\\n+            callable(getattr(value, '__sentry__', None)):\n         return value.__sentry__()\n     elif not isinstance(value, (int, bool)) and value is not None:\n         # XXX: we could do transform(repr(value)) here\n@@ -207,4 +209,4 @@ def get_versions(module_list=None):\n         if isinstance(version, (list, tuple)):\n             version = '.'.join(str(o) for o in version)\n         versions[module_name] = version\n-    return versions\n\\ No newline at end of file\n+    return versions"
+        }
+      ]
+    }
+  ]
+}

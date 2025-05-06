@@ -1,0 +1,25 @@
+{
+  "repo_name": "simonw/datasette",
+  "commits": [
+    {
+      "sha": "82fec6048148b58748040a7e2caa163387e982a3",
+      "message": "Fix for TypeError\n\n    File \"../datasette/app.py\", line 138, in __init__\n      self.files = files + immutables\n    TypeError: can only concatenate tuple (not \"list\") to tuple",
+      "changes": [
+        {
+          "file": "datasette/app.py",
+          "patch": "@@ -135,7 +135,7 @@ def __init__(\n         version_note=None,\n     ):\n         immutables = immutables or []\n-        self.files = files + immutables\n+        self.files = tuple(files) + tuple(immutables)\n         self.immutables = set(immutables)\n         if not self.files:\n             self.files = [MEMORY]"
+        }
+      ]
+    },
+    {
+      "sha": "d08faa89872d9ec8d3c8e76d85164ccd84596811",
+      "message": "Fix for weird nested exception in RequestTimeout\n\nI saw this error:\n\n    sanic.exceptions.RequestTimeout: Request Timeout\n\n    During handling of the above exception, another exception occurred:\n\n    Traceback (most recent call last):\n      File \"/Users/simonw/Dropbox/Development/datasette/venv/lib/python3.6/site-packages/sanic/handlers.py\", line 82, in response\n        response = handler(request=request, exception=exception)\n      File \"/Users/simonw/Dropbox/Development/datasette/datasette/app.py\", line 512, in on_exception\n        if request.path.split(\"?\")[0].endswith(\".json\"):\n    AttributeError: 'NoneType' object has no attribute 'path'\n\nStrangely \"if request and request.path...\" did not work here, because the\nSanic Request class extends builtins.dict and hence evaluates to False if it\nhas no headers.",
+      "changes": [
+        {
+          "file": "datasette/app.py",
+          "patch": "@@ -509,7 +509,7 @@ def on_exception(request, exception):\n             info.update(\n                 {\"ok\": False, \"error\": message, \"status\": status, \"title\": title}\n             )\n-            if request.path.split(\"?\")[0].endswith(\".json\"):\n+            if request is not None and request.path.split(\"?\")[0].endswith(\".json\"):\n                 return response.json(info, status=status)\n \n             else:"
+        }
+      ]
+    }
+  ]
+}

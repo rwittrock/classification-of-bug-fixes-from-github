@@ -1,0 +1,15 @@
+{
+  "repo_name": "mlflow/mlflow",
+  "commits": [
+    {
+      "sha": "e18d8c4fd4a2fa79efcca3f94e983aa11544033a",
+      "message": "Fix `train_predict.py` (#670)\n\nRunning the tensorflow example via `python tensorflow/train_predict.py` results in the following error:\r\n```                        \r\nDownloading data from https://storage.googleapis.com/tensorflow/tf-keras-datasets/boston_housing.npz\r\n57344/57026 [==============================] - 0s 1us/step\r\nINFO:tensorflow:Using default config.\r\nWARNING:tensorflow:Using temporary folder as model directory: /tmp/tmpqza4q6ig\r\nINFO:tensorflow:Using config: {'_model_dir': '/tmp/tmpqza4q6ig', '_tf_random_seed': None, '_save_summary_steps': 100, '_save_checkpoints_steps': None, '_save_checkpoints_secs': 600, '_session_config': allow_soft_placement: true\r\ngraph_options {\r\n  rewrite_options {\r\n    meta_optimizer_iterations: ONE\r\n  }\r\n}\r\n, '_keep_checkpoint_max': 5, '_keep_checkpoint_every_n_hours': 10000, '_log_step_count_steps': 100, '_train_distribute': None, '_device_fn': None, '_protocol': None, '_eval_distribute': None, '_experimental_distribute': None, '_service': None, '_cluster_spec': <tensorflow.python.training.server_lib.ClusterSpec object at 0x7efc62095128>, '_task_type': 'worker', '_task_id': 0, '_global_id_in_cluster': 0, '_master': '', '_evaluation_master': '', '_is_chief': True, '_num_ps_replicas': 0, '_num_worker_replicas': 1}\r\nTraceback (most recent call last):\r\n  File \"tensorflow/train_predict.py\", line 54, in <module>\r\n    tf.app.run(main=main)\r\n  File \"/home/mlaradji/.conda/envs/neupy/lib/python3.6/site-packages/tensorflow/python/platform/app.py\", line 125, in run\r\n    _sys.exit(main(argv))\r\n  File \"tensorflow/train_predict.py\", line 25, in main\r\n    with tracking.start_run() as tracked_run:\r\nAttributeError: module 'mlflow.tracking' has no attribute 'start_run'\r\n```\r\n\r\nIt seems that the `start_run` function has been moved from `mlflow.tracking` to `mlflow`. This pull request simply changes `with tracking.start_run() as tracked_run:` to `with mlflow.start_run() as tracked_run:`.",
+      "changes": [
+        {
+          "file": "examples/tensorflow/train_predict.py",
+          "patch": "@@ -22,7 +22,7 @@ def main(argv):\n     steps = 1000\n     regressor = tf.estimator.DNNRegressor(hidden_units=hidden_units, feature_columns=feat_cols)\n     train_input_fn = tf.estimator.inputs.numpy_input_fn({\"features\": x_train}, y_train, num_epochs=None, shuffle=True)\n-    with tracking.start_run() as tracked_run:\n+    with mlflow.start_run() as tracked_run:\n         mlflow.log_param(\"Hidden Units\", hidden_units)\n         mlflow.log_param(\"Steps\", steps)\n         regressor.train(train_input_fn, steps=steps)"
+        }
+      ]
+    }
+  ]
+}

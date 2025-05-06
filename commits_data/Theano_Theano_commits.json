@@ -1,0 +1,155 @@
+{
+  "repo_name": "Theano/Theano",
+  "commits": [
+    {
+      "sha": "1fbb77b6236b400bae67ba61118e033d34cbf25a",
+      "message": "Indexing a scalar now raises an IndexError, not a TypeError.",
+      "changes": [
+        {
+          "file": "theano/tensor/tests/test_subtensor.py",
+          "patch": "@@ -622,7 +622,7 @@ def test_noncontiguous_idx(self):\n \n     def test_err_invalid_list(self):\n         n = self.shared(np.asarray(5, dtype=self.dtype))\n-        self.assertRaises(TypeError, n.__getitem__, [0, 0])\n+        self.assertRaises(IndexError, n.__getitem__, [0, 0])\n \n     def test_err_invalid_2list_dtype(self):\n         n = self.shared(np.ones((3, 3), dtype=self.dtype) * 5)\n@@ -1372,7 +1372,7 @@ def setUp(self):\n         self.adv1q = tensor.lvector()  # advanced 1d query\n \n     def test_cant_adv_idx_into_scalar(self):\n-        self.assertRaises(TypeError, lambda: self.s[self.adv1q])\n+        self.assertRaises(IndexError, lambda: self.s[self.adv1q])\n \n     def test_index_into_vec_w_vec(self):\n         a = self.v[self.adv1q]\n@@ -1521,7 +1521,7 @@ def eval_output_and_check(self, t):\n         return tval\n \n     def test_cant_adv_idx_into_scalar(self):\n-        self.assertRaises(TypeError, lambda: self.s[self.ix1])\n+        self.assertRaises(IndexError, lambda: self.s[self.ix1])\n \n     def test_index_into_vec_w_vec(self):\n         a = self.v[self.ix1]"
+        }
+      ]
+    },
+    {
+      "sha": "f28febc18351177b29b639c24ee131071a7d9b24",
+      "message": "fix message of 2 TypeError",
+      "changes": [
+        {
+          "file": "theano/gpuarray/subtensor.py",
+          "patch": "@@ -771,8 +771,7 @@ def make_node(self, x, y, ilist):\n             else:\n                 opname = 'increment'\n             raise TypeError(\n-                'cannot %s x subtensor with ndim=%s'\n-                ' by y with ndim=%s to x subtensor with ndim=%s ' % (\n+                'cannot %s x subtensor with ndim=%s by y with ndim=%s ' % (\n                     opname, x_.type.ndim, y_.type.ndim))\n \n         return gof.Apply(self, [x_, y_, ilist_], [x_.type()])\n@@ -995,8 +994,7 @@ def make_node(self, x, y, ilist):\n             else:\n                 opname = 'increment'\n             raise TypeError(\n-                'cannot %s x subtensor with ndim=%s'\n-                ' by y with ndim=%s to x subtensor with ndim=%s ' % (\n+                'cannot %s x subtensor with ndim=%s by y with ndim=%s ' % (\n                     opname, x_.type.ndim, y_.type.ndim))\n \n         return gof.Apply(self, [x_, y_, ilist_], [x_.type()])"
+        }
+      ]
+    },
+    {
+      "sha": "361840759dc396537d70f99c45c54cd3333af336",
+      "message": "Open tempfile in mode 'w' to prevent TypeError\n\nFor printing compilation errors, a NamedTemporaryFile object is opened in the default mode ('w+b'), and strings are written to it. This is not an issue in Python 2, but in Python 3, strings cannot be implicitly converted to bytes so a TypeError occurs on line 2310 (previously 2309). This commit explicitly opens the NamedTemporaryFile in mode 'w'.",
+      "changes": [
+        {
+          "file": "theano/gof/cmodule.py",
+          "patch": "@@ -2302,6 +2302,7 @@ def print_command_line_error():\n \n         if status:\n             tf = tempfile.NamedTemporaryFile(\n+                mode='w',\n                 prefix='theano_compilation_error_',\n                 delete=False\n             )"
+        }
+      ]
+    },
+    {
+      "sha": "4d69aead5ecab0ab908c9c4c394c30bcaa6bda8a",
+      "message": "Fix Python3 regression in ``pydotprint``\n\n  In Python3 ``map`` returns a map-object (and not a list). This makes the check\r\n  introduced in #3057 fail with \"TypeError: unorderable types: map() < list()\"",
+      "changes": [
+        {
+          "file": "theano/printing.py",
+          "patch": "@@ -1028,7 +1028,7 @@ def apply_name(node):\n         except pd.InvocationException:\n             # based on https://github.com/Theano/Theano/issues/2988\n             version = getattr(pd, '__version__', \"\")\n-            if version and map(int, version.split(\".\")) < [1, 0, 28]:\n+            if version and list(map(int, version.split(\".\"))) < [1, 0, 28]:\n                 raise Exception(\"Old version of pydot detected, which can \"\n                                 \"cause issues with pydot printing. Try \"\n                                 \"upgrading pydot version to a newer one\")"
+        }
+      ]
+    },
+    {
+      "sha": "cb040b2f10b0d0e351c0fa7750d471710311b8f7",
+      "message": "Fix AttributeError: 'builtin_function_or_method'\n\ncompile is not correctly referenced and fails with \"AttributeError: 'builtin_function_or_method' object has no attribute 'optdb'\"",
+      "changes": [
+        {
+          "file": "theano/sandbox/cuda/opt.py",
+          "patch": "@@ -501,7 +501,7 @@ def local_assert_no_cpu_op(node):\n assert_no_cpu_op = theano.tensor.opt.in2out(local_assert_no_cpu_op,\n                                             name='assert_no_cpu_op')\n # 49.2 is after device specialization & fusion optimizations for last transfers\n-theano.compile.optdb.register('assert_no_cpu_op', assert_no_cpu_op, 49.2)\n+optdb.register('assert_no_cpu_op', assert_no_cpu_op, 49.2)\n \n \n @register_opt()\n@@ -2575,7 +2575,7 @@ def local_inplace_gpu_sparse_block_gemv(node):\n         new_node = gpu_sparse_block_gemv_inplace(*node.inputs)\n         return [new_node]\n     return False\n-compile.optdb.register('local_inplace_gpu_sparse_block_gemv',\n+optdb.register('local_inplace_gpu_sparse_block_gemv',\n                        TopoOptimizer(\n                            local_inplace_gpu_sparse_block_gemv,\n                            failure_callback=TopoOptimizer.warn_inplace),\n@@ -2591,7 +2591,7 @@ def local_inplace_gpu_sparse_block_outer(node):\n         new_node = gpu_sparse_block_outer_inplace(*node.inputs)\n         return [new_node]\n     return False\n-compile.optdb.register('local_inplace_gpu_sparse_block_outer',\n+optdb.register('local_inplace_gpu_sparse_block_outer',\n                        TopoOptimizer(\n                            local_inplace_gpu_sparse_block_outer,\n                            failure_callback=TopoOptimizer.warn_inplace),"
+        }
+      ]
+    },
+    {
+      "sha": "f6d418c2dfc7da9ea275ce3f87dd66e2cda8191b",
+      "message": "Raise TypeError instead of ValueError\n\nto be consistent with AdvancedIncSubtensor1",
+      "changes": [
+        {
+          "file": "theano/tensor/basic.py",
+          "patch": "@@ -4732,14 +4732,14 @@ def inc_subtensor(x, y, inplace=False, set_instead_of_inc=False,\n     x = as_tensor_variable(x)\n     y = as_tensor_variable(y)\n     if y.ndim > x.ndim:\n-        raise ValueError((\"Trying to increment a %d-dimensional \"\n+        raise TypeError((\"Trying to increment a %d-dimensional \"\n             \"subtensor with a %d-dimensional value.\") % (x.ndim, y.ndim))\n \n     for dim in range(y.ndim):\n         dim_offset = x.ndim - y.ndim\n         if (x.broadcastable[dim + dim_offset]\n                 and not y.broadcastable[dim]):\n-            raise ValueError((\"Trying to increment a subtensor with \"\n+            raise TypeError((\"Trying to increment a subtensor with \"\n                 \"broadcastable dimension %d, with a tensor not broadcastable \"\n                 \"on corresponding dimension %d.\") % (dim + dim_offset, dim),\n                 x.broadcastable, y.broadcastable)"
+        }
+      ]
+    },
+    {
+      "sha": "ca3529d21031876f83f4da9972b73adc0a502129",
+      "message": "fixed another except TypeError",
+      "changes": [
+        {
+          "file": "theano/scan_module/scan_opt.py",
+          "patch": "@@ -1165,13 +1165,13 @@ def belongs_to_set(self, node, set_nodes):\n         nsteps = node.inputs[0]\n         try:\n             nsteps = int(get_scalar_constant_value(nsteps))\n-        except TypeError:\n+        except tensor.NotScalarConstantError:\n             pass\n \n         rep_nsteps = rep.inputs[0]\n         try:\n             rep_nsteps = int(get_scalar_constant_value(rep_nsteps))\n-        except TypeError:\n+        except tensor.NotScalarConstantError:\n             pass\n \n         # Check to see if it is an input of a different node"
+        }
+      ]
+    },
+    {
+      "sha": "2d52b5f16a520208d49a7c6471773418182b6c96",
+      "message": "changed another except TypeError",
+      "changes": [
+        {
+          "file": "theano/sandbox/cuda/basic_ops.py",
+          "patch": "@@ -2686,7 +2686,7 @@ def make_node(self, value, *shape):\n             # if s is constant 1, then we're broadcastable in that dim\n             try:\n                 const_shp = tensor.get_scalar_constant_value(s)\n-            except TypeError:\n+            except tensor.NotScalarConstantError:\n                 const_shp = None\n             bcast.append(numpy.all(1 == const_shp))\n         otype = CudaNdarrayType(dtype='float32', broadcastable=bcast)"
+        }
+      ]
+    },
+    {
+      "sha": "e10365dedfe0d834747c2cc316a457ab158cc32c",
+      "message": "fixed an except TypeError I had overlooked earlier",
+      "changes": [
+        {
+          "file": "theano/tensor/nnet/sigm.py",
+          "patch": "@@ -14,7 +14,7 @@\n from theano.configparser import AddConfigVar, BoolParam\n from theano.printing import pprint, debugprint\n from theano.tensor import basic as tensor\n-from theano.tensor import elemwise, opt\n+from theano.tensor import elemwise, opt, NotScalarConstantError\n \n \n ############\n@@ -277,7 +277,7 @@ def is_neg(var):\n             try:\n                 constant = opt.get_scalar_constant_value(mul_input)\n                 is_minus_1 = numpy.allclose(constant, -1)\n-            except TypeError:\n+            except NotScalarConstantError:\n                 is_minus_1 = False\n             if is_minus_1:\n                 # Found a multiplication by -1."
+        }
+      ]
+    },
+    {
+      "sha": "20e8eaf8c895483774f1e6de3d6c9226c330962f",
+      "message": "change TypeError to warning",
+      "changes": [
+        {
+          "file": "theano/compile/function.py",
+          "patch": "@@ -12,6 +12,7 @@\n from profiling import ProfileStats\n from pfunc import pfunc\n from numpy import any  # to work in python 2.4\n+import warnings\n \n def function(inputs, outputs=None, mode=None, updates=None, givens=None,\n              no_default_updates=False, accept_inplace=False, name=None,\n@@ -165,7 +166,7 @@ def opt_log1p(node):\n     # I use the string value of the type to do type checking here since\n     # OrderedDict is not available in python2.4\n     if isinstance(updates, dict) and 'Ordered' not in str(type(updates)):\n-        raise TypeError(\"Expected OrderedDict, got \"+str(type(updates))+ \"Using \"\n+        warnings.warn(\"Expected OrderedDict, got \"+str(type(updates))+ \"Using \"\n         \"a standard dictionary here results in \"\n             \"non-deterministic behavior. You should use an OrderedDict\"\n             \" if you are using python2.7 or use a list of (shared, update)\""
+        }
+      ]
+    },
+    {
+      "sha": "e54d71449bff075ae502a6f14dde943a5e45514c",
+      "message": "changed a ValueError to a TypeError",
+      "changes": [
+        {
+          "file": "theano/tensor/basic.py",
+          "patch": "@@ -989,7 +989,7 @@ def c_extract(self, name, sub):\n             %(fail)s\n         }\n         if (type_num_%(name)s != %(type_num)s) {\n-            PyErr_Format(PyExc_ValueError,\n+            PyErr_Format(PyExc_TypeError,\n                          \"expected type_num %%d (%(type_num)s) got %%d\",\n                          %(type_num)s, type_num_%(name)s);\n             %(fail)s"
+        }
+      ]
+    },
+    {
+      "sha": "a9a8ff2be1e8d353ec28a6acc4aecc64767959da",
+      "message": "In filter, raise TypeError or ValueError.\n\ntype.is_valid_value relies on filter() raising either TypeError\nor ValueError for invalid values, not AssertionError.",
+      "changes": [
+        {
+          "file": "theano/gof/tests/test_op.py",
+          "patch": "@@ -39,7 +39,10 @@ def __repr__(self):\n     def filter(self, x, strict=False, allow_downcast=None):\n         # Dummy filter: we want this type to represent strings that\n         # start with `self.thingy`.\n-        assert isinstance(x, basestring) and x.startswith(self.thingy)\n+        if not isinstance(x, basestring):\n+            raise TypeError(\"Invalid type\")\n+        if not x.startswith(self.thingy):\n+            raise ValueError(\"Invalid value\")\n         return x\n \n class MyOp(Op):"
+        }
+      ]
+    },
+    {
+      "sha": "ccbb487636f162a27acb99d3ea43eb302a728418",
+      "message": "More explicit error message\n\nMakes it more obvious to users what may be their mistake when they get a\nTypeError after trying to index a shared variable.",
+      "changes": [
+        {
+          "file": "theano/sandbox/cuda/var.py",
+          "patch": "@@ -140,6 +140,12 @@ def filter_update(self, other):\n                 other.type.broadcastable)))\n         return GpuFromHost()(other)\n \n+    def __getitem__(self, *args):\n+        # Defined to explicitly use the implementation from `_operators`, since\n+        # the definition in `SharedVariable` is only meant to raise an error.\n+        return _operators.__getitem__(self, *args)\n+\n+\n CudaNdarrayType.SharedVariable = CudaNdarraySharedVariable\n \n def cuda_shared_constructor(value, name=None, strict=False,"
+        }
+      ]
+    },
+    {
+      "sha": "febb463dea14c78a05762f7be2bfcf63cd51a3eb",
+      "message": "added more information to a TypeError raised in gof/graph",
+      "changes": [
+        {
+          "file": "theano/gof/graph.py",
+          "patch": "@@ -153,7 +153,8 @@ def clone_with_new_inputs(self, inputs, strict = True):\n         for curr, new in zip(self.inputs, inputs):\n             if not curr.type == new.type:\n                 if strict:\n-                    raise TypeError(\"Cannot change the type of this input.\", curr, new)\n+                    raise TypeError(\"Cannot change the type of this input.\", ((curr, curr.type),\n+                            (new, new.type)))\n                 else:\n                     remake_node = True\n         if remake_node:"
+        }
+      ]
+    },
+    {
+      "sha": "ba49f1ec05b99d80e812899bd3d6c377da9800e4",
+      "message": "s/TypeError/ValueError in TensorType.filter when non-finite elements are not allowed",
+      "changes": [
+        {
+          "file": "theano/tensor/basic.py",
+          "patch": "@@ -389,7 +389,7 @@ def filter(self, data, strict = False):\n                 raise TypeError(\"Non-unit value on shape on a broadcastable dimension.\", data.shape, self.broadcastable)\n             i+=1\n         if self.filter_checks_isfinite and (not numpy.all(numpy.isfinite(data))):\n-            raise TypeError(\"non-finite elements not allowed\")\n+            raise ValueError(\"non-finite elements not allowed\")\n         return data\n \n     def dtype_specs(self):"
+        }
+      ]
+    }
+  ]
+}
